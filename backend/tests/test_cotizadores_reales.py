@@ -5,9 +5,8 @@ Estas pruebas son el contrato del motor con el mundo real: si pasan, el motor
 reproduce lo que el banco calcula. Si alguna falla después de un cambio, el
 cambio rompió la compatibilidad con una institución, no "la prueba está mal".
 
-ESTADO ACTUAL: los renglones de HSBC y Santander se validan contra el MOTOR.
-Banregio todavía valida su implementación de referencia (`_construir_banregio`)
-porque el motor aún no soporta días reales ni base de amortización separada.
+ESTADO ACTUAL: los renglones de las tres instituciones se validan contra el
+MOTOR. Las funciones `_construir_*` quedan como contraste.
 
 PENDIENTE: cuando el motor soporte las convenciones de
 docs/validacion_modelos.md sección 5, hay que SUSTITUIR cada `_construir_*` por
@@ -250,7 +249,7 @@ def test_santander_cat():
 
 @pytest.mark.parametrize("mes", sorted(BANREGIO["renglones"]))
 def test_banregio_renglones(mes):
-    filas = _construir_banregio(BANREGIO["parametros"])
+    filas = _banregio_desde_motor(BANREGIO["parametros"])
     fecha, saldo, interes, capital, seguro, total = filas[mes]
     e_fecha, e_saldo, e_int, e_cap, e_seg, e_tot = BANREGIO["renglones"][mes]
     assert fecha == e_fecha
@@ -260,6 +259,57 @@ def test_banregio_renglones(mes):
         assert abs(calc - esp) < TOL, f"mes {mes}, {nombre}: {calc} != {esp}"
 
 
+def _banregio_desde_motor(p):
+    """
+    Con la forma de `_construir_banregio`. Interés con días reales, capital con
+    tasa/12 y seguros dentro del pago base. Los seguros del archivo son un
+    componente fijo más una tasa sobre saldo: se representan como seguro de
+    daños fijo y seguro de vida sobre saldo; su suma es la columna del archivo.
+    """
+    producto = ProductoHipotecario(
+        id="banregio",
+        institucion="Banregio",
+        nombre="Escenario del cotizador",
+        tasa_anual=p["tasa_anual"],
+        plazos_meses=(p["plazo_meses"],),
+        aforo_max=D("1"),
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+        seguros_en_pago_fijo=True,
+        seguro_vida_mensual=p["seguro_tasa_saldo"],
+        seguro_danos_monto_mensual=p["seguro_fijo"],
+        comision_mensual=p["comision_mensual"],
+    )
+    tabla = construir_tabla(
+        LineaCredito(producto, p["monto"], p["plazo_meses"]),
+        D("1000000"),
+        fecha_primer_pago=date.fromisoformat(p["fecha_primer_pago"]),
+    )
+    return {
+        r.mes: (r.fecha_pago.isoformat(), r.saldo_inicial, r.interes, r.capital,
+                r.seguro_vida + r.seguro_danos, r.pago_total)
+        for r in tabla.renglones
+    }
+
+
+def test_banregio_motor_coincide_con_referencia_en_todos_los_renglones():
+    """
+    La referencia usa el pago base del fixture, cortado a 4 decimales
+    (16953.2283); el motor lo deriva completo (16953.22831910…). Por eso
+    difieren hasta ~$0.004, y el motor queda MÁS cerca del archivo (~$0.00002).
+    """
+    p = BANREGIO["parametros"]
+    motor = _banregio_desde_motor(p)
+    referencia = _construir_banregio(p)
+    assert len(motor) == p["plazo_meses"]
+    for mes in range(1, p["plazo_meses"] + 1):
+        assert motor[mes][0] == referencia[mes][0]
+        for calc, ref, nombre in zip(motor[mes][1:], referencia[mes][1:],
+                                     ["saldo", "interés", "amortización", "seguros", "pago"]):
+            assert abs(calc - ref) < TOL, f"mes {mes}, {nombre}: {calc} != {ref}"
+
+
 def test_banregio_pago_no_es_fijo():
     """
     El producto se llama 'pagos fijos' pero el pago varía con los días del mes.
@@ -267,7 +317,7 @@ def test_banregio_pago_no_es_fijo():
     Se comparan diciembre 2023 (31 días) contra febrero 2024 (29 días): el saldo
     apenas cambió entre ambos, así que la diferencia es atribuible al calendario.
     """
-    filas = _construir_banregio(BANREGIO["parametros"])
+    filas = _banregio_desde_motor(BANREGIO["parametros"])
     dic = filas[1][5]
     feb = filas[3][5]
     assert abs(dic - BANREGIO["pago_dic_2023"]) < D("0.01")

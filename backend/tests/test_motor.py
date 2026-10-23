@@ -517,3 +517,70 @@ def test_comision_apertura_por_monto_fijo():
     )
     assert por_fraccion.comision_apertura_para(Decimal("1850000")) == Decimal("18500")
     assert por_monto.comision_apertura_para(Decimal("1850000")) == Decimal("7000")
+
+
+# --------------------------------------------------------------------------
+# Días reales y base de amortización separada
+# --------------------------------------------------------------------------
+
+
+def producto_dias_reales(**kwargs) -> ProductoHipotecario:
+    base = dict(
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+    )
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+def test_tasa_periodica_con_dias_reales():
+    assert tasa_periodica(Decimal("0.12"), ConvencionDias.DIAS_REALES_360, dias=29) == (
+        Decimal("0.12") * 29 / Decimal(360)
+    )
+    with pytest.raises(ValueError):
+        tasa_periodica(Decimal("0.12"), ConvencionDias.DIAS_REALES_360)
+
+
+def test_dias_reales_requiere_fecha_de_primer_pago():
+    linea = LineaCredito(producto_dias_reales(), Decimal("1000000"), 120)
+    with pytest.raises(ValueError, match="fecha"):
+        construir_tabla(linea, Decimal("1500000"))
+
+
+def test_el_pago_no_puede_usar_dias_reales():
+    """El pago fijo necesita una tasa por periodo única."""
+    producto = producto_dias_reales(convencion_pago=None, convencion_amortizacion=None)
+    linea = LineaCredito(producto, Decimal("1000000"), 120)
+    with pytest.raises(ValueError, match="pago"):
+        construir_tabla(linea, Decimal("1500000"), fecha_primer_pago=date(2027, 1, 1))
+
+
+def test_dias_reales_hace_variar_el_pago_con_el_calendario():
+    linea = LineaCredito(producto_dias_reales(), Decimal("1000000"), 120)
+    tabla = construir_tabla(linea, Decimal("1500000"), fecha_primer_pago=date(2027, 1, 1))
+    enero, febrero, marzo = tabla.renglones[:3]
+    assert [r.fecha_pago for r in (enero, febrero, marzo)] == [
+        date(2027, 1, 1), date(2027, 2, 1), date(2027, 3, 1)
+    ]
+    assert febrero.pago_total < enero.pago_total
+    assert febrero.pago_total < marzo.pago_total
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
+
+
+def test_comparar_fija_el_primer_pago_al_mes_siguiente():
+    """Sin fecha capturada, el primer pago es el día 1 del mes siguiente: el
+    snapshot guarda la fecha y el cálculo se puede reproducir."""
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=120
+    )
+    comparacion = comparar(escenario, [producto_dias_reales()], momento=date(2026, 12, 15))
+    tabla = comparacion.opciones[0].tabla
+    assert tabla.renglones[0].fecha_pago == date(2027, 1, 1)
+    assert comparacion.snapshot.escenario.fecha_primer_pago is None
+
+
+def test_tasa_normalizada_con_dias_reales_usa_anio_de_365():
+    normalizada = tasa_normalizada(producto_dias_reales(tasa_anual=Decimal("0.1085")))
+    assert normalizada == Decimal("0.1085") * 365 / Decimal(360)
+

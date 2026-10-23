@@ -8,8 +8,11 @@ créditos por "el pago mensual" es engañoso y hay que comparar costo total.
 
 from __future__ import annotations
 
+import calendar
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Optional
 
 from .modelos import (
     BaseSeguroDanos,
@@ -44,12 +47,14 @@ class Renglon:
     comision_mensual: Dinero
     pago_total: Dinero
     saldo_final: Dinero
+    fecha_pago: Optional[date] = None
 
 
 @dataclass(frozen=True)
 class TablaAmortizacion:
     renglones: tuple[Renglon, ...]
-    pago_capital_interes: Dinero  # el pago fijo, sin seguros
+    # El pago fijo. Sin seguros, salvo en productos con seguros_en_pago_fijo.
+    pago_capital_interes: Dinero
     monto: Dinero
     tasa_anual: Decimal
     plazo_meses: int
@@ -87,8 +92,17 @@ class TablaAmortizacion:
         return self.renglones[min(mes, len(self.renglones)) - 1].saldo_final
 
 
-def tasa_periodica(tasa_anual: Decimal, convencion: ConvencionDias) -> Decimal:
-    """Tasa del periodo mensual según la convención de conteo de días."""
+def tasa_periodica(
+    tasa_anual: Decimal, convencion: ConvencionDias, dias: Optional[int] = None
+) -> Decimal:
+    """
+    Tasa del periodo mensual según la convención de conteo de días. `dias` es
+    obligatorio con días reales: los días del mes del pago.
+    """
+    if convencion is ConvencionDias.DIAS_REALES_360:
+        if dias is None:
+            raise ValueError("La convención de días reales necesita los días del periodo.")
+        return tasa_anual * Decimal(dias) / Decimal(360)
     if convencion is ConvencionDias.TASA_ENTRE_12:
         return tasa_anual / Decimal(12)
     if convencion is ConvencionDias.DIAS_30_4166_360:
@@ -106,7 +120,11 @@ def tasa_normalizada(producto: ProductoHipotecario) -> Decimal:
     Tasa anual equivalente en base /12, usada SOLO para ordenar productos con
     convenciones distintas. Al presentar se muestra la tasa nominal del
     contrato y, por separado, esta.
+
+    Días reales se normaliza con un año de 365 días.
     """
+    if producto.convencion_interes is ConvencionDias.DIAS_REALES_360:
+        return producto.tasa_anual * Decimal(365) / Decimal(360)
     return tasa_periodica(producto.tasa_anual, producto.convencion_interes) * 12
 
 
@@ -123,12 +141,19 @@ def pago_frances(
 
     Se devuelve SIN redondear, igual que el resto de la tabla.
     """
+    if convencion is ConvencionDias.DIAS_REALES_360:
+        raise ValueError(
+            "El pago fijo no puede calcularse con días reales: define "
+            "convencion_pago en el producto."
+        )
+    return _anualidad(monto, tasa_periodica(tasa_anual, convencion), plazo_meses)
+
+
+def _anualidad(monto: Dinero, i: Decimal, plazo_meses: int) -> Decimal:
     if plazo_meses <= 0:
         raise ValueError("El plazo debe ser mayor a cero.")
     if monto <= 0:
         raise ValueError("El monto debe ser mayor a cero.")
-
-    i = tasa_periodica(tasa_anual, convencion)
 
     # Caso tasa cero (aplica en algunos esquemas de vivienda social)
     if i == 0:
@@ -136,6 +161,12 @@ def pago_frances(
 
     factor = (Decimal(1) + i) ** Decimal(-plazo_meses)
     return monto * i / (Decimal(1) - factor)
+
+
+def _sumar_meses(fecha: date, meses: int) -> date:
+    total = fecha.month - 1 + meses
+    anio, mes = fecha.year + total // 12, total % 12 + 1
+    return date(anio, mes, min(fecha.day, calendar.monthrange(anio, mes)[1]))
 
 
 def _seguro_danos_mensual(
@@ -156,6 +187,7 @@ def _seguro_danos_mensual(
 def construir_tabla(
     linea: LineaCredito,
     valor_vivienda: Dinero,
+    fecha_primer_pago: Optional[date] = None,
 ) -> TablaAmortizacion:
     """
     Construye la tabla completa, con precisión completa en cada renglón.
@@ -166,33 +198,68 @@ def construir_tabla(
 
     El último renglón liquida el saldo remanente para que cierre exactamente en
     cero; sin redondeo intermedio ese remanente es del orden de 1e-20.
+
+    `fecha_primer_pago` es obligatoria con días reales; con las demás
+    convenciones solo sirve para fechar los renglones.
     """
     monto = linea.monto
     tasa = linea.producto.tasa_anual
     plazo = linea.plazo_meses
     producto = linea.producto
-    i = tasa_periodica(tasa, producto.convencion_interes)
-    convencion_pago = producto.convencion_pago or producto.convencion_interes
+    convencion_interes = producto.convencion_interes
+    convencion_pago = producto.convencion_pago or convencion_interes
+    convencion_amortizacion = producto.convencion_amortizacion
+
+    dias_reales = convencion_interes is ConvencionDias.DIAS_REALES_360
+    if dias_reales and fecha_primer_pago is None:
+        raise ValueError(
+            "El producto cobra interés con días reales: se necesita la fecha "
+            "del primer pago."
+        )
+    if convencion_amortizacion is ConvencionDias.DIAS_REALES_360:
+        raise ValueError("La base de amortización no puede ser días reales.")
+
+    danos = _seguro_danos_mensual(producto, valor_vivienda)
+    comision_mensual = producto.comision_mensual
 
     # Si el pago y el interés usan convenciones distintas (Santander), el
     # último renglón absorbe la diferencia acumulada.
-    pago_fijo = pago_frances(monto, tasa, plazo, convencion_pago)
-    danos = _seguro_danos_mensual(producto, valor_vivienda)
-    comision_mensual = producto.comision_mensual
+    if producto.seguros_en_pago_fijo:
+        # Los seguros van dentro del pago: anualidad con la tasa del seguro de
+        # vida sumada a la del periodo, más el seguro de daños.
+        if convencion_pago is ConvencionDias.DIAS_REALES_360:
+            raise ValueError(
+                "El pago fijo no puede calcularse con días reales: define "
+                "convencion_pago en el producto."
+            )
+        i_pago = tasa_periodica(tasa, convencion_pago) + producto.seguro_vida_mensual
+        pago_fijo = _anualidad(monto, i_pago, plazo) + danos
+    else:
+        pago_fijo = pago_frances(monto, tasa, plazo, convencion_pago)
 
     renglones: list[Renglon] = []
     saldo = monto
 
     for mes in range(1, plazo + 1):
         saldo_inicial = saldo
-        interes = saldo_inicial * i
-        vida = saldo_inicial * linea.producto.seguro_vida_mensual
+        fecha = _sumar_meses(fecha_primer_pago, mes - 1) if fecha_primer_pago else None
+        dias = calendar.monthrange(fecha.year, fecha.month)[1] if dias_reales else None
+
+        interes = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
+        vida = saldo_inicial * producto.seguro_vida_mensual
+
+        # Interés que se descuenta del pago para obtener el capital. Si la base
+        # de amortización difiere de la de cobro, no es el interés cobrado.
+        interes_amortizacion = interes
+        if convencion_amortizacion is not None:
+            interes_amortizacion = saldo_inicial * tasa_periodica(tasa, convencion_amortizacion)
 
         if mes == plazo:
             # Pago final: liquida todo el saldo remanente
             capital = saldo_inicial
         else:
-            capital = pago_fijo - interes
+            disponible = pago_fijo - (vida + danos if producto.seguros_en_pago_fijo else 0)
+            capital = disponible - interes_amortizacion
             # Blindaje: si la tasa fuera tan alta que el pago no cubre el
             # interés, la tabla nunca amortizaría. Se detecta en vez de
             # producir una tabla silenciosamente incorrecta.
@@ -217,6 +284,7 @@ def construir_tabla(
                 comision_mensual=comision_mensual,
                 pago_total=pago_total,
                 saldo_final=saldo_final,
+                fecha_pago=fecha,
             )
         )
         saldo = saldo_final

@@ -126,6 +126,7 @@ class Comparacion:
 def evaluar_producto(
     escenario: Escenario,
     producto: ProductoHipotecario,
+    fecha_primer_pago: Optional[date] = None,
 ) -> ResultadoOpcion:
     """Evalúa un escenario contra un producto y devuelve el resultado completo."""
 
@@ -169,7 +170,11 @@ def evaluar_producto(
     )
 
     linea = LineaCredito(producto=producto, monto=monto, plazo_meses=plazo_calculo)
-    tabla = construir_tabla(linea, escenario.valor_vivienda)
+    tabla = construir_tabla(
+        linea,
+        escenario.valor_vivienda,
+        fecha_primer_pago or escenario.fecha_primer_pago or primer_pago_por_defecto(date.today()),
+    )
 
     comision = redondear(producto.comision_apertura_para(monto))
     cat = calcular_cat(tabla, producto)
@@ -210,6 +215,13 @@ def evaluar_producto(
     )
 
 
+def primer_pago_por_defecto(momento: date) -> date:
+    """Día 1 del mes siguiente."""
+    if momento.month == 12:
+        return date(momento.year + 1, 1, 1)
+    return date(momento.year, momento.month + 1, 1)
+
+
 def comparar(
     escenario: Escenario,
     productos: list[ProductoHipotecario],
@@ -233,7 +245,10 @@ def comparar(
             f"No hay productos vigentes al {momento.isoformat()} en el catálogo."
         )
 
-    opciones = tuple(evaluar_producto(escenario, p) for p in vigentes)
+    # Sin fecha capturada se usa el día 1 del mes siguiente a la comparación;
+    # el snapshot guarda `generado_en`, así que el cálculo es reproducible.
+    fecha_primer_pago = escenario.fecha_primer_pago or primer_pago_por_defecto(momento)
+    opciones = tuple(evaluar_producto(escenario, p, fecha_primer_pago) for p in vigentes)
 
     snapshot = Snapshot(
         generado_en=momento,

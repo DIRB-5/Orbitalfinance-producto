@@ -214,6 +214,7 @@ export const ETIQUETA_CONVENCION = {
   "tasa*30.4166/360": "Tasa × 30.4166 / 360",
   "tasa*30.4/360": "Tasa × 30.4 / 360",
   "(tasa/360)*(365/12)": "(Tasa / 360) × (365 / 12)",
+  "tasa*dias_reales/360": "Tasa × días del mes / 360",
 };
 
 // Producto de la API → forma que usa la interfaz.
@@ -228,6 +229,8 @@ function adaptarProducto(p) {
     tasaNormalizada: num(p.tasaNormalizada),
     convencionInteres: p.convencionInteres,
     convencionPago: p.convencionPago,
+    convencionAmortizacion: p.convencionAmortizacion,
+    segurosEnPagoFijo: p.segurosEnPagoFijo,
     plazosMeses: p.plazosMeses,
     aforoMax: num(p.aforoMax),
     comisionApertura: num(p.comisionApertura),
@@ -318,6 +321,7 @@ function adaptarOpcion(o, escenario) {
     tabla: elegible
       ? o.tabla.map((r) => ({
           mes: r.mes,
+          fechaPago: r.fechaPago,
           saldoInicial: num(r.saldoInicial),
           capital: num(r.capital),
           interes: num(r.interes),

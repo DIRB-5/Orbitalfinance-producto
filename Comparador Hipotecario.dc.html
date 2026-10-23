@@ -4030,6 +4030,8 @@ class Component extends DCLogic {
         campoTasa.push(
           { k: "Base de días (interés)", v: m.ETIQUETA_CONVENCION[convInteres] },
           { k: "Base de días (pago)", v: m.ETIQUETA_CONVENCION[convPago] },
+          { k: "Base de días (amortización)", v: m.ETIQUETA_CONVENCION[p.convencionAmortizacion || convInteres] },
+          { k: "Seguros dentro del pago fijo", v: p.segurosEnPagoFijo ? "Sí" : "No" },
           { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p)) }
         );
         return campoTasa.concat([

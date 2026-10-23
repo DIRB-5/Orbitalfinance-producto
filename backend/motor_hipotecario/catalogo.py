@@ -20,8 +20,10 @@ LÍMITES DE ESTOS DATOS — léelos antes de usarlos frente a un cliente:
 Actualizar condiciones = cerrar la vigencia del producto y crear uno nuevo con
 su propia fuente. Nunca editar en sitio (CLAUDE.md, regla 3).
 
-Pendientes de agregar cuando el motor los soporte:
-  Banregio  — interés con días reales y seguro fijo + tasa sobre saldo
+Pendientes:
+  Banregio  — el motor ya lo reproduce; faltan la comisión por apertura y el
+              avalúo, que no se extrajeron del cotizador. Sin ellos saldría
+              artificialmente barato frente a los demás.
   Scotiabank, Banamex — los cotizadores se recibieron sin escenario capturado
 """
 

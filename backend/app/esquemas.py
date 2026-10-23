@@ -8,6 +8,7 @@ capa de presentación del motor, que calcula con precisión completa.
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 
@@ -26,6 +27,7 @@ class EscenarioEntrada(ModeloBase):
     gastos_notariales: Decimal = Field(default=Decimal("0"), ge=0)
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
+    fecha_primer_pago: Optional[date] = None
 
 
 class ProductoSalida(ModeloBase):
@@ -37,6 +39,8 @@ class ProductoSalida(ModeloBase):
     tasa_normalizada: str
     convencion_interes: str
     convencion_pago: str
+    convencion_amortizacion: str
+    seguros_en_pago_fijo: bool
     plazos_meses: List[int]
     aforo_max: str
     comision_apertura: str
@@ -63,6 +67,7 @@ class CatalogoSalida(ModeloBase):
 
 class RenglonSalida(ModeloBase):
     mes: int
+    fecha_pago: Optional[str]
     saldo_inicial: str
     interes: str
     capital: str
@@ -100,4 +105,5 @@ class OpcionSalida(ModeloBase):
 class ComparacionSalida(ModeloBase):
     version_motor: str
     generado_en: str
+    fecha_primer_pago: str
     opciones: List[OpcionSalida]

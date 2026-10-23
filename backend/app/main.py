@@ -13,7 +13,12 @@ from fastapi import FastAPI, HTTPException
 
 from motor_hipotecario.amortizacion import redondear, tasa_normalizada
 from motor_hipotecario.catalogo import CATALOGO
-from motor_hipotecario.comparador import VERSION_MOTOR, ResultadoOpcion, comparar
+from motor_hipotecario.comparador import (
+    VERSION_MOTOR,
+    ResultadoOpcion,
+    comparar,
+    primer_pago_por_defecto,
+)
 from motor_hipotecario.modelos import Escenario, ProductoHipotecario
 
 from .esquemas import (
@@ -52,6 +57,8 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         tasa_normalizada=_tasa(tasa_normalizada(p)),
         convencion_interes=p.convencion_interes.value,
         convencion_pago=(p.convencion_pago or p.convencion_interes).value,
+        convencion_amortizacion=(p.convencion_amortizacion or p.convencion_interes).value,
+        seguros_en_pago_fijo=p.seguros_en_pago_fijo,
         plazos_meses=list(p.plazos_meses),
         aforo_max=_tasa(p.aforo_max),
         comision_apertura=_tasa(p.comision_apertura),
@@ -99,6 +106,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         tabla=[
             RenglonSalida(
                 mes=r.mes,
+                fecha_pago=r.fecha_pago.isoformat() if r.fecha_pago else None,
                 saldo_inicial=_dinero(r.saldo_inicial),
                 interes=_dinero(r.interes),
                 capital=_dinero(r.capital),
@@ -133,6 +141,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         gastos_notariales=entrada.gastos_notariales,
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
+        fecha_primer_pago=entrada.fecha_primer_pago,
     )
     try:
         resultado = comparar(escenario, CATALOGO)
@@ -144,5 +153,8 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
     return ComparacionSalida(
         version_motor=resultado.snapshot.version_motor,
         generado_en=resultado.snapshot.generado_en.isoformat(),
+        fecha_primer_pago=(
+            escenario.fecha_primer_pago or primer_pago_por_defecto(resultado.snapshot.generado_en)
+        ).isoformat(),
         opciones=[_opcion(o, escenario) for o in opciones],
     )

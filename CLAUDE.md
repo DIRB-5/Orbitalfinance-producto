@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             65 pruebas. No deben bajar de ahí.
+  tests/             73 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -236,7 +236,7 @@ la tabla y redondean **solo al presentar**.
 `redondear()` queda solo para la capa de presentación (API, PDF), que **debe**
 aplicarlo al desplegar. `test_hsbc_renglones` ya valida contra el motor.
 
-### 2. La convención de conteo de días es atributo del producto — HECHO, salvo días reales
+### 2. La convención de conteo de días es atributo del producto — HECHO
 
 Existen cuatro en el mercado y producen resultados distintos con la misma tasa
 nominal:
@@ -261,7 +261,9 @@ distinta para cada cosa: `tasa*30.4166/360` para el interés y
 `(tasa/360)*(365/12)` para el pago. `tasa_normalizada()` da la tasa para
 ordenar. `test_santander_renglones` ya valida contra el motor.
 
-**Falta días reales / 360**: necesita fechas de pago y entra con la corrección 3.
+Días reales / 360 (`DIAS_REALES_360`) solo aplica al interés cobrado y
+necesita `fecha_primer_pago`. Si el escenario no la trae, el comparador usa el
+día 1 del mes siguiente a la comparación (reproducible desde el snapshot).
 
 ### 3. La base de amortización puede diferir de la base de cobro
 
@@ -269,7 +271,10 @@ Banregio amortiza capital con `tasa/12` y cobra interés con días reales. El
 resultado es que su producto de "pagos fijos" **no tiene pago fijo**: varía
 $685 entre febrero y un mes de 31 días.
 
-El modelo necesita dos campos separados, no uno.
+**HECHO.** `convencion_amortizacion` en el producto (None = la de cobro) y
+`seguros_en_pago_fijo` para productos cuyo pago fijo incluye los seguros: el
+pago es la anualidad con la tasa del seguro de vida sumada a la del periodo,
+más el seguro de daños. `test_banregio_renglones` ya valida contra el motor.
 
 ### 4. El IVA se excluye del flujo del CAT por concepto, no de forma uniforme
 
@@ -299,6 +304,12 @@ No solo una tasa. Banregio: `$81.52 + 0.00083 × saldo`. Además, Banamex aplica
 extraprima por edad, condición médica y ocupación, así que la prima es función
 del producto **y del solicitante**, no solo del producto.
 
+**Parcial.** El componente fijo más tasa se representa con
+`seguro_danos_monto_mensual` (fijo) y `seguro_vida_mensual` (sobre saldo); el
+cotizador de Banregio solo da la suma, así que la división entre vida y daños
+es un supuesto que no cambia ningún resultado. La extraprima por perfil del
+solicitante sigue pendiente.
+
 ### Las pruebas de `test_cotizadores_reales.py` son el contrato
 
 Reproducen HSBC (240 renglones), Santander (300) y Banregio (120) contra valores
@@ -316,7 +327,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 65 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 73 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

@@ -46,3 +46,12 @@ def test_comparar_ordena_por_costo_total_y_rotula_cat_estimado():
 def test_escenario_invalido_responde_422():
     malo = dict(ESCENARIO, enganche="3000000")
     assert cliente.post("/api/comparar", json=malo).status_code == 422
+
+
+def test_renglones_traen_fecha_de_pago():
+    cuerpo = dict(ESCENARIO, fechaPrimerPago="2027-01-01")
+    datos = cliente.post("/api/comparar", json=cuerpo).json()
+    assert datos["fechaPrimerPago"] == "2027-01-01"
+    tabla = datos["opciones"][0]["tabla"]
+    assert [r["fechaPago"] for r in tabla[:2]] == ["2027-01-01", "2027-02-01"]
+

@@ -49,8 +49,10 @@ class ConvencionDias(str, Enum):
     DIAS_30_4166_360 = "tasa*30.4166/360"      # Santander (interés)
     DIAS_30_4_360 = "tasa*30.4/360"            # Banorte
     DIAS_365_12_360 = "(tasa/360)*(365/12)"    # Santander (pago)
-    # Días reales del mes / 360 (Scotiabank, Banregio, Afirme) requiere fechas
-    # de pago; entra junto con la base de amortización separada (corrección 3).
+    # Días del mes de cada pago / 360 (Scotiabank, Banregio, Afirme). Necesita
+    # fechas de pago y solo aplica al interés cobrado: el pago fijo requiere
+    # una tasa por periodo única.
+    DIAS_REALES_360 = "tasa*dias_reales/360"
 
 
 class TipoLinea(str, Enum):
@@ -87,6 +89,16 @@ class ProductoHipotecario:
     # Convención con que se calcula el pago fijo. None = la misma del interés.
     # Santander usa una distinta para cada cosa.
     convencion_pago: Optional[ConvencionDias] = None
+
+    # Convención del interés que se descuenta del pago para obtener el capital
+    # amortizado. None = el interés cobrado. Banregio cobra con días reales
+    # pero amortiza con tasa/12, así que su pago total varía con el calendario.
+    convencion_amortizacion: Optional[ConvencionDias] = None
+
+    # True si los seguros van dentro del pago fijo: el pago se calcula con la
+    # tasa del seguro de vida sumada a la del periodo, más el seguro de daños,
+    # y el capital es lo que queda después de seguros e interés (Banregio).
+    seguros_en_pago_fijo: bool = False
 
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
@@ -189,6 +201,10 @@ class Escenario:
 
     # Proporción máxima del ingreso que puede destinarse al pago
     factor_pago_ingreso: Decimal = Decimal("0.30")
+
+    # Fecha del primer pago. Solo la usan los productos con días reales; si no
+    # se captura, el comparador usa el día 1 del mes siguiente a la comparación.
+    fecha_primer_pago: Optional[date] = None
 
     etiqueta: str = ""
     notas: str = ""
