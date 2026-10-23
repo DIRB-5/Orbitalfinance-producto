@@ -70,6 +70,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         base_seguro_danos=p.base_seguro_danos.value,
         factor_construccion=_tasa(p.factor_construccion),
         avaluo=_dinero(p.avaluo),
+        cat_netos_de_iva=sorted(c.value for c in p.cat_netos_de_iva),
         monto_minimo=_dinero_opcional(p.monto_minimo),
         monto_maximo=_dinero_opcional(p.monto_maximo),
         vigente_desde=p.vigente_desde.isoformat(),

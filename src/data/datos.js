@@ -243,6 +243,7 @@ function adaptarProducto(p) {
     baseSeguroDanos: p.baseSeguroDanos,
     factorConstruccion: num(p.factorConstruccion),
     avaluo: num(p.avaluo),
+    catNetosDeIva: p.catNetosDeIva || [],
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,
@@ -276,6 +277,18 @@ export async function cargarCatalogo() {
 export function fechaCondiciones() {
   const fechas = productos.map((p) => p.vigenteDesde).filter(Boolean).sort();
   return fechas.length ? fechas[fechas.length - 1] : HOY;
+}
+
+const ETIQUETA_CONCEPTO_IVA = {
+  comision_apertura: "comisión por apertura",
+  avaluo: "avalúo",
+  seguro_danos: "seguro de daños",
+  comision_mensual: "comisión mensual",
+};
+
+export function conceptosNetosDeIva(producto) {
+  const lista = (producto.catNetosDeIva || []).map((c) => ETIQUETA_CONCEPTO_IVA[c] || c);
+  return lista.length ? lista.join(", ") : "Ninguno (todo con IVA)";
 }
 
 export function tasaNormalizada(producto) {

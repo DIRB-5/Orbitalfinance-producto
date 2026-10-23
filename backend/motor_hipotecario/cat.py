@@ -28,7 +28,10 @@ from __future__ import annotations
 from decimal import Decimal
 
 from .amortizacion import TablaAmortizacion
-from .modelos import Dinero, ProductoHipotecario
+from .modelos import ConceptoIVA, Dinero, ProductoHipotecario
+
+# Factor para quitar el IVA de un concepto que lo causa.
+FACTOR_IVA = Decimal("1.16")
 
 # Precisión objetivo del solver: 1e-8 en tasa anual
 TOLERANCIA = Decimal("1E-8")
@@ -50,6 +53,36 @@ def _valor_presente_neto(
     return vpn
 
 
+def flujos_cat(
+    tabla: TablaAmortizacion, producto: ProductoHipotecario
+) -> tuple[Decimal, list[Decimal]]:
+    """
+    (neto recibido, pagos mensuales) tal como entran al CAT.
+
+    Cada concepto de `producto.cat_netos_de_iva` entra dividido entre 1.16.
+    Capital, interés y seguro de vida entran siempre completos.
+    """
+    netos = producto.cat_netos_de_iva
+
+    def flujo(concepto: ConceptoIVA, monto: Decimal) -> Decimal:
+        return monto / FACTOR_IVA if concepto in netos else monto
+
+    neto = (
+        tabla.monto
+        - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(tabla.monto))
+        - flujo(ConceptoIVA.AVALUO, producto.avaluo)
+    )
+    pagos = [
+        r.capital
+        + r.interes
+        + r.seguro_vida
+        + flujo(ConceptoIVA.SEGURO_DANOS, r.seguro_danos)
+        + flujo(ConceptoIVA.COMISION_MENSUAL, r.comision_mensual)
+        for r in tabla.renglones
+    ]
+    return neto, pagos
+
+
 def calcular_cat(
     tabla: TablaAmortizacion,
     producto: ProductoHipotecario,
@@ -63,15 +96,9 @@ def calcular_cat(
                  que recibe menos dinero neto.
         True  -> la comisión se suma al crédito; el monto ya la incluye.
     """
-    comision = producto.comision_apertura_para(tabla.monto)
-    avaluo = producto.avaluo
-
-    if comision_financiada:
-        # El monto ya trae la comisión dentro; el neto en manos del cliente
-        # es el monto menos lo que se le retuvo.
-        neto = tabla.monto - comision - avaluo
-    else:
-        neto = tabla.monto - comision - avaluo
+    # En ambos casos el neto en manos del cliente es el monto menos lo que se
+    # le retuvo; si la comisión está financiada, el monto ya la incluye.
+    neto, pagos = flujos_cat(tabla, producto)
 
     if neto <= 0:
         raise ValueError(
@@ -79,7 +106,6 @@ def calcular_cat(
             "Revisa los parámetros del producto."
         )
 
-    pagos = [r.pago_total for r in tabla.renglones]
 
     # Bisección. El CAT siempre es positivo y realistamente menor a 500 %.
     bajo = Decimal("0")

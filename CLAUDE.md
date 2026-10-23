@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             73 pruebas. No deben bajar de ahí.
+  tests/             83 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -276,7 +276,7 @@ $685 entre febrero y un mes de 31 días.
 pago es la anualidad con la tasa del seguro de vida sumada a la del periodo,
 más el seguro de daños. `test_banregio_renglones` ya valida contra el motor.
 
-### 4. El IVA se excluye del flujo del CAT por concepto, no de forma uniforme
+### 4. El IVA se excluye del flujo del CAT por concepto, no de forma uniforme — HECHO como parámetro
 
 | Concepto | En el flujo del CAT |
 |---|---|
@@ -296,7 +296,17 @@ de su archivo ya vienen netos de IVA o si Santander los mete con IVA.
 conceptos salvo capital, interés y seguro de vida.** Hasta entonces, no lo
 codifiques en duro: déjalo como parámetro del producto, por concepto.
 
-El motor hoy mete todo a valor bruto, lo que sobreestima el CAT.
+**Implementado así:** `cat_netos_de_iva` en el producto, un conjunto de
+`ConceptoIVA` (apertura, avalúo, daños, comisión mensual) que entran al CAT
+÷ 1.16. Vacío = todo con IVA, que sobreestima el CAT. Capital, interés y seguro
+de vida entran siempre completos. Solo afecta al CAT, nunca al costo total.
+HSBC y Santander en el catálogo usan el tratamiento de su propio cotizador, y
+`test_hsbc_cat_desde_motor` / `test_santander_cat_desde_motor` lo validan.
+
+Consecuencia a vigilar: dos productos del mismo comparativo pueden tener su CAT
+calculado con criterios de IVA distintos. Es lo que publica cada banco, pero no
+es una base homogénea. Cuando riesgo decida, se aplica un solo criterio a todo
+el catálogo cambiando el parámetro, no el motor.
 
 ### 5. El seguro puede ser componente fijo más tasa sobre saldo
 
@@ -327,7 +337,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 73 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 83 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

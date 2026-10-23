@@ -17,11 +17,12 @@ from motor_hipotecario.amortizacion import (
     tasa_normalizada,
     tasa_periodica,
 )
-from motor_hipotecario.cat import calcular_cat, tasa_efectiva_anual
+from motor_hipotecario.cat import calcular_cat, flujos_cat, tasa_efectiva_anual
 from tests.fixtures.catalogo_prueba import CATALOGO_PRUEBA
 from motor_hipotecario.comparador import comparar, evaluar_producto
 from motor_hipotecario.modelos import (
     BaseSeguroDanos,
+    ConceptoIVA,
     ConvencionDias,
     Escenario,
     LineaCredito,
@@ -583,4 +584,53 @@ def test_comparar_fija_el_primer_pago_al_mes_siguiente():
 def test_tasa_normalizada_con_dias_reales_usa_anio_de_365():
     normalizada = tasa_normalizada(producto_dias_reales(tasa_anual=Decimal("0.1085")))
     assert normalizada == Decimal("0.1085") * 365 / Decimal(360)
+
+
+# --------------------------------------------------------------------------
+# IVA por concepto en el CAT
+# --------------------------------------------------------------------------
+
+
+def _producto_con_costos(**kwargs):
+    return producto_limpio(
+        comision_apertura=Decimal("0.01"),
+        avaluo=Decimal("12000"),
+        comision_mensual=Decimal("300"),
+        seguro_danos_monto_mensual=Decimal("700"),
+        seguro_vida_mensual=Decimal("0.0005"),
+        **kwargs,
+    )
+
+
+def test_sin_configurar_el_cat_lleva_todo_con_iva():
+    """Comportamiento anterior: ningún concepto se excluye."""
+    producto = _producto_con_costos()
+    assert producto.cat_netos_de_iva == frozenset()
+    tabla = construir_tabla(LineaCredito(producto, Decimal("1850000"), 240), Decimal("2500000"))
+    neto, flujos = flujos_cat(tabla, producto)
+    assert neto == Decimal("1850000") - Decimal("18500") - Decimal("12000")
+    assert flujos[0] == tabla.renglones[0].pago_total
+
+
+@pytest.mark.parametrize("concepto", list(ConceptoIVA))
+def test_excluir_el_iva_de_un_concepto_baja_el_cat(concepto):
+    con_iva = _producto_con_costos()
+    sin_iva = _producto_con_costos(cat_netos_de_iva=frozenset({concepto}))
+    linea = lambda p: LineaCredito(p, Decimal("1850000"), 240)  # noqa: E731
+    cat_con = calcular_cat(construir_tabla(linea(con_iva), Decimal("2500000")), con_iva)
+    cat_sin = calcular_cat(construir_tabla(linea(sin_iva), Decimal("2500000")), sin_iva)
+    assert cat_sin < cat_con
+
+
+def test_el_iva_no_cambia_el_costo_total():
+    """El IVA neto es solo del flujo del CAT: el cliente sí lo paga."""
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240
+    )
+    con_iva = evaluar_producto(escenario, _producto_con_costos())
+    sin_iva = evaluar_producto(
+        escenario, _producto_con_costos(cat_netos_de_iva=frozenset(ConceptoIVA))
+    )
+    assert con_iva.costo_total == sin_iva.costo_total
+    assert sin_iva.cat_estimado < con_iva.cat_estimado
 

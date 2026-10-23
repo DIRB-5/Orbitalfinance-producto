@@ -10,6 +10,7 @@ from decimal import Decimal as D
 import pytest
 
 from motor_hipotecario.amortizacion import construir_tabla
+from motor_hipotecario.cat import calcular_cat
 from motor_hipotecario.catalogo import CATALOGO
 from motor_hipotecario.modelos import LineaCredito
 
@@ -44,3 +45,18 @@ def test_catalogo_sin_productos_ficticios():
     for producto in CATALOGO:
         assert "Demo" not in producto.institucion
         assert producto.fuente
+
+
+@pytest.mark.parametrize(
+    "producto_id, fixture, tolerancia",
+    [
+        ("hsbc-cicb-2026-10", HSBC, D("0.0000001")),
+        ("santander-2026-10", SANTANDER, SANTANDER["tolerancia_cat_pb"] / D(10000)),
+    ],
+)
+def test_producto_reproduce_el_cat_de_su_cotizador(producto_id, fixture, tolerancia):
+    producto = POR_ID[producto_id]
+    p = fixture["parametros"]
+    tabla = construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), D("1000000"))
+    assert abs(calcular_cat(tabla, producto) - fixture["cat_esperado"]) < tolerancia
+

@@ -24,7 +24,13 @@ from decimal import Decimal as D
 import pytest
 
 from motor_hipotecario.amortizacion import construir_tabla
-from motor_hipotecario.modelos import ConvencionDias, LineaCredito, ProductoHipotecario
+from motor_hipotecario.cat import calcular_cat, flujos_cat
+from motor_hipotecario.modelos import (
+    ConceptoIVA,
+    ConvencionDias,
+    LineaCredito,
+    ProductoHipotecario,
+)
 
 from .fixtures.cotizadores_reales import BANREGIO, HSBC, SANTANDER
 
@@ -105,7 +111,11 @@ def _cat(flujos, neto):
     return D(repr((1 + (lo + hi) / 2) ** 12 - 1))
 
 
-def _tabla_desde_motor(p, institucion, **convenciones):
+def _tabla_desde_motor(p, institucion, **campos):
+    return _producto_y_tabla(p, institucion, **campos)[1]
+
+
+def _producto_y_tabla(p, institucion, **convenciones):
     """
     Corre un escenario de cotizador en el motor. El seguro de daños y la
     comisión mensual son montos fijos, como vienen en el archivo; el valor del
@@ -124,7 +134,7 @@ def _tabla_desde_motor(p, institucion, **convenciones):
         comision_mensual=p["comision_mensual"],
         **convenciones,
     )
-    return construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), valor)
+    return producto, construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), valor)
 
 
 def _hsbc_desde_motor(p):
@@ -219,6 +229,40 @@ def test_santander_motor_coincide_con_referencia_en_todos_los_renglones():
         for calc, ref, nombre in zip(motor[mes], referencia[mes],
                                      ["interés", "capital", "seguro vida", "pago total", "saldo"]):
             assert abs(calc - ref) < TOL, f"mes {mes}, {nombre}: {calc} != {ref}"
+
+
+def test_hsbc_cat_desde_motor():
+    """
+    El motor reproduce el CAT del archivo con el tratamiento de IVA de HSBC:
+    daños, comisión mensual y avalúo netos; apertura completa.
+    """
+    p = HSBC["parametros"]
+    producto, tabla = _producto_y_tabla(
+        p, "HSBC",
+        comision_apertura=p["comision_apertura_pct"],
+        avaluo=p["avaluo"],
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.AVALUO}
+        ),
+    )
+    neto, flujos = flujos_cat(tabla, producto)
+    assert abs(neto - HSBC["cat_desembolso_neto"]) < TOL
+    assert abs(flujos[0] - D("24404.87026711205")) < D("0.0000001")
+    assert abs(calcular_cat(tabla, producto) - HSBC["cat_esperado"]) < D("0.0000001")
+
+
+def test_santander_cat_desde_motor():
+    """Tratamiento de Santander: solo la apertura neta (7,000 / 1.16)."""
+    p = SANTANDER["parametros"]
+    producto, tabla = _producto_y_tabla(
+        p, "Santander",
+        convencion_interes=ConvencionDias.DIAS_30_4166_360,
+        convencion_pago=ConvencionDias.DIAS_365_12_360,
+        comision_apertura_monto=D("7000"),
+        cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_APERTURA}),
+    )
+    tolerancia = SANTANDER["tolerancia_cat_pb"] / D(10000)
+    assert abs(calcular_cat(tabla, producto) - SANTANDER["cat_esperado"]) < tolerancia
 
 
 def test_santander_cat():

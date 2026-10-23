@@ -14,8 +14,9 @@ LÍMITES DE ESTOS DATOS — léelos antes de usarlos frente a un cliente:
   tarifa de la aseguradora: no escala con el valor del inmueble.
 - El aforo máximo y los plazos ofrecidos NO vienen en los cotizadores. Son
   supuestos marcados en `notas` y hay que confirmarlos con cada institución.
-- Ninguno de los dos productos tiene aún el CAT validado por el motor: HSBC y
-  Santander tratan el IVA distinto y el criterio está pendiente con riesgo.
+- El CAT reproduce el de cada cotizador con el tratamiento de IVA de esa
+  institución (`cat_netos_de_iva`). HSBC y Santander lo tratan distinto y el
+  criterio correcto está pendiente con riesgo: el CAT sigue siendo estimado.
 
 Actualizar condiciones = cerrar la vigencia del producto y crear uno nuevo con
 su propia fuente. Nunca editar en sitio (CLAUDE.md, regla 3).
@@ -32,7 +33,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from .modelos import ConvencionDias, ProductoHipotecario
+from .modelos import ConceptoIVA, ConvencionDias, ProductoHipotecario
 
 # Fecha en que se analizaron los cotizadores. Los archivos no traen fecha de
 # vigencia de las condiciones.
@@ -58,6 +59,11 @@ CATALOGO: list[ProductoHipotecario] = [
         seguro_vida_mensual=Decimal("0.00044"),
         seguro_danos_monto_mensual=Decimal("777.63"),
         avaluo=Decimal("12470"),
+        # Amortización!V20 y V21: daños, comisión mensual y avalúo ÷ 1.16;
+        # apertura completa.
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.AVALUO}
+        ),
         vigente_desde=_ANALIZADO,
         fuente="Cotizador hsbc_cicb.xlsm, hoja Amortización (escenario capturado: "
         "$2,082,500 a 240 meses). Analizado 2026-10-22.",
@@ -78,6 +84,8 @@ CATALOGO: list[ProductoHipotecario] = [
         comision_mensual=Decimal("350"),
         seguro_vida_mensual=Decimal("0.0008254"),
         seguro_danos_monto_mensual=Decimal("380.17"),
+        # CAT!L5: solo la apertura ÷ 1.16; daños y comisión mensual completos.
+        cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_APERTURA}),
         vigente_desde=_ANALIZADO,
         fuente="Cotizador Santander.xlsm, hoja CAT (escenario capturado: "
         "$1,770,000 a 300 meses). Analizado 2026-10-22.",

@@ -52,6 +52,7 @@ class ProductoSalida(ModeloBase):
     base_seguro_danos: str
     factor_construccion: str
     avaluo: str
+    cat_netos_de_iva: List[str]
     monto_minimo: Optional[str]
     monto_maximo: Optional[str]
     vigente_desde: str

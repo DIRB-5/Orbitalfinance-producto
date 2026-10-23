@@ -28,6 +28,7 @@ def test_catalogo_en_camel_case_y_decimales_como_texto():
     assert hsbc["tasaAnual"] == "0.1175"
     assert hsbc["comisionMensual"] == "290.00"
     assert hsbc["seguroDanosMontoMensual"] == "777.63"
+    assert hsbc["catNetosDeIva"] == ["avaluo", "comision_mensual", "seguro_danos"]
 
 
 def test_comparar_ordena_por_costo_total_y_rotula_cat_estimado():

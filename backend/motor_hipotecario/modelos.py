@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import FrozenSet, Optional
 
 # Alias semántico. Las tasas se expresan como fracción: 0.1085 == 10.85 %
 Tasa = Decimal
@@ -53,6 +53,20 @@ class ConvencionDias(str, Enum):
     # fechas de pago y solo aplica al interés cobrado: el pago fijo requiere
     # una tasa por periodo única.
     DIAS_REALES_360 = "tasa*dias_reales/360"
+
+
+class ConceptoIVA(str, Enum):
+    """
+    Conceptos que causan IVA y que una institución puede meter al flujo del
+    CAT netos (÷ 1.16). Capital, interés y seguro de vida entran siempre
+    completos. Ver CLAUDE.md, corrección 4: el criterio correcto está
+    pendiente con riesgo, por eso es parámetro del producto.
+    """
+
+    COMISION_APERTURA = "comision_apertura"
+    AVALUO = "avaluo"
+    SEGURO_DANOS = "seguro_danos"
+    COMISION_MENSUAL = "comision_mensual"
 
 
 class TipoLinea(str, Enum):
@@ -129,6 +143,10 @@ class ProductoHipotecario:
     # Avalúo cobrado por la institución (entra al CAT). Los gastos notariales
     # NO entran al CAT porque los cobra un tercero, pero sí al costo total.
     avaluo: Dinero = Decimal("0")
+
+    # Conceptos que entran al flujo del CAT netos de IVA. Vacío = todo con IVA.
+    # Solo afecta al CAT: el costo total siempre lleva lo que paga el cliente.
+    cat_netos_de_iva: FrozenSet[ConceptoIVA] = frozenset()
 
     monto_minimo: Optional[Dinero] = None
     monto_maximo: Optional[Dinero] = None
