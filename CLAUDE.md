@@ -19,7 +19,7 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /api                 FastAPI. Aquí vive el motor.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-  tests/             55 pruebas. No deben bajar de ahí.
+  tests/             56 pruebas. No deben bajar de ahí.
 /web                 Front-end. Origen: prototipo de Claude Design.
 /api/pdf             Render de presentaciones con Playwright.
 ```
@@ -299,7 +299,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 55 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 56 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

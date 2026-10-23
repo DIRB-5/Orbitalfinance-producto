@@ -459,3 +459,21 @@ def test_tasa_normalizada_para_ordenar():
     )
     assert abs(normalizada - Decimal("0.1100")) < Decimal("0.0001")
 
+
+
+def test_catalogo_demo_muestra_el_efecto_de_la_base_de_dias():
+    """
+    Demo E y Demo F son Demo A con otra convención de días: misma tasa nominal,
+    mismas comisiones y seguros. El comparativo debe ordenarlos A < F < E.
+    """
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"),
+        enganche=Decimal("650000"),
+        plazo_meses=240,
+    )
+    comparacion = comparar(escenario, CATALOGO_DEMO, momento=HOY)
+    costo = {o.producto.id: o.costo_total for o in comparacion.opciones}
+    tasa = {o.producto.id: o.producto.tasa_anual for o in comparacion.opciones}
+
+    assert tasa["demo-a-fija"] == tasa["demo-e-base360"] == tasa["demo-f-base304"]
+    assert costo["demo-a-fija"] < costo["demo-f-base304"] < costo["demo-e-base360"]
