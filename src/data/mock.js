@@ -268,6 +268,10 @@ export const escenarios = [
 
 // --- Catálogo --------------------------------------------------------------
 const comun = {
+  // Convención de días: cómo pasa la tasa anual a tasa mensual. Ver
+  // ConvencionDias en api/motor_hipotecario/modelos.py.
+  convencionInteres: "tasa/12",
+  convencionPago: null, // null = la misma del interés
   comisionMensual: 0,
   crecimientoMensualidadAnual: 0,
   montoMaximo: null,
@@ -322,6 +326,34 @@ export const productos = [
     avaluo: 8900, gastosInvestigacion: 3200, montoMinimo: 300000,
     vigenteDesde: "2026-01-01", vigenteHasta: null,
     fuente: "Condiciones publicadas, consultadas 2026-01-15",
+  }),
+  // Demo H y Demo I copian las condiciones de Demo A y solo cambian la base
+  // de días, para mostrar su efecto en el comparativo.
+  Object.assign({}, comun, {
+    id: "demo-h-base360", familia: "hipotecario", subtipo: "adquisicion",
+    institucion: "Institución Demo H", nombre: "Hipotecario Base 360",
+    tasa: { tipo: "fija", valor: 0.1085, referencia: null, spread: null, piso: null, techo: null },
+    convencionInteres: "tasa*30.4166/360", convencionPago: "(tasa/360)*(365/12)",
+    plazosMeses: [60, 120, 180, 240], aforoMax: 0.90,
+    comisionApertura: 0.0085, seguroVidaMensual: 0.00045, seguroDanosAnual: 0.0035,
+    baseSeguroDanos: "valor_construccion", factorConstruccion: 0.70,
+    avaluo: 9500, gastosInvestigacion: 3500, montoMinimo: 300000,
+    vigenteDesde: "2026-01-01", vigenteHasta: null,
+    fuente: "Producto ilustrativo: condiciones de Demo A en base 360",
+    notas: "Misma tasa nominal que Demo A; en base 360 cuesta como ~11.00 % en base /12.",
+  }),
+  Object.assign({}, comun, {
+    id: "demo-i-base304", familia: "hipotecario", subtipo: "adquisicion",
+    institucion: "Institución Demo I", nombre: "Hipotecario Base 30.4",
+    tasa: { tipo: "fija", valor: 0.1085, referencia: null, spread: null, piso: null, techo: null },
+    convencionInteres: "tasa*30.4/360",
+    plazosMeses: [60, 120, 180, 240], aforoMax: 0.90,
+    comisionApertura: 0.0085, seguroVidaMensual: 0.00045, seguroDanosAnual: 0.0035,
+    baseSeguroDanos: "valor_construccion", factorConstruccion: 0.70,
+    avaluo: 9500, gastosInvestigacion: 3500, montoMinimo: 300000,
+    vigenteDesde: "2026-01-01", vigenteHasta: null,
+    fuente: "Producto ilustrativo: condiciones de Demo A en base 30.4/360",
+    notas: "Misma tasa nominal que Demo A, con interés en base 30.4/360.",
   }),
   Object.assign({}, comun, {
     id: "demo-a-fija-convenio-gid", familia: "hipotecario", subtipo: "adquisicion",
@@ -493,14 +525,42 @@ export const productos = [
   }),
 ];
 
+// --- Convención de días ----------------------------------------------------
+// Factor que multiplica la tasa anual para obtener la tasa del mes.
+const FACTOR_CONVENCION = {
+  "tasa/12": 1 / 12,
+  "tasa*30.4166/360": 30.4166 / 360,
+  "tasa*30.4/360": 30.4 / 360,
+  "(tasa/360)*(365/12)": 365 / 12 / 360,
+};
+
+export const ETIQUETA_CONVENCION = {
+  "tasa/12": "Tasa / 12",
+  "tasa*30.4166/360": "Tasa × 30.4166 / 360",
+  "tasa*30.4/360": "Tasa × 30.4 / 360",
+  "(tasa/360)*(365/12)": "(Tasa / 360) × (365 / 12)",
+};
+
+export function tasaPeriodica(tasaAnual, convencion) {
+  return tasaAnual * FACTOR_CONVENCION[convencion || "tasa/12"];
+}
+
+// Tasa equivalente en base /12. Solo para ordenar; al cliente se le muestra
+// la tasa nominal del contrato.
+export function tasaNormalizada(producto, escenarioRefId) {
+  return tasaPeriodica(tasaResuelta(producto, escenarioRefId), producto.convencionInteres) * 12;
+}
+
 // --- Tabla de amortización -------------------------------------------------
 // SUSTITUIR: el motor real devuelve esta tabla. Aquí se construye con la
 // fórmula de pago fijo para que el prototipo tenga datos consistentes.
 export function generarTabla(producto, escenario, plazoMeses, escenarioRefId) {
   const monto = escenario.montoCredito || 0;
   const plazo = plazoMeses || escenario.plazoMeses;
-  const i = tasaResuelta(producto, escenarioRefId) / 12;
-  const pagoFijo = (monto * i) / (1 - Math.pow(1 + i, -plazo));
+  const tasa = tasaResuelta(producto, escenarioRefId);
+  const i = tasaPeriodica(tasa, producto.convencionInteres);
+  const iPago = tasaPeriodica(tasa, producto.convencionPago || producto.convencionInteres);
+  const pagoFijo = (monto * iPago) / (1 - Math.pow(1 + iPago, -plazo));
   const valorGarantia = valorGarantiaDe(escenario);
 
   let seguroDanos = 0;
@@ -637,6 +697,8 @@ export const catEstimadoSemilla = {
   "demo-b-casa-fija": 0.1284,
   "demo-c-preferente": 0.1276,
   "demo-a-fija-convenio-gid": 0.1191,
+  "demo-h-base360": 0.1286,
+  "demo-i-base304": 0.1285,
   "demo-d-plazo-corto": null,
   "demo-a-sustitucion": 0.1268,
   "demo-c-mejora": 0.1279,
@@ -660,6 +722,10 @@ export const semillaResultados = {
   "demo-b-casa-fija": { pagoPrimerMes: 20429.93, pagoUltimoMes: 18540.00, costoTotal: 4980232.65 },
   "demo-c-preferente": { pagoPrimerMes: 20488.43, pagoUltimoMes: 19020.00, costoTotal: 5010236.30 },
   "demo-a-fija-convenio-gid": { pagoPrimerMes: 19441.65, costoTotal: 4756965.99 },
+  // Demo H e I: motor sin redondeo intermedio (las de arriba son del motor
+  // anterior, que redondeaba cada renglón; difieren ~$3 en costo total).
+  "demo-h-base360": { pagoPrimerMes: 20439.28, pagoUltimoMes: 19589.00, costoTotal: 5004987.21 },
+  "demo-i-base304": { pagoPrimerMes: 20431.69, pagoUltimoMes: 19607.70, costoTotal: 5003177.30 },
 
   "demo-a-liquidez": { pagoPrimerMes: 24028.63, pagoUltimoMes: 23269.87, costoTotal: 2983659.23 },
   "demo-b-liquidez": { pagoPrimerMes: 24110.97, pagoUltimoMes: 23145.98, costoTotal: 2999400.83 },

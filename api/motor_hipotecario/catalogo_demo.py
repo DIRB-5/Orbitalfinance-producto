@@ -94,11 +94,11 @@ CATALOGO_DEMO: list[ProductoHipotecario] = [
         notas="No ofrece 240 meses. Ejemplo de producto que queda fuera por "
         "regla de elegibilidad, no por precio.",
     ),
-    # Demo E y Demo F copian las condiciones de Demo A y solo cambian la
+    # Demo H y Demo I copian las condiciones de Demo A y solo cambian la
     # convención de días, para aislar su efecto en el comparativo.
     ProductoHipotecario(
-        id="demo-e-base360",
-        institucion="Institución Demo E",
+        id="demo-h-base360",
+        institucion="Institución Demo H",
         nombre="Hipotecario Base 360",
         tasa_anual=Decimal("0.1085"),
         convencion_interes=ConvencionDias.DIAS_30_4166_360,
@@ -117,8 +117,8 @@ CATALOGO_DEMO: list[ProductoHipotecario] = [
         "(interés 30.4166/360, pago 365/12). Cuesta como ~11.00 % en base /12.",
     ),
     ProductoHipotecario(
-        id="demo-f-base304",
-        institucion="Institución Demo F",
+        id="demo-i-base304",
+        institucion="Institución Demo I",
         nombre="Hipotecario Base 30.4",
         tasa_anual=Decimal("0.1085"),
         convencion_interes=ConvencionDias.DIAS_30_4_360,

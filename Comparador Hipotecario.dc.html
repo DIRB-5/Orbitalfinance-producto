@@ -4034,6 +4034,13 @@ class Component extends DCLogic {
               { k: "Tipo de tasa", v: "Fija" },
               { k: "Tasa anual", v: pct(t.valor) },
             ];
+        const convInteres = p.convencionInteres || "tasa/12";
+        const convPago = p.convencionPago || convInteres;
+        campoTasa.push(
+          { k: "Base de días (interés)", v: m.ETIQUETA_CONVENCION[convInteres] },
+          { k: "Base de días (pago)", v: m.ETIQUETA_CONVENCION[convPago] },
+          { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p, "base")) }
+        );
         return campoTasa.concat([
           { k: "Aforo máximo", v: pct(p.aforoMax) },
           { k: "Comisión por apertura", v: pct(p.comisionApertura) },
