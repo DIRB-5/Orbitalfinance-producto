@@ -91,12 +91,25 @@ class ProductoHipotecario:
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
 
+    # Comisión por apertura como monto fijo. Si se define, sustituye a la
+    # fracción (hay instituciones que cobran una cantidad fija).
+    comision_apertura_monto: Optional[Dinero] = None
+
+    # Comisión mensual fija: cargo recurrente que no es interés ni seguro.
+    # Entra al pago, al costo total y al CAT.
+    comision_mensual: Dinero = Decimal("0")
+
     # Seguro de vida: tasa MENSUAL aplicada sobre el saldo insoluto
     seguro_vida_mensual: Decimal = Decimal("0")
 
     # Seguro de daños: tasa ANUAL aplicada sobre el valor del inmueble
     seguro_danos_anual: Decimal = Decimal("0")
     base_seguro_danos: BaseSeguroDanos = BaseSeguroDanos.VALOR_TOTAL
+
+    # Seguro de daños como monto mensual fijo. Si se define, sustituye a la
+    # tasa: es lo que se conoce cuando el dato sale de un cotizador y no de la
+    # tarifa de la aseguradora.
+    seguro_danos_monto_mensual: Optional[Dinero] = None
 
     # Proporción del valor que se considera construcción, cuando aplica
     factor_construccion: Decimal = Decimal("0.70")
@@ -127,6 +140,11 @@ class ProductoHipotecario:
         if self.vigente_hasta is not None and momento > self.vigente_hasta:
             return False
         return True
+
+    def comision_apertura_para(self, monto: Dinero) -> Dinero:
+        if self.comision_apertura_monto is not None:
+            return self.comision_apertura_monto
+        return self.comision_apertura * monto
 
     @property
     def etiqueta(self) -> str:

@@ -171,7 +171,7 @@ def evaluar_producto(
     linea = LineaCredito(producto=producto, monto=monto, plazo_meses=plazo_calculo)
     tabla = construir_tabla(linea, escenario.valor_vivienda)
 
-    comision = redondear(producto.comision_apertura * monto)
+    comision = redondear(producto.comision_apertura_para(monto))
     cat = calcular_cat(tabla, producto)
 
     # --- Capacidad de pago -------------------------------------------------

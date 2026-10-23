@@ -18,7 +18,7 @@ from motor_hipotecario.amortizacion import (
     tasa_periodica,
 )
 from motor_hipotecario.cat import calcular_cat, tasa_efectiva_anual
-from motor_hipotecario.catalogo_demo import CATALOGO_DEMO
+from tests.fixtures.catalogo_prueba import CATALOGO_PRUEBA
 from motor_hipotecario.comparador import comparar, evaluar_producto
 from motor_hipotecario.modelos import (
     BaseSeguroDanos,
@@ -125,20 +125,20 @@ def test_capital_crece_e_interes_decrece():
 
 def test_encadenamiento_de_saldos():
     """El saldo final de cada mes es el inicial del siguiente."""
-    linea = LineaCredito(CATALOGO_DEMO[0], Decimal("1850000"), 240)
+    linea = LineaCredito(CATALOGO_PRUEBA[0], Decimal("1850000"), 240)
     tabla = construir_tabla(linea, Decimal("2500000"))
     for anterior, siguiente in zip(tabla.renglones, tabla.renglones[1:]):
         assert anterior.saldo_final == siguiente.saldo_inicial
 
 
 def test_seguro_de_vida_decrece_con_el_saldo():
-    linea = LineaCredito(CATALOGO_DEMO[0], Decimal("1850000"), 240)
+    linea = LineaCredito(CATALOGO_PRUEBA[0], Decimal("1850000"), 240)
     tabla = construir_tabla(linea, Decimal("2500000"))
     assert tabla.renglones[-1].seguro_vida < tabla.renglones[0].seguro_vida
 
 
 def test_seguro_de_danos_es_constante():
-    linea = LineaCredito(CATALOGO_DEMO[0], Decimal("1850000"), 240)
+    linea = LineaCredito(CATALOGO_PRUEBA[0], Decimal("1850000"), 240)
     tabla = construir_tabla(linea, Decimal("2500000"))
     valores = {r.seguro_danos for r in tabla.renglones}
     assert len(valores) == 1
@@ -146,7 +146,7 @@ def test_seguro_de_danos_es_constante():
 
 def test_pago_total_decrece_por_el_seguro_de_vida():
     """El pago NO es fijo: esta es la trampa del comparativo por mensualidad."""
-    linea = LineaCredito(CATALOGO_DEMO[0], Decimal("1850000"), 240)
+    linea = LineaCredito(CATALOGO_PRUEBA[0], Decimal("1850000"), 240)
     tabla = construir_tabla(linea, Decimal("2500000"))
     assert tabla.primer_pago > tabla.renglones[100].pago_total
 
@@ -190,7 +190,7 @@ def test_cat_sin_costos_iguala_la_tasa_efectiva():
 
 
 def test_cat_es_mayor_que_la_tasa_cuando_hay_costos():
-    producto = CATALOGO_DEMO[0]
+    producto = CATALOGO_PRUEBA[0]
     linea = LineaCredito(producto, Decimal("1850000"), 240)
     tabla = construir_tabla(linea, Decimal("2500000"))
     cat = calcular_cat(tabla, producto)
@@ -211,7 +211,7 @@ def test_cat_sube_al_subir_la_comision():
 
 
 def test_cat_en_rango_realista():
-    for producto in CATALOGO_DEMO:
+    for producto in CATALOGO_PRUEBA:
         plazo = max(p for p in producto.plazos_meses if p <= 240)
         tabla = construir_tabla(
             LineaCredito(producto, Decimal("1850000"), plazo), Decimal("2500000")
@@ -290,7 +290,7 @@ def test_la_tasa_mas_baja_no_siempre_gana():
         ingreso_mensual=Decimal("90000"),
         factor_pago_ingreso=Decimal("0.35"),
     )
-    comparacion = comparar(escenario, CATALOGO_DEMO, momento=HOY)
+    comparacion = comparar(escenario, CATALOGO_PRUEBA, momento=HOY)
     elegibles = comparacion.ordenadas_por_costo()
 
     menor_tasa = min(elegibles, key=lambda o: o.producto.tasa_anual)
@@ -312,7 +312,7 @@ def test_diferencia_entre_mejor_y_peor_es_material():
         ingreso_mensual=Decimal("90000"),
         factor_pago_ingreso=Decimal("0.35"),
     )
-    comparacion = comparar(escenario, CATALOGO_DEMO, momento=HOY)
+    comparacion = comparar(escenario, CATALOGO_PRUEBA, momento=HOY)
     proporcion = comparacion.ahorro_vs_peor / escenario.monto_credito
     assert proporcion > Decimal("0.02")
 
@@ -324,11 +324,11 @@ def test_snapshot_congela_los_productos():
         plazo_meses=240,
     )
     comparacion = comparar(
-        escenario, CATALOGO_DEMO, momento=HOY, asesor_id="ase-1", organizacion_id="org-1"
+        escenario, CATALOGO_PRUEBA, momento=HOY, asesor_id="ase-1", organizacion_id="org-1"
     )
     assert comparacion.snapshot.generado_en == HOY
     assert comparacion.snapshot.asesor_id == "ase-1"
-    assert len(comparacion.snapshot.productos) == len(CATALOGO_DEMO)
+    assert len(comparacion.snapshot.productos) == len(CATALOGO_PRUEBA)
 
 
 def test_producto_no_vigente_queda_fuera():
@@ -342,7 +342,7 @@ def test_producto_no_vigente_queda_fuera():
         enganche=Decimal("650000"),
         plazo_meses=240,
     )
-    comparacion = comparar(escenario, CATALOGO_DEMO + [vencido], momento=HOY)
+    comparacion = comparar(escenario, CATALOGO_PRUEBA + [vencido], momento=HOY)
     ids = {o.producto.id for o in comparacion.opciones}
     assert "vencido" not in ids
 
@@ -354,7 +354,7 @@ def test_costo_total_supera_al_monto_del_credito():
         plazo_meses=240,
         gastos_notariales=Decimal("140000"),
     )
-    comparacion = comparar(escenario, CATALOGO_DEMO, momento=HOY)
+    comparacion = comparar(escenario, CATALOGO_PRUEBA, momento=HOY)
     for opcion in comparacion.opciones:
         assert opcion.costo_total > opcion.monto_credito
         assert opcion.costo_financiero > 0
@@ -367,19 +367,19 @@ def test_escenario_invalido_es_rechazado():
         plazo_meses=240,
     )
     with pytest.raises(ValueError):
-        comparar(escenario, CATALOGO_DEMO, momento=HOY)
+        comparar(escenario, CATALOGO_PRUEBA, momento=HOY)
 
 
 def test_condicion_negociada_mejora_el_costo():
-    from motor_hipotecario.catalogo_demo import CATALOGO_DEMO_NEGOCIADO
+    from tests.fixtures.catalogo_prueba import CATALOGO_PRUEBA_NEGOCIADO
 
     escenario = Escenario(
         valor_vivienda=Decimal("2500000"),
         enganche=Decimal("650000"),
         plazo_meses=240,
     )
-    estandar = evaluar_producto(escenario, CATALOGO_DEMO[0])
-    negociado = evaluar_producto(escenario, CATALOGO_DEMO_NEGOCIADO[0])
+    estandar = evaluar_producto(escenario, CATALOGO_PRUEBA[0])
+    negociado = evaluar_producto(escenario, CATALOGO_PRUEBA_NEGOCIADO[0])
     assert negociado.costo_total < estandar.costo_total
     assert negociado.advertencias  # debe advertir que es condición negociada
 
@@ -461,7 +461,7 @@ def test_tasa_normalizada_para_ordenar():
 
 
 
-def test_catalogo_demo_muestra_el_efecto_de_la_base_de_dias():
+def test_catalogo_de_prueba_muestra_el_efecto_de_la_base_de_dias():
     """
     Demo H y Demo I son Demo A con otra convención de días: misma tasa nominal,
     mismas comisiones y seguros. El comparativo debe ordenarlos A < I < H.
@@ -471,9 +471,49 @@ def test_catalogo_demo_muestra_el_efecto_de_la_base_de_dias():
         enganche=Decimal("650000"),
         plazo_meses=240,
     )
-    comparacion = comparar(escenario, CATALOGO_DEMO, momento=HOY)
+    comparacion = comparar(escenario, CATALOGO_PRUEBA, momento=HOY)
     costo = {o.producto.id: o.costo_total for o in comparacion.opciones}
     tasa = {o.producto.id: o.producto.tasa_anual for o in comparacion.opciones}
 
     assert tasa["demo-a-fija"] == tasa["demo-h-base360"] == tasa["demo-i-base304"]
     assert costo["demo-a-fija"] < costo["demo-i-base304"] < costo["demo-h-base360"]
+
+
+# --------------------------------------------------------------------------
+# Conceptos fijos: comisión mensual, seguro de daños y apertura por monto
+# --------------------------------------------------------------------------
+
+
+def test_comision_mensual_entra_al_pago_al_costo_y_al_cat():
+    monto = Decimal("1850000")
+    sin = construir_tabla(LineaCredito(producto_limpio(), monto, 240), Decimal("2500000"))
+    con = construir_tabla(
+        LineaCredito(producto_limpio(comision_mensual=Decimal("290")), monto, 240),
+        Decimal("2500000"),
+    )
+    assert all(r.comision_mensual == Decimal("290") for r in con.renglones)
+    assert con.renglones[0].pago_total - sin.renglones[0].pago_total == Decimal("290")
+    assert con.total_pagado - sin.total_pagado == Decimal("290") * 240
+    assert con.total_comision_mensual == Decimal("290") * 240
+    assert calcular_cat(con, producto_limpio(comision_mensual=Decimal("290"))) > calcular_cat(
+        sin, producto_limpio()
+    )
+
+
+def test_seguro_de_danos_por_monto_fijo_ignora_el_valor_del_inmueble():
+    producto = producto_limpio(
+        seguro_danos_anual=Decimal("0.0035"),
+        seguro_danos_monto_mensual=Decimal("777.63"),
+    )
+    for valor in (Decimal("2500000"), Decimal("4000000")):
+        tabla = construir_tabla(LineaCredito(producto, Decimal("1850000"), 240), valor)
+        assert all(r.seguro_danos == Decimal("777.63") for r in tabla.renglones)
+
+
+def test_comision_apertura_por_monto_fijo():
+    por_fraccion = producto_limpio(comision_apertura=Decimal("0.01"))
+    por_monto = producto_limpio(
+        comision_apertura=Decimal("0.01"), comision_apertura_monto=Decimal("7000")
+    )
+    assert por_fraccion.comision_apertura_para(Decimal("1850000")) == Decimal("18500")
+    assert por_monto.comision_apertura_para(Decimal("1850000")) == Decimal("7000")

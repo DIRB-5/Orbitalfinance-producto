@@ -41,6 +41,7 @@ class Renglon:
     capital: Dinero
     seguro_vida: Dinero
     seguro_danos: Dinero
+    comision_mensual: Dinero
     pago_total: Dinero
     saldo_final: Dinero
 
@@ -62,6 +63,10 @@ class TablaAmortizacion:
         return sum(
             (r.seguro_vida + r.seguro_danos for r in self.renglones), Decimal("0")
         )
+
+    @property
+    def total_comision_mensual(self) -> Dinero:
+        return sum((r.comision_mensual for r in self.renglones), Decimal("0"))
 
     @property
     def total_pagado(self) -> Dinero:
@@ -136,6 +141,8 @@ def pago_frances(
 def _seguro_danos_mensual(
     producto: ProductoHipotecario, valor_vivienda: Dinero
 ) -> Decimal:
+    if producto.seguro_danos_monto_mensual is not None:
+        return producto.seguro_danos_monto_mensual
     if producto.seguro_danos_anual == 0:
         return Decimal("0")
 
@@ -170,7 +177,8 @@ def construir_tabla(
     # Si el pago y el interés usan convenciones distintas (Santander), el
     # último renglón absorbe la diferencia acumulada.
     pago_fijo = pago_frances(monto, tasa, plazo, convencion_pago)
-    danos = _seguro_danos_mensual(linea.producto, valor_vivienda)
+    danos = _seguro_danos_mensual(producto, valor_vivienda)
+    comision_mensual = producto.comision_mensual
 
     renglones: list[Renglon] = []
     saldo = monto
@@ -196,7 +204,7 @@ def construir_tabla(
             capital = min(capital, saldo_inicial)
 
         saldo_final = saldo_inicial - capital
-        pago_total = capital + interes + vida + danos
+        pago_total = capital + interes + vida + danos + comision_mensual
 
         renglones.append(
             Renglon(
@@ -206,6 +214,7 @@ def construir_tabla(
                 capital=capital,
                 seguro_vida=vida,
                 seguro_danos=danos,
+                comision_mensual=comision_mensual,
                 pago_total=pago_total,
                 saldo_final=saldo_final,
             )

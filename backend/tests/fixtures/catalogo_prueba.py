@@ -2,15 +2,11 @@
 CATÁLOGO DE PRUEBA — DATOS FICTICIOS
 
 Los productos de este módulo NO corresponden a condiciones reales de ninguna
-institución. Existen únicamente para ejercitar el motor y las pruebas.
+institución. Existen únicamente para ejercitar el motor en las pruebas y no se
+publican: el catálogo real vive en motor_hipotecario/catalogo.py.
 
-Deliberadamente NO se usan nombres de bancos reales: un número inventado
-atribuido a una institución real es exactamente el tipo de error que destruye
-la credibilidad de la herramienta si se filtra a una presentación.
-
-Para producción, este módulo se reemplaza por la carga del catálogo curado,
-con productos capturados de las condiciones publicadas por cada institución y
-con el campo `fuente` apuntando al documento y fecha de donde salió cada dato.
+Se usan nombres ficticios a propósito: un número inventado atribuido a una
+institución real es el error que destruye la credibilidad si se filtra.
 """
 
 from __future__ import annotations
@@ -18,14 +14,14 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from .modelos import BaseSeguroDanos, ConvencionDias, ProductoHipotecario
+from motor_hipotecario.modelos import BaseSeguroDanos, ConvencionDias, ProductoHipotecario
 
 _FUENTE = "DATO FICTICIO DE PRUEBA — reemplazar con condiciones publicadas"
 
 PLAZOS_ESTANDAR = (60, 120, 180, 240)
 
 
-CATALOGO_DEMO: list[ProductoHipotecario] = [
+CATALOGO_PRUEBA: list[ProductoHipotecario] = [
     ProductoHipotecario(
         id="demo-a-fija",
         institucion="Institución Demo A",
@@ -137,7 +133,7 @@ CATALOGO_DEMO: list[ProductoHipotecario] = [
 ]
 
 
-CATALOGO_DEMO_NEGOCIADO: list[ProductoHipotecario] = [
+CATALOGO_PRUEBA_NEGOCIADO: list[ProductoHipotecario] = [
     ProductoHipotecario(
         id="demo-a-fija-negociado",
         institucion="Institución Demo A",

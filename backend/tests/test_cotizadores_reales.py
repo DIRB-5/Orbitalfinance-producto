@@ -108,12 +108,9 @@ def _cat(flujos, neto):
 
 def _tabla_desde_motor(p, institucion, **convenciones):
     """
-    Corre un escenario de cotizador en el motor.
-
-    El motor expresa el seguro de daños como tasa anual sobre el valor del
-    inmueble; con un valor de $1,000,000 la tasa equivalente da exactamente el
-    monto fijo del archivo. El motor todavía no modela comisión mensual
-    (pendiente 3 de CLAUDE.md), así que quien llama la suma al pago total.
+    Corre un escenario de cotizador en el motor. El seguro de daños y la
+    comisión mensual son montos fijos, como vienen en el archivo; el valor del
+    inmueble no interviene.
     """
     valor = D("1000000")
     producto = ProductoHipotecario(
@@ -124,7 +121,8 @@ def _tabla_desde_motor(p, institucion, **convenciones):
         plazos_meses=(p["plazo_meses"],),
         aforo_max=D("1"),
         seguro_vida_mensual=p["seguro_vida_mensual"],
-        seguro_danos_anual=p["seguro_danos_mensual"] * 12 / valor,
+        seguro_danos_monto_mensual=p["seguro_danos_mensual"],
+        comision_mensual=p["comision_mensual"],
         **convenciones,
     )
     return construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), valor)
@@ -135,7 +133,7 @@ def _hsbc_desde_motor(p):
     tabla = _tabla_desde_motor(p, "HSBC")
     return {
         r.mes: (r.capital, r.interes, r.seguro_vida,
-                r.pago_total + p["comision_mensual"], r.saldo_final)
+                r.pago_total, r.saldo_final)
         for r in tabla.renglones
     }
 
@@ -149,7 +147,7 @@ def _santander_desde_motor(p):
     )
     return {
         r.mes: (r.interes, r.capital, r.seguro_vida,
-                r.pago_total + p["comision_mensual"], r.saldo_final)
+                r.pago_total, r.saldo_final)
         for r in tabla.renglones
     }
 

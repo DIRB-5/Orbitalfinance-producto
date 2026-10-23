@@ -63,7 +63,7 @@ def calcular_cat(
                  que recibe menos dinero neto.
         True  -> la comisión se suma al crédito; el monto ya la incluye.
     """
-    comision = producto.comision_apertura * tabla.monto
+    comision = producto.comision_apertura_para(tabla.monto)
     avaluo = producto.avaluo
 
     if comision_financiada:

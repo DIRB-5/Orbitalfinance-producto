@@ -17,12 +17,21 @@ suscripción es la brokerage, y el asesor rota.
 ## Estructura
 
 ```
-/api                 FastAPI. Aquí vive el motor.
+/backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-  tests/             56 pruebas. No deben bajar de ahí.
-/web                 Front-end. Origen: prototipo de Claude Design.
-/api/pdf             Render de presentaciones con Playwright.
+    catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
+  app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
+  tests/             65 pruebas. No deben bajar de ahí.
+    fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
+/api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
+                     cada .py de esa carpeta en una función.
+/index.html, *.dc.html, src/data/   Prototipo (Claude Design). Lee la API;
+                     src/data/datos.js es su única fuente de datos.
+vercel.json, requirements.txt, .python-version, .vercelignore   Despliegue.
 ```
+
+Pruebas: `cd backend && python -m pytest tests/ -q` (las de la API necesitan
+`fastapi` y `httpx`; sin ellas se omiten).
 
 ---
 
@@ -71,8 +80,14 @@ de copy.
 ### 5. Se permiten nombres de bancos reales
 
 Los datos de prueba y los fixtures pueden usar nombres de instituciones reales
-(p. ej. `tests/fixtures/cotizadores_reales.py`). `catalogo_demo.py` conserva
-por ahora sus nombres ficticios ("Institución Demo A", etc.).
+(p. ej. `tests/fixtures/cotizadores_reales.py`). El catálogo de prueba
+(`tests/fixtures/catalogo_prueba.py`) conserva nombres ficticios porque sus
+números son inventados.
+
+**Todo producto del catálogo real (`motor_hipotecario/catalogo.py`) debe tener
+`fuente` y una prueba que lo reproduzca contra su cotizador
+(`tests/test_catalogo.py`).** Lo que no venga en la fuente se marca como
+supuesto en `notas`.
 
 ### 6. Un escenario tiene N líneas de crédito, no una
 
@@ -102,7 +117,7 @@ cliente es obligación legal, no adorno: no la dejes como stub silencioso.
 El motor en Python usa `snake_case`. El front usa `camelCase`.
 
 **La conversión ocurre en un solo lugar: el generador de alias de los modelos
-Pydantic en `/api`.** No conviertas nombres a mano en endpoints, ni en el
+Pydantic en `backend/app/esquemas.py`.** No conviertas nombres a mano en endpoints, ni en el
 front, ni con utilidades dispersas.
 
 ```python
@@ -186,8 +201,10 @@ parches.
 2. **Mensualidad creciente.** Productos que incrementan el pago un porcentaje
    anual fijo (p. ej. 2.6 %). Requiere un factor de crecimiento aplicado al pago.
 
-3. **Comisión mensual fija.** Cargo recurrente que no es interés ni seguro.
-   Entra al CAT y al costo total. Es un campo más en el flujo mensual.
+3. **Comisión mensual fija — HECHO.** `comision_mensual` en el producto; entra
+   al pago, al costo total y al CAT (a valor bruto mientras se resuelve el IVA).
+   También se agregaron `comision_apertura_monto` y `seguro_danos_monto_mensual`
+   para conceptos que el cotizador da como monto fijo.
 
 4. **Cofinanciamiento INFONAVIT / FOVISSSTE.** Segunda línea de crédito con
    reglas propias. El modelo ya lo soporta estructuralmente.
@@ -205,7 +222,7 @@ sección).
 Se analizaron 24 cotizadores en Excel de 8 instituciones y se reprodujeron tres
 modelos al centavo contra sus propias tablas. Evidencia en
 `docs/validacion_modelos.md`; valores de referencia en
-`api/tests/fixtures/cotizadores_reales.py`.
+`backend/tests/fixtures/cotizadores_reales.py`.
 
 Las cinco reglas siguientes salieron de ahí. **No son opiniones de diseño: son
 cómo calculan los bancos.**
@@ -299,7 +316,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 56 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 65 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

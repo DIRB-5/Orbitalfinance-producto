@@ -1,5 +1,6 @@
-# Vercel publica solo el prototipo web.
-# api/ además se trataría como funciones de servidor.
-api/
+# Vercel publica el prototipo y la función api/index.py.
+# El motor (backend/) se incluye porque la función lo importa.
+backend/tests/
 docs/
 CLAUDE.md
+.claude/
