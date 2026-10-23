@@ -784,3 +784,123 @@ def test_escalones_invalidos(escalones):
 def test_escalonada_no_se_combina_con_pago_creciente():
     with pytest.raises(ValueError, match="creciente"):
         _tabla(producto_escalonado(crecimiento_pago_anual=Decimal("0.02")))
+
+
+# --------------------------------------------------------------------------
+# Cofinanciamiento INFONAVIT / FOVISSSTE
+# --------------------------------------------------------------------------
+# Como en los cotizadores (BX+ COFI / INFONAVIT, Banorte FOVISSSTE): el crédito
+# del instituto y la subcuenta reducen el crédito bancario; las aportaciones
+# patronales se abonan a capital del banco y acortan el plazo.
+
+from motor_hipotecario.amortizacion import aportacion_patronal  # noqa: E402
+from motor_hipotecario.modelos import (  # noqa: E402
+    AportacionExcedente,
+    Cofinanciamiento,
+    ReglaAportaciones,
+    TipoLinea,
+)
+
+REGLA_BX = ReglaAportaciones(
+    instituto=TipoLinea.INFONAVIT,
+    porcentaje_salario=Decimal("0.10"),
+    tope=Decimal("7884.24"),
+    incremento_anual=Decimal("0.03"),
+    excedente=AportacionExcedente.OMITIR,
+)
+COFI = Cofinanciamiento(
+    instituto=TipoLinea.INFONAVIT,
+    salario_mensual=Decimal("60000"),
+    monto_credito_instituto=Decimal("300000"),
+    saldo_subcuenta=Decimal("150000"),
+)
+
+
+def producto_cofi(**kwargs) -> ProductoHipotecario:
+    return producto_limpio(regla_aportaciones=REGLA_BX, **kwargs)
+
+
+def test_aportaciones_bimestrales_desde_el_mes_cuatro():
+    montos = {m: aportacion_patronal(REGLA_BX, Decimal("60000"), m) for m in range(1, 27)}
+    assert all(montos[m] == 0 for m in (1, 2, 3, 5, 7, 13, 25))
+    assert montos[4] == montos[12] == Decimal("6000")  # 10 % de 60,000, bajo el tope
+    assert montos[14] == Decimal("6000") * Decimal("1.03")
+    assert montos[26] == Decimal("6000") * Decimal("1.03") ** 2
+
+
+def test_tope_de_aportacion():
+    assert aportacion_patronal(REGLA_BX, Decimal("100000"), 4) == Decimal("7884.24")
+
+
+def test_escenario_con_cofinanciamiento_reduce_el_credito_bancario():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
+        plazo_meses=240, cofinanciamiento=COFI,
+    )
+    assert escenario.monto_credito == Decimal("1800000")  # 2.5M − 250k − 300k − 150k
+    assert escenario.aforo == Decimal("0.72")
+
+
+def test_aportaciones_abonan_a_capital_y_acortan_el_plazo():
+    linea = LineaCredito(producto_cofi(), Decimal("1800000"), 240)
+    con = construir_tabla(linea, Decimal("2500000"), cofinanciamiento=COFI)
+    sin = construir_tabla(linea, Decimal("2500000"))
+    assert con.renglones[3].aportacion == Decimal("6000")
+    assert con.renglones[3].saldo_final == (
+        con.renglones[3].saldo_inicial - con.renglones[3].capital - Decimal("6000")
+    )
+    # El pago del cliente no cambia; el plazo se acorta.
+    assert con.renglones[3].pago_total == sin.renglones[3].pago_total
+    assert con.plazo_efectivo_meses < 240
+    assert con.renglones[-1].saldo_final == Decimal("0")
+    total = sum(r.capital for r in con.renglones) + con.total_aportaciones
+    assert abs(total - Decimal("1800000")) < Decimal("1E-15")
+
+
+@pytest.mark.parametrize("excedente", list(AportacionExcedente))
+def test_aportacion_que_excede_el_saldo(excedente):
+    regla = ReglaAportaciones(
+        instituto=TipoLinea.INFONAVIT, porcentaje_salario=Decimal("1"), excedente=excedente
+    )
+    linea = LineaCredito(producto_limpio(regla_aportaciones=regla), Decimal("1000000"), 120)
+    cofi = Cofinanciamiento(instituto=TipoLinea.INFONAVIT, salario_mensual=Decimal("300000"))
+    tabla = construir_tabla(linea, Decimal("1500000"), cofinanciamiento=cofi)
+    # Aportaciones de 300,000: la cuarta ya no cabe en el saldo
+    excede = next(r for r in tabla.renglones if r.mes > 4 and r.mes % 2 == 0
+                  and r.saldo_inicial - r.capital < Decimal("300000"))
+    if excedente is AportacionExcedente.OMITIR:
+        assert excede.aportacion == 0
+    else:
+        assert excede.aportacion == excede.saldo_inicial - excede.capital
+        assert excede.saldo_final == 0
+    assert tabla.renglones[-1].saldo_final == 0
+
+
+def test_producto_sin_regla_no_es_elegible_con_cofinanciamiento():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
+        plazo_meses=240, cofinanciamiento=COFI,
+    )
+    assert not evaluar_producto(escenario, producto_limpio()).elegible
+    otra = ReglaAportaciones(instituto=TipoLinea.FOVISSSTE, porcentaje_salario=Decimal("0.10"))
+    resultado = evaluar_producto(escenario, producto_limpio(regla_aportaciones=otra))
+    assert any("INFONAVIT" in m for m in resultado.motivos_rechazo)
+    assert evaluar_producto(escenario, producto_cofi()).elegible
+
+
+def test_cat_ignora_aportaciones_y_costo_total_las_incluye():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
+        plazo_meses=240, cofinanciamiento=COFI,
+    )
+    con = evaluar_producto(escenario, producto_cofi(comision_apertura=Decimal("0.01")))
+    sin_tabla = construir_tabla(
+        LineaCredito(producto_cofi(comision_apertura=Decimal("0.01")), Decimal("1800000"), 240),
+        Decimal("2500000"),
+    )
+    assert con.cat_estimado == calcular_cat(sin_tabla, producto_cofi(comision_apertura=Decimal("0.01")))
+    assert con.total_aportaciones > 0
+    assert con.costo_total == (
+        con.tabla.total_pagado + con.total_aportaciones + con.comision_apertura
+        + con.avaluo + con.gastos_notariales
+    )

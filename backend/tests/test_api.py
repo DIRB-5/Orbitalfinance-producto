@@ -58,3 +58,16 @@ def test_renglones_traen_fecha_de_pago():
     tabla = datos["opciones"][0]["tabla"]
     assert [r["fechaPago"] for r in tabla[:2]] == ["2027-01-01", "2027-02-01"]
 
+
+def test_cofinanciamiento_sin_productos_que_lo_acepten():
+    """El catálogo actual no tiene productos de cofinanciamiento: todos quedan
+    no elegibles con su motivo, y el crédito bancario se reduce."""
+    cuerpo = dict(ESCENARIO, cofinanciamiento={
+        "instituto": "infonavit", "salarioMensual": "60000",
+        "montoCreditoInstituto": "300000", "saldoSubcuenta": "150000",
+    })
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    assert opciones and not any(o["elegible"] for o in opciones)
+    assert all(o["montoCredito"] == "1400000.00" for o in opciones)
+    assert all("INFONAVIT" in " ".join(o["motivosRechazo"]) for o in opciones)
+

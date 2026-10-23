@@ -19,7 +19,7 @@ from motor_hipotecario.comparador import (
     comparar,
     primer_pago_por_defecto,
 )
-from motor_hipotecario.modelos import Escenario, ProductoHipotecario
+from motor_hipotecario.modelos import Cofinanciamiento, Escenario, ProductoHipotecario
 
 from .esquemas import (
     CatalogoSalida,
@@ -28,6 +28,7 @@ from .esquemas import (
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
+    ReglaAportacionesSalida,
     RenglonSalida,
 )
 
@@ -48,6 +49,21 @@ def _tasa(valor: Decimal) -> str:
     return str(valor.quantize(PRECISION_TASA).normalize())
 
 
+def _regla(p: ProductoHipotecario) -> Optional[ReglaAportacionesSalida]:
+    r = p.regla_aportaciones
+    if r is None:
+        return None
+    return ReglaAportacionesSalida(
+        instituto=r.instituto.value,
+        porcentaje_salario=_tasa(r.porcentaje_salario),
+        tope=_dinero_opcional(r.tope),
+        incremento_anual=_tasa(r.incremento_anual),
+        mes_inicio=r.mes_inicio,
+        cada_meses=r.cada_meses,
+        excedente=r.excedente.value,
+    )
+
+
 def _producto(p: ProductoHipotecario) -> ProductoSalida:
     return ProductoSalida(
         id=p.id,
@@ -66,6 +82,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
             for desde, tasa in p.tasas_escalonadas
         ],
         recalcular_pago_al_cambiar_tasa=p.recalcular_pago_al_cambiar_tasa,
+        regla_aportaciones=_regla(p),
         plazos_meses=list(p.plazos_meses),
         aforo_max=_tasa(p.aforo_max),
         comision_apertura=_tasa(p.comision_apertura),
@@ -108,6 +125,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         total_intereses=_dinero(o.total_intereses),
         total_seguros=_dinero(o.total_seguros),
         total_comision_mensual=_dinero(t.total_comision_mensual),
+        total_aportaciones=_dinero(t.total_aportaciones),
         suma_mensualidades=_dinero(t.total_pagado),
         costo_total=_dinero(o.costo_total),
         costo_financiero=_dinero(o.costo_financiero),
@@ -122,6 +140,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
                 seguro_vida=_dinero(r.seguro_vida),
                 seguro_danos=_dinero(r.seguro_danos),
                 comision_mensual=_dinero(r.comision_mensual),
+                aportacion=_dinero(r.aportacion),
                 pago_total=_dinero(r.pago_total),
                 saldo_final=_dinero(r.saldo_final),
             )
@@ -151,6 +170,11 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,
+        cofinanciamiento=(
+            Cofinanciamiento(**entrada.cofinanciamiento.model_dump())
+            if entrada.cofinanciamiento
+            else None
+        ),
     )
     try:
         resultado = comparar(escenario, CATALOGO)

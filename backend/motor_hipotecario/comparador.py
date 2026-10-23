@@ -69,13 +69,20 @@ class ResultadoOpcion:
         return self.tabla.total_seguros
 
     @property
+    def total_aportaciones(self) -> Dinero:
+        return self.tabla.total_aportaciones
+
+    @property
     def costo_total(self) -> Dinero:
         """
-        Todo lo que el cliente desembolsa a lo largo de la vida del crédito,
-        excluyendo el enganche (que es patrimonio, no costo).
+        Todo lo que se paga a lo largo de la vida del crédito, excluyendo el
+        enganche (que es patrimonio, no costo). Incluye las aportaciones
+        patronales del cofinanciamiento: son dinero de la subcuenta del
+        trabajador, aunque no salgan de su bolsillo cada mes.
         """
         return (
             self.tabla.total_pagado
+            + self.tabla.total_aportaciones
             + self.comision_apertura
             + self.avaluo
             + self.gastos_notariales
@@ -169,12 +176,25 @@ def evaluar_producto(
         default=min(producto.plazos_meses),
     )
 
+    cofinanciamiento = escenario.cofinanciamiento
+    if cofinanciamiento is not None:
+        regla = producto.regla_aportaciones
+        if regla is None or regla.instituto is not cofinanciamiento.instituto:
+            motivos.append(
+                "El producto no acepta cofinanciamiento con "
+                f"{cofinanciamiento.instituto.value.upper()}."
+            )
+            cofinanciamiento = None
+
     linea = LineaCredito(producto=producto, monto=monto, plazo_meses=plazo_calculo)
-    tabla = construir_tabla(
-        linea,
-        escenario.valor_vivienda,
-        fecha_primer_pago or escenario.fecha_primer_pago or primer_pago_por_defecto(date.today()),
-    )
+    fecha = fecha_primer_pago or escenario.fecha_primer_pago or primer_pago_por_defecto(date.today())
+    tabla = construir_tabla(linea, escenario.valor_vivienda, fecha, cofinanciamiento)
+
+    # El CAT de los cotizadores excluye las aportaciones: se calcula sobre la
+    # tabla sin abonos.
+    tabla_cat = tabla
+    if tabla.total_aportaciones:
+        tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
 
     if tabla.amortizacion_negativa:
         motivos.append(
@@ -184,7 +204,7 @@ def evaluar_producto(
         )
 
     comision = redondear(producto.comision_apertura_para(monto))
-    cat = calcular_cat(tabla, producto)
+    cat = calcular_cat(tabla_cat, producto)
 
     # --- Capacidad de pago -------------------------------------------------
     if escenario.ingreso_mensual:

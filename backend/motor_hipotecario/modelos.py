@@ -75,6 +75,55 @@ class TipoLinea(str, Enum):
     FOVISSSTE = "fovissste"
 
 
+class AportacionExcedente(str, Enum):
+    """Qué hace el banco si una aportación excede el saldo pendiente."""
+
+    OMITIR = "omitir"    # BX+: no la aplica
+    LIMITAR = "limitar"  # Banorte: aplica solo lo que falta para liquidar
+
+
+@dataclass(frozen=True)
+class ReglaAportaciones:
+    """
+    Cómo aplica un producto bancario de cofinanciamiento las aportaciones
+    patronales del instituto: abonos a capital que acortan el plazo, sin
+    cambiar el pago del cliente.
+
+    Monto de cada abono = min(porcentaje × salario, tope), creciendo
+    `incremento_anual` en cada aniversario (el tope aplica al primer año).
+    Se abona en los meses mes_inicio, mes_inicio + cada_meses, ...
+
+    Referencias (solo fórmulas: ningún cotizador trae un escenario con
+    aportaciones capturadas):
+      BX+ INFONAVIT     10 % del salario, tope 7,884.24, +3 % anual, OMITIR
+      Banorte FOVISSSTE 10 % (5 % × 2 meses), sin tope, sin incremento
+      Banorte Apoyo     10 %, tope 8,598.64 (UMA), sin incremento
+    """
+
+    instituto: "TipoLinea"
+    porcentaje_salario: Decimal
+    tope: Optional[Decimal] = None
+    incremento_anual: Decimal = Decimal("0")
+    mes_inicio: int = 4
+    cada_meses: int = 2
+    excedente: AportacionExcedente = AportacionExcedente.LIMITAR
+
+
+@dataclass(frozen=True)
+class Cofinanciamiento:
+    """
+    Lo que el instituto aporta al escenario del cliente. El crédito del
+    instituto y el saldo de la subcuenta reducen el crédito bancario (como en
+    los cotizadores, no se modelan como una línea con tabla propia); el
+    salario es la base de las aportaciones patronales.
+    """
+
+    instituto: "TipoLinea"
+    salario_mensual: Decimal
+    monto_credito_instituto: Decimal = Decimal("0")
+    saldo_subcuenta: Decimal = Decimal("0")
+
+
 @dataclass(frozen=True)
 class ProductoHipotecario:
     """
@@ -130,6 +179,10 @@ class ProductoHipotecario:
     # SIN VALIDAR contra un cotizador.
     tasas_escalonadas: Tuple[Tuple[int, Decimal], ...] = ()
     recalcular_pago_al_cambiar_tasa: bool = False
+
+    # Producto de cofinanciamiento: cómo abona las aportaciones patronales.
+    # None = no acepta cofinanciamiento.
+    regla_aportaciones: Optional[ReglaAportaciones] = None
 
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
@@ -241,12 +294,22 @@ class Escenario:
     # se captura, el comparador usa el día 1 del mes siguiente a la comparación.
     fecha_primer_pago: Optional[date] = None
 
+    # Cofinanciamiento INFONAVIT / FOVISSSTE, si aplica.
+    cofinanciamiento: Optional[Cofinanciamiento] = None
+
     etiqueta: str = ""
     notas: str = ""
 
     @property
     def monto_credito(self) -> Dinero:
-        return self.valor_vivienda - self.enganche
+        """Crédito bancario: lo que no cubren el enganche ni el instituto."""
+        monto = self.valor_vivienda - self.enganche
+        if self.cofinanciamiento:
+            monto -= (
+                self.cofinanciamiento.monto_credito_instituto
+                + self.cofinanciamiento.saldo_subcuenta
+            )
+        return monto
 
     @property
     def aforo(self) -> Decimal:
@@ -265,6 +328,11 @@ class Escenario:
             errores.append("El enganche no puede cubrir el valor total del inmueble.")
         if self.plazo_meses <= 0:
             errores.append("El plazo debe ser mayor a cero meses.")
+        if self.enganche < self.valor_vivienda and self.monto_credito <= 0:
+            errores.append(
+                "El enganche y el cofinanciamiento cubren el valor del inmueble: "
+                "no queda crédito bancario."
+            )
         return errores
 
 

@@ -15,7 +15,10 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from .modelos import (
+    AportacionExcedente,
     BaseSeguroDanos,
+    Cofinanciamiento,
+    ReglaAportaciones,
     ConvencionDias,
     Dinero,
     LineaCredito,
@@ -48,6 +51,8 @@ class Renglon:
     pago_total: Dinero
     saldo_final: Dinero
     fecha_pago: Optional[date] = None
+    # Aportación patronal abonada a capital. No la paga el cliente.
+    aportacion: Dinero = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -76,6 +81,10 @@ class TablaAmortizacion:
     @property
     def total_pagado(self) -> Dinero:
         return sum((r.pago_total for r in self.renglones), Decimal("0"))
+
+    @property
+    def total_aportaciones(self) -> Dinero:
+        return sum((r.aportacion for r in self.renglones), Decimal("0"))
 
     @property
     def plazo_efectivo_meses(self) -> int:
@@ -221,6 +230,18 @@ def _seguro_danos_mensual(
     return base * producto.seguro_danos_anual / Decimal(12)
 
 
+def aportacion_patronal(regla: ReglaAportaciones, salario: Dinero, mes: int) -> Decimal:
+    """Aportación que el instituto abona en `mes` (0 si ese mes no hay)."""
+    if mes < regla.mes_inicio or (mes - regla.mes_inicio) % regla.cada_meses:
+        return Decimal("0")
+    base = regla.porcentaje_salario * salario
+    if regla.tope is not None:
+        base = min(base, regla.tope)
+    if regla.incremento_anual:
+        base *= (Decimal(1) + regla.incremento_anual) ** ((mes - 1) // 12)
+    return base
+
+
 def _validar_escalones(producto: ProductoHipotecario) -> None:
     escalones = producto.tasas_escalonadas
     if not escalones:
@@ -253,6 +274,7 @@ def construir_tabla(
     linea: LineaCredito,
     valor_vivienda: Dinero,
     fecha_primer_pago: Optional[date] = None,
+    cofinanciamiento: Optional[Cofinanciamiento] = None,
 ) -> TablaAmortizacion:
     """
     Construye la tabla completa, con precisión completa en cada renglón.
@@ -269,6 +291,10 @@ def construir_tabla(
 
     Con tasa escalonada y pago fijo la tabla puede terminar antes del plazo:
     el último renglón es el que deja el saldo en cero.
+
+    Con `cofinanciamiento` y un producto con `regla_aportaciones`, las
+    aportaciones patronales se abonan a capital: el pago del cliente no cambia
+    y el plazo se acorta.
     """
     monto = linea.monto
     tasa = linea.producto.tasa_anual
@@ -288,6 +314,7 @@ def construir_tabla(
         raise ValueError("La base de amortización no puede ser días reales.")
     _validar_escalones(producto)
     inicios_de_escalon = {desde for desde, _ in producto.tasas_escalonadas}
+    regla = producto.regla_aportaciones if cofinanciamiento else None
 
     danos = _seguro_danos_mensual(producto, valor_vivienda)
     comision_mensual = producto.comision_mensual
@@ -359,7 +386,17 @@ def construir_tabla(
                 )
             capital = min(capital, saldo_inicial)
 
-        saldo_final = saldo_inicial - capital
+        aportacion = Decimal("0")
+        if regla is not None and mes < plazo:
+            aportacion = aportacion_patronal(regla, cofinanciamiento.salario_mensual, mes)
+            pendiente = saldo_inicial - capital
+            if aportacion > pendiente:
+                if regla.excedente is AportacionExcedente.OMITIR:
+                    aportacion = Decimal("0")
+                else:
+                    aportacion = pendiente
+
+        saldo_final = saldo_inicial - capital - aportacion
         pago_total = capital + interes + vida + danos + comision_mensual
 
         renglones.append(
@@ -374,11 +411,12 @@ def construir_tabla(
                 pago_total=pago_total,
                 saldo_final=saldo_final,
                 fecha_pago=fecha,
+                aportacion=aportacion,
             )
         )
         saldo = saldo_final
         if saldo == 0:
-            break  # tasa escalonada con pago fijo: se liquidó antes del plazo
+            break  # se liquidó antes del plazo (tasa escalonada o aportaciones)
 
     return TablaAmortizacion(
         renglones=tuple(renglones),

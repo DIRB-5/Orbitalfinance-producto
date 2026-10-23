@@ -13,11 +13,20 @@ from decimal import Decimal
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from motor_hipotecario.modelos import TipoLinea
 from pydantic.alias_generators import to_camel
 
 
 class ModeloBase(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class CofinanciamientoEntrada(ModeloBase):
+    instituto: TipoLinea
+    salario_mensual: Decimal = Field(ge=0)
+    monto_credito_instituto: Decimal = Field(default=Decimal("0"), ge=0)
+    saldo_subcuenta: Decimal = Field(default=Decimal("0"), ge=0)
 
 
 class EscenarioEntrada(ModeloBase):
@@ -28,11 +37,22 @@ class EscenarioEntrada(ModeloBase):
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
+    cofinanciamiento: Optional[CofinanciamientoEntrada] = None
 
 
 class EscalonSalida(ModeloBase):
     desde_mes: int
     tasa_anual: str
+
+
+class ReglaAportacionesSalida(ModeloBase):
+    instituto: str
+    porcentaje_salario: str
+    tope: Optional[str]
+    incremento_anual: str
+    mes_inicio: int
+    cada_meses: int
+    excedente: str
 
 
 class ProductoSalida(ModeloBase):
@@ -49,6 +69,7 @@ class ProductoSalida(ModeloBase):
     crecimiento_pago_anual: str
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
+    regla_aportaciones: Optional[ReglaAportacionesSalida]
     plazos_meses: List[int]
     aforo_max: str
     comision_apertura: str
@@ -83,6 +104,7 @@ class RenglonSalida(ModeloBase):
     seguro_vida: str
     seguro_danos: str
     comision_mensual: str
+    aportacion: str
     pago_total: str
     saldo_final: str
 
@@ -105,6 +127,7 @@ class OpcionSalida(ModeloBase):
     total_intereses: str
     total_seguros: str
     total_comision_mensual: str
+    total_aportaciones: str
     suma_mensualidades: str
     costo_total: str
     costo_financiero: str

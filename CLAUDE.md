@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             99 pruebas. No deben bajar de ahí.
+  tests/             108 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -94,9 +94,12 @@ supuesto en `notas`.
 `Escenario` trabaja con una colección de `LineaCredito` aunque hoy siempre haya
 exactamente una. **No lo colapses a una sola línea "porque es más simple".**
 
-Cofinanciamiento INFONAVIT / FOVISSSTE está diferido, pero es el caso típico del
-mercado, no el excepcional. La colección existe para que agregarlo sea sumar un
-elemento y no reescribir el motor, las tablas y el PDF.
+La colección sigue siendo para líneas bancarias múltiples. **El cofinanciamiento
+INFONAVIT / FOVISSSTE NO se modela como una segunda línea**: los cotizadores
+(BX+ COFI, BX+ INFONAVIT, Banorte FOVISSSTE) no calculan la tabla del
+instituto. Su crédito y la subcuenta reducen el crédito bancario, y las
+aportaciones patronales se abonan a capital del banco (ver pendiente 4). Esta
+regla decía lo contrario hasta que se leyeron los cotizadores.
 
 ### 7. Minimización de datos personales
 
@@ -220,8 +223,21 @@ parches.
    También se agregaron `comision_apertura_monto` y `seguro_danos_monto_mensual`
    para conceptos que el cotizador da como monto fijo.
 
-4. **Cofinanciamiento INFONAVIT / FOVISSSTE.** Segunda línea de crédito con
-   reglas propias. El modelo ya lo soporta estructuralmente.
+4. **Cofinanciamiento INFONAVIT / FOVISSSTE — HECHO como en los cotizadores,
+   SIN VALIDAR con números.** `Escenario.cofinanciamiento` (instituto, salario,
+   crédito del instituto, subcuenta): el crédito y la subcuenta reducen el
+   monto bancario. `ProductoHipotecario.regla_aportaciones`: cómo abona el
+   banco las aportaciones patronales (% del salario, tope, incremento anual,
+   cada 2 meses desde el mes 4, omitir o limitar si exceden el saldo). Los
+   abonos acortan el plazo sin cambiar el pago del cliente.
+   - El CAT se calcula sin aportaciones, como en los tres cotizadores.
+   - El costo total SÍ las incluye: son dinero de la subcuenta del trabajador.
+     Decisión de producto pendiente de confirmar con riesgo.
+   - Un producto sin regla, o con regla de otro instituto, es no elegible.
+   - El salario es "ingreso aproximado" (regla 7): no se pide NSS ni CURP.
+   Ningún cotizador trae un escenario con aportaciones capturadas: la mecánica
+   sale de las fórmulas. No se modelan el tope de aforo combinado (BX+: banco +
+   instituto ≤ 90 %) ni el modo "Mensualidad" de BX+ (recalcular el pago).
 
 **Gate obligatorio antes de cualquier release a cliente final:** validar el CAT
 calculado contra el CAT publicado de al menos tres o cuatro instituciones
@@ -351,7 +367,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 99 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 108 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.
