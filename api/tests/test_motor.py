@@ -14,12 +14,15 @@ from motor_hipotecario.amortizacion import (
     construir_tabla,
     pago_frances,
     redondear,
+    tasa_normalizada,
+    tasa_periodica,
 )
 from motor_hipotecario.cat import calcular_cat, tasa_efectiva_anual
 from motor_hipotecario.catalogo_demo import CATALOGO_DEMO
 from motor_hipotecario.comparador import comparar, evaluar_producto
 from motor_hipotecario.modelos import (
     BaseSeguroDanos,
+    ConvencionDias,
     Escenario,
     LineaCredito,
     ProductoHipotecario,
@@ -403,3 +406,56 @@ def test_multiples_lineas_suman_flujos():
 
     assert monto_combinado == Decimal("1850000")
     assert pago_combinado > t1.primer_pago
+
+
+# --------------------------------------------------------------------------
+# Convención de conteo de días
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "convencion, esperado",
+    [
+        (ConvencionDias.TASA_ENTRE_12, Decimal("0.12") / Decimal(12)),
+        (ConvencionDias.DIAS_30_4166_360, Decimal("0.12") * Decimal("30.4166") / Decimal(360)),
+        (ConvencionDias.DIAS_30_4_360, Decimal("0.12") * Decimal("30.4") / Decimal(360)),
+        (ConvencionDias.DIAS_365_12_360, Decimal("0.12") / Decimal(360) * (Decimal(365) / Decimal(12))),
+    ],
+)
+def test_tasa_periodica_por_convencion(convencion, esperado):
+    assert tasa_periodica(Decimal("0.12"), convencion) == esperado
+
+
+def test_convencion_por_defecto_es_tasa_entre_12():
+    """Agregar la convención no debe mover ningún producto existente."""
+    producto = producto_limpio()
+    assert producto.convencion_interes is ConvencionDias.TASA_ENTRE_12
+    assert producto.convencion_pago is None
+    tabla = construir_tabla(LineaCredito(producto, Decimal("1850000"), 240), Decimal("2500000"))
+    assert tabla.renglones[0].interes == Decimal("1850000") * Decimal("0.1085") / Decimal(12)
+
+
+def test_base_360_cuesta_mas_con_la_misma_tasa_nominal():
+    """CLAUDE.md: 10.85 % en base 360 cuesta lo mismo que ~11.00 % en base /12."""
+    monto = Decimal("1000000")
+    base_12 = construir_tabla(LineaCredito(producto_limpio(), monto, 240), Decimal("1500000"))
+    base_360 = construir_tabla(
+        LineaCredito(
+            producto_limpio(convencion_interes=ConvencionDias.DIAS_30_4166_360),
+            monto,
+            240,
+        ),
+        Decimal("1500000"),
+    )
+    diferencia = base_360.total_pagado - base_12.total_pagado
+    assert Decimal("20000") < diferencia < Decimal("30000")
+
+
+def test_tasa_normalizada_para_ordenar():
+    tasa = Decimal("0.1085")
+    assert tasa_normalizada(producto_limpio()) == tasa
+    normalizada = tasa_normalizada(
+        producto_limpio(convencion_interes=ConvencionDias.DIAS_30_4166_360)
+    )
+    assert abs(normalizada - Decimal("0.1100")) < Decimal("0.0001")
+

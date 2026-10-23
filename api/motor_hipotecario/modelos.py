@@ -37,6 +37,22 @@ class BaseSeguroDanos(str, Enum):
     VALOR_CONSTRUCCION = "valor_construccion"
 
 
+class ConvencionDias(str, Enum):
+    """
+    Cómo convierte la institución la tasa anual en tasa del periodo mensual.
+
+    Con la misma tasa nominal producen costos distintos: 10.85 % en base 360
+    cuesta lo mismo que ~11.00 % en base /12. Ver docs/validacion_modelos.md.
+    """
+
+    TASA_ENTRE_12 = "tasa/12"                  # HSBC, Banamex, BX
+    DIAS_30_4166_360 = "tasa*30.4166/360"      # Santander (interés)
+    DIAS_30_4_360 = "tasa*30.4/360"            # Banorte
+    DIAS_365_12_360 = "(tasa/360)*(365/12)"    # Santander (pago)
+    # Días reales del mes / 360 (Scotiabank, Banregio, Afirme) requiere fechas
+    # de pago; entra junto con la base de amortización separada (corrección 3).
+
+
 class TipoLinea(str, Enum):
     BANCARIO = "bancario"
     INFONAVIT = "infonavit"
@@ -64,6 +80,13 @@ class ProductoHipotecario:
 
     # Aforo máximo (LTV). 0.90 significa que financia hasta el 90 % del valor
     aforo_max: Decimal
+
+    # Convención con que se calcula el interés de cada mes
+    convencion_interes: ConvencionDias = ConvencionDias.TASA_ENTRE_12
+
+    # Convención con que se calcula el pago fijo. None = la misma del interés.
+    # Santander usa una distinta para cada cosa.
+    convencion_pago: Optional[ConvencionDias] = None
 
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")

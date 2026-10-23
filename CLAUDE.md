@@ -19,7 +19,7 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /api                 FastAPI. Aquí vive el motor.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-  tests/             47 pruebas. No deben bajar de ahí.
+  tests/             55 pruebas. No deben bajar de ahí.
 /web                 Front-end. Origen: prototipo de Claude Design.
 /api/pdf             Render de presentaciones con Playwright.
 ```
@@ -219,7 +219,7 @@ la tabla y redondean **solo al presentar**.
 `redondear()` queda solo para la capa de presentación (API, PDF), que **debe**
 aplicarlo al desplegar. `test_hsbc_renglones` ya valida contra el motor.
 
-### 2. La convención de conteo de días es atributo del producto
+### 2. La convención de conteo de días es atributo del producto — HECHO, salvo días reales
 
 Existen cuatro en el mercado y producen resultados distintos con la misma tasa
 nominal:
@@ -237,6 +237,14 @@ normalizar la base ordena mal el comparativo.**
 
 Al presentar, mostrar la tasa nominal del contrato y, por separado, una tasa
 normalizada equivalente usada solo para ordenar.
+
+Implementado como `ConvencionDias` con dos campos en `ProductoHipotecario`:
+`convencion_interes` y `convencion_pago` (None = la misma). Santander usa una
+distinta para cada cosa: `tasa*30.4166/360` para el interés y
+`(tasa/360)*(365/12)` para el pago. `tasa_normalizada()` da la tasa para
+ordenar. `test_santander_renglones` ya valida contra el motor.
+
+**Falta días reales / 360**: necesita fechas de pago y entra con la corrección 3.
 
 ### 3. La base de amortización puede diferir de la base de cobro
 
@@ -291,7 +299,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 47 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 55 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

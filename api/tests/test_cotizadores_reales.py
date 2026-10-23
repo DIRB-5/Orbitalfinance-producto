@@ -5,9 +5,9 @@ Estas pruebas son el contrato del motor con el mundo real: si pasan, el motor
 reproduce lo que el banco calcula. Si alguna falla después de un cambio, el
 cambio rompió la compatibilidad con una institución, no "la prueba está mal".
 
-ESTADO ACTUAL: los renglones de HSBC se validan contra el MOTOR. Santander y
-Banregio todavía validan su implementación de referencia (`_construir_santander`,
-`_construir_banregio`) porque el motor aún no soporta sus convenciones.
+ESTADO ACTUAL: los renglones de HSBC y Santander se validan contra el MOTOR.
+Banregio todavía valida su implementación de referencia (`_construir_banregio`)
+porque el motor aún no soporta días reales ni base de amortización separada.
 
 PENDIENTE: cuando el motor soporte las convenciones de
 docs/validacion_modelos.md sección 5, hay que SUSTITUIR cada `_construir_*` por
@@ -25,7 +25,7 @@ from decimal import Decimal as D
 import pytest
 
 from motor_hipotecario.amortizacion import construir_tabla
-from motor_hipotecario.modelos import LineaCredito, ProductoHipotecario
+from motor_hipotecario.modelos import ConvencionDias, LineaCredito, ProductoHipotecario
 
 from .fixtures.cotizadores_reales import BANREGIO, HSBC, SANTANDER
 
@@ -106,30 +106,49 @@ def _cat(flujos, neto):
     return D(repr((1 + (lo + hi) / 2) ** 12 - 1))
 
 
-def _hsbc_desde_motor(p):
+def _tabla_desde_motor(p, institucion, **convenciones):
     """
-    Corre el escenario de HSBC en el motor y lo devuelve con la forma de
-    `_construir_hsbc`.
+    Corre un escenario de cotizador en el motor.
 
     El motor expresa el seguro de daños como tasa anual sobre el valor del
     inmueble; con un valor de $1,000,000 la tasa equivalente da exactamente el
     monto fijo del archivo. El motor todavía no modela comisión mensual
-    (pendiente 3 de CLAUDE.md), así que se suma aquí al pago total.
+    (pendiente 3 de CLAUDE.md), así que quien llama la suma al pago total.
     """
     valor = D("1000000")
     producto = ProductoHipotecario(
-        id="hsbc-cicb",
-        institucion="HSBC",
-        nombre="CICB",
+        id=institucion.lower(),
+        institucion=institucion,
+        nombre="Escenario del cotizador",
         tasa_anual=p["tasa_anual"],
         plazos_meses=(p["plazo_meses"],),
         aforo_max=D("1"),
         seguro_vida_mensual=p["seguro_vida_mensual"],
         seguro_danos_anual=p["seguro_danos_mensual"] * 12 / valor,
+        **convenciones,
     )
-    tabla = construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), valor)
+    return construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), valor)
+
+
+def _hsbc_desde_motor(p):
+    """Con la forma de `_construir_hsbc`."""
+    tabla = _tabla_desde_motor(p, "HSBC")
     return {
         r.mes: (r.capital, r.interes, r.seguro_vida,
+                r.pago_total + p["comision_mensual"], r.saldo_final)
+        for r in tabla.renglones
+    }
+
+
+def _santander_desde_motor(p):
+    """Con la forma de `_construir_santander`: dos convenciones distintas."""
+    tabla = _tabla_desde_motor(
+        p, "Santander",
+        convencion_interes=ConvencionDias.DIAS_30_4166_360,
+        convencion_pago=ConvencionDias.DIAS_365_12_360,
+    )
+    return {
+        r.mes: (r.interes, r.capital, r.seguro_vida,
                 r.pago_total + p["comision_mensual"], r.saldo_final)
         for r in tabla.renglones
     }
@@ -186,11 +205,23 @@ def test_hsbc_cat():
 
 @pytest.mark.parametrize("mes", sorted(SANTANDER["renglones"]))
 def test_santander_renglones(mes):
-    filas = _construir_santander(SANTANDER["parametros"])
+    filas = _santander_desde_motor(SANTANDER["parametros"])
     esperado = SANTANDER["renglones"][mes]
     for calc, esp, nombre in zip(filas[mes], esperado,
                                  ["interés", "capital", "seguro vida", "pago total", "saldo"]):
         assert abs(calc - esp) < TOL, f"mes {mes}, {nombre}: {calc} != {esp}"
+
+
+def test_santander_motor_coincide_con_referencia_en_todos_los_renglones():
+    """Mismo contraste que HSBC, en los 300 meses."""
+    p = SANTANDER["parametros"]
+    motor = _santander_desde_motor(p)
+    referencia = _construir_santander(p)
+    assert len(motor) == p["plazo_meses"]
+    for mes in range(1, p["plazo_meses"] + 1):
+        for calc, ref, nombre in zip(motor[mes], referencia[mes],
+                                     ["interés", "capital", "seguro vida", "pago total", "saldo"]):
+            assert abs(calc - ref) < TOL, f"mes {mes}, {nombre}: {calc} != {ref}"
 
 
 def test_santander_cat():

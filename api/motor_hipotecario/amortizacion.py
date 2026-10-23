@@ -11,7 +11,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
-from .modelos import BaseSeguroDanos, Dinero, LineaCredito, ProductoHipotecario
+from .modelos import (
+    BaseSeguroDanos,
+    ConvencionDias,
+    Dinero,
+    LineaCredito,
+    ProductoHipotecario,
+)
 
 CENTAVO = Decimal("0.01")
 
@@ -76,7 +82,35 @@ class TablaAmortizacion:
         return self.renglones[min(mes, len(self.renglones)) - 1].saldo_final
 
 
-def pago_frances(monto: Dinero, tasa_anual: Decimal, plazo_meses: int) -> Decimal:
+def tasa_periodica(tasa_anual: Decimal, convencion: ConvencionDias) -> Decimal:
+    """Tasa del periodo mensual según la convención de conteo de días."""
+    if convencion is ConvencionDias.TASA_ENTRE_12:
+        return tasa_anual / Decimal(12)
+    if convencion is ConvencionDias.DIAS_30_4166_360:
+        return tasa_anual * Decimal("30.4166") / Decimal(360)
+    if convencion is ConvencionDias.DIAS_30_4_360:
+        return tasa_anual * Decimal("30.4") / Decimal(360)
+    if convencion is ConvencionDias.DIAS_365_12_360:
+        # 365/12 es periódico (30.41666…), distinto de la constante 30.4166
+        return tasa_anual / Decimal(360) * (Decimal(365) / Decimal(12))
+    raise ValueError(f"Convención de días no soportada: {convencion}")
+
+
+def tasa_normalizada(producto: ProductoHipotecario) -> Decimal:
+    """
+    Tasa anual equivalente en base /12, usada SOLO para ordenar productos con
+    convenciones distintas. Al presentar se muestra la tasa nominal del
+    contrato y, por separado, esta.
+    """
+    return tasa_periodica(producto.tasa_anual, producto.convencion_interes) * 12
+
+
+def pago_frances(
+    monto: Dinero,
+    tasa_anual: Decimal,
+    plazo_meses: int,
+    convencion: ConvencionDias = ConvencionDias.TASA_ENTRE_12,
+) -> Decimal:
     """
     Pago mensual fijo de capital + interés.
 
@@ -89,7 +123,7 @@ def pago_frances(monto: Dinero, tasa_anual: Decimal, plazo_meses: int) -> Decima
     if monto <= 0:
         raise ValueError("El monto debe ser mayor a cero.")
 
-    i = tasa_anual / Decimal(12)
+    i = tasa_periodica(tasa_anual, convencion)
 
     # Caso tasa cero (aplica en algunos esquemas de vivienda social)
     if i == 0:
@@ -129,9 +163,13 @@ def construir_tabla(
     monto = linea.monto
     tasa = linea.producto.tasa_anual
     plazo = linea.plazo_meses
-    i = tasa / Decimal(12)
+    producto = linea.producto
+    i = tasa_periodica(tasa, producto.convencion_interes)
+    convencion_pago = producto.convencion_pago or producto.convencion_interes
 
-    pago_fijo = pago_frances(monto, tasa, plazo)
+    # Si el pago y el interés usan convenciones distintas (Santander), el
+    # último renglón absorbe la diferencia acumulada.
+    pago_fijo = pago_frances(monto, tasa, plazo, convencion_pago)
     danos = _seguro_danos_mensual(linea.producto, valor_vivienda)
 
     renglones: list[Renglon] = []
