@@ -380,8 +380,8 @@ class Component extends DCLogic {
       marcaAgua: this.props.marcaAgua !== false,
       clienteNombre: (d.cliente && d.cliente.nombre) || "",
       etiqueta: esc.etiqueta || "",
-      fecha: fechaFmt(d.fecha || "2026-01-15"),
-      fechaVigencia: fechaFmt(d.fechaVigencia || "2026-01-15"),
+      fecha: fechaFmt(d.fecha || new Date().toISOString().slice(0, 10)),
+      fechaVigencia: fechaFmt(d.fechaVigencia || new Date().toISOString().slice(0, 10)),
       asesorNombre: asesor.nombre || "",
       asesorCedula: asesor.cedula || "—",
       asesorTelefono: asesor.telefono || "—",
@@ -455,7 +455,7 @@ class Component extends DCLogic {
 
     base.columnas = cols.map((o) => ({
       institucion: o.producto.institucion,
-      inicial: o.producto.institucion.trim().slice(-1),
+      inicial: o.producto.institucion.trim().charAt(0).toUpperCase(),
       esRecomendada: esRec(o),
       monoStyle: { width: "24px", height: "24px", borderRadius: "50%", background: ACENTO, color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 600, flex: "0 0 auto" },
       thStyle: Object.assign(
@@ -504,7 +504,7 @@ class Component extends DCLogic {
       });
       const r1 = det.tabla[0] || {};
       base.detInstitucion = p.institucion;
-      base.detInicial = p.institucion.trim().slice(-1);
+      base.detInicial = p.institucion.trim().charAt(0).toUpperCase();
       base.detNombre = p.nombre;
       base.detPlazo = (det.plazoEfectivoMeses || esc.plazoMeses) + " meses";
       base.detCat = pct(det.catEstimado);

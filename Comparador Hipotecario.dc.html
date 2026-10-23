@@ -404,10 +404,6 @@
             <div style="font-size:12px; color:#7A756C; margin-top:8px; max-width:560px; line-height:1.5;">{{ notaEscenarioRef }}</div>
           </div>
         </sc-if>
-        <div onClick="{{ togglePlazoDemo }}" style="display:flex; align-items:center; gap:10px; cursor:pointer; width:fit-content; padding-top:4px;">
-          <div style="{{ plazoDemoTrack }}"><div style="{{ plazoDemoKnob }}"></div></div>
-          <span style="font-size:12.5px; color:#4A463F;">Demostración: plazos efectivos distintos</span>
-        </div>
       </div>
       <sc-if value="{{ mezclaTasas }}" hint-placeholder-val="{{ false }}">
         <div style="border:1px solid #E8D9AE; background:#FDF6E7; padding:14px 18px; margin-bottom:16px;">
@@ -859,7 +855,7 @@
           </div>
           <div style="background:#FFFDFB; padding:20px;">
             <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#7A756C; margin-bottom:10px;">Nota del asesor</div>
-            <textarea value="{{ nota }}" onChange="{{ setNota }}" rows="4" placeholder="Recomiendo la Institución Demo A: paga $21,061.88 menos que la de tasa más baja y el desembolso del día de la firma es el más bajo de las tres." style="width:100%; box-sizing:border-box; border:1px solid #DFDBD4; background:#FFFFFF; padding:10px 11px; font-size:13.5px; line-height:1.55; resize:vertical;"></textarea>
+            <textarea value="{{ nota }}" onChange="{{ setNota }}" rows="4" placeholder="Por qué recomiendas esta opción al cliente." style="width:100%; box-sizing:border-box; border:1px solid #DFDBD4; background:#FFFFFF; padding:10px 11px; font-size:13.5px; line-height:1.55; resize:vertical;"></textarea>
           </div>
           <div style="background:#FFFDFB; padding:20px;">
             <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.11em; color:#7A756C; margin-bottom:12px;">Instituciones incluidas</div>
@@ -1863,7 +1859,7 @@ class Component extends DCLogic {
     desDestino: "",
     invitados: [],
     inactivos: [],
-    prefOrg: ["Institución Demo C"],
+    prefOrg: [],
     prefPersonal: {},
     avisoDiv: null,
     pantalla: "login",
@@ -1876,8 +1872,8 @@ class Component extends DCLogic {
     subtipoPendiente: null,
     ordenCol: "costoTotal",
     ordenDir: "asc",
-    seleccionadas: ["demo-a-fija", "demo-b-casa-fija", "demo-c-preferente", "demo-a-fija-convenio-gid"],
-    recomendada: "demo-a-fija",
+    seleccionadas: [],
+    recomendada: null,
     noElegiblesAbierto: false,
     detalleId: null,
     anio: 1,
@@ -1886,7 +1882,6 @@ class Component extends DCLogic {
     deckPagina: 0,
     anchoA: 0,
     anchoB: 0,
-    plazoDemo: false,
     nota: "",
     marca: "corporativa_asesor",
     modal: null,
@@ -1923,12 +1918,15 @@ class Component extends DCLogic {
     import("./src/data/metricas.js").then((mx) => {
       this.setState({ mx, pl: mx.PIPELINE.map((p) => Object.assign({}, p)) });
     });
-    import("./src/data/mock.js").then((m) => {
+    import("./src/data/datos.js").then((m) => {
+      // Catálogo y cálculos vienen de la API: se redibuja al recibirlos.
+      this._desuscribir = m.suscribir(() => this.forceUpdate());
+      m.cargarCatalogo();
       this.setState({
         m,
         form: Object.assign({}, m.escenarioBase, {
           cliente: Object.assign({}, m.cliente),
-          gastosNotarialesPct: m.escenarioBase.gastosNotariales / m.escenarioBase.valorVivienda,
+          gastosNotarialesPct: m.gastosNotarialesPctDefault,
         }),
         retencion: m.organizacion.retencionMeses,
         nota: "",
@@ -1942,6 +1940,7 @@ class Component extends DCLogic {
     window.removeEventListener("resize", this._medirAncho);
     clearTimeout(this._tCerrar);
     clearTimeout(this._reordenTimer);
+    if (this._desuscribir) this._desuscribir();
   }
 
   escalaDeck(ancho) {
@@ -3017,10 +3016,6 @@ class Component extends DCLogic {
     const bloqueado = montoExcedido || revolvente;
 
     const opciones = m.evaluarEscenario(esc, s.escenarioRef);
-    if (s.plazoDemo) {
-      const segunda = opciones.filter((o) => o.elegible)[1];
-      if (segunda) segunda.plazoEfectivoMeses = Math.max(12, esc.plazoMeses - 60);
-    }
     const elegibles = opciones.filter((o) => o.elegible);
     const noElegibles = opciones.filter((o) => !o.elegible);
     const confirmadas = elegibles.filter((o) => !o.producto.negociadoPor);
@@ -3298,7 +3293,7 @@ class Component extends DCLogic {
       const esRec = s.recomendada === id;
       return {
         id, institucion: o.producto.institucion, nombre: o.producto.nombre,
-        inicial: o.producto.institucion.trim().slice(-1),
+        inicial: o.producto.institucion.trim().charAt(0).toUpperCase(),
         tasa: m.etiquetaTasa(o.producto, s.escenarioRef),
         badgeTasa: o.tasaVariable ? "Tasa variable" : "Tasa fija",
         badgeTasaStyle: {
@@ -3349,7 +3344,7 @@ class Component extends DCLogic {
           : g.mejor.costoTotal === minCosto;
         return Object.assign(this.prefInfo(g.nombre), {
           institucion: g.nombre,
-          inicial: g.nombre.trim().slice(-1),
+          inicial: g.nombre.trim().charAt(0).toUpperCase(),
           conteo: g.prods.length + (g.prods.length === 1 ? " producto elegible" : " productos elegibles"),
           mejorNombre: g.mejor.producto.nombre,
           mejorCosto: mxn(g.mejor.costoTotal),
@@ -3468,7 +3463,7 @@ class Component extends DCLogic {
           return {
             id: o.producto.id,
             institucion: o.producto.institucion,
-            inicial: o.producto.institucion.trim().slice(-1),
+            inicial: o.producto.institucion.trim().charAt(0).toUpperCase(),
             nombre: o.producto.nombre,
             tasa: m.etiquetaTasa(o.producto, s.escenarioRef),
             nuevoPago: mxn(o.pagoPrimerMes),
@@ -3783,10 +3778,6 @@ class Component extends DCLogic {
       detPlazoEfectivo: det ? (det.plazoEfectivoMeses || esc.plazoMeses) + " meses" : "—",
       detSumaMensualidades: det ? mxn(det.sumaMensualidades) : "—",
 
-      plazoDemo: s.plazoDemo,
-      togglePlazoDemo: () => this.setState((st) => ({ plazoDemo: !st.plazoDemo })),
-      plazoDemoTrack: { width: "30px", height: "17px", flex: "0 0 auto", border: "1px solid " + (s.plazoDemo ? ACENTO : "#CFC9BF"), background: s.plazoDemo ? ACENTO : "#FFFFFF", display: "flex", alignItems: "center", justifyContent: s.plazoDemo ? "flex-end" : "flex-start", padding: "2px", boxSizing: "border-box" },
-      plazoDemoKnob: { width: "11px", height: "11px", background: s.plazoDemo ? "#FFFFFF" : "#CFC9BF" },
       plazosDistintos: (function () {
         const ps = seleccionadasOpts.map((o) => o.plazoEfectivoMeses || esc.plazoMeses);
         return ps.length > 1 && ps.some((x) => x !== ps[0]);
@@ -3901,14 +3892,14 @@ class Component extends DCLogic {
       cerrarModal: () => this.setState({ modal: null }),
       modalAbierto: !!s.modal, modalGenerando: s.modal === "generando", modalListo: s.modal === "listo", modalPPTX: s.modal === "pptx",
       modalArchivo: "propuesta-" + (s.form.cliente.nombre || "cliente").split(" ")[0].toLowerCase() + ".pdf",
-      modalFecha: this.fecha("2026-01-15"),
+      modalFecha: this.fecha(m.HOY),
 
       datosDeck: {
         organizacion: m.organizacion, plantilla: m.plantillaOrganizacion, asesor: m.asesorActual,
         cliente: s.form.cliente, escenario: esc,
         opciones: seleccionadasOpts.length ? seleccionadasOpts : elegibles,
         recomendada: recOpt, nota: s.nota, marca: s.marca,
-        avisoLegal: m.avisoLegal, fecha: "2026-01-15", fechaVigencia: "2026-01-15",
+        avisoLegal: m.avisoLegal, fecha: m.HOY, fechaVigencia: m.fechaCondiciones(),
         indice: paginasActivas.map((pg) => pg.titulo),
         plazosDistintos: (function () {
           const ps = seleccionadasOpts.map((o) => o.plazoEfectivoMeses || esc.plazoMeses);
@@ -3968,7 +3959,7 @@ class Component extends DCLogic {
         if (s.catCol === "plazos" || s.catCol === "estado") {
           const val = (p) => s.catCol === "plazos"
             ? (p.plazosMeses || [0])[0]
-            : (p.vigenteHasta && new Date(p.vigenteHasta) < new Date("2026-01-15") ? 1 : 0);
+            : (p.vigenteHasta && new Date(p.vigenteHasta) < new Date(m.HOY) ? 1 : 0);
           return (val(a) - val(b)) * dir || a.institucion.localeCompare(b.institucion, "es");
         }
         const val = (p) => ({
@@ -3980,7 +3971,7 @@ class Component extends DCLogic {
         return c !== 0 ? c : a.institucion.localeCompare(b.institucion, "es");
       })
       .map((p) => {
-        const vencido = !!p.vigenteHasta && new Date(p.vigenteHasta) < new Date("2026-01-15");
+        const vencido = !!p.vigenteHasta && new Date(p.vigenteHasta) < new Date(m.HOY);
         const cerrando = s.productoCerrando === p.id;
         const expandido = s.productoAbierto === p.id || cerrando;
         return Object.assign(this.prefInfo(p.institucion), {
@@ -4039,20 +4030,22 @@ class Component extends DCLogic {
         campoTasa.push(
           { k: "Base de días (interés)", v: m.ETIQUETA_CONVENCION[convInteres] },
           { k: "Base de días (pago)", v: m.ETIQUETA_CONVENCION[convPago] },
-          { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p, "base")) }
+          { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p)) }
         );
         return campoTasa.concat([
           { k: "Aforo máximo", v: pct(p.aforoMax) },
-          { k: "Comisión por apertura", v: pct(p.comisionApertura) },
+          { k: "Comisión por apertura", v: p.comisionAperturaMonto != null ? mxn(p.comisionAperturaMonto) + " fija" : pct(p.comisionApertura) },
+          { k: "Comisión mensual", v: p.comisionMensual ? mxn(p.comisionMensual) : "No aplica" },
           { k: "Seguro de vida mensual (factor)", v: p.seguroVidaMensual ? (p.seguroVidaMensual * 100).toFixed(3) + "\u00A0% del saldo" : "No aplica" },
-          { k: "Seguro de daños anual (factor)", v: p.seguroDanosAnual ? pct(p.seguroDanosAnual) : "No aplica" },
+          { k: "Seguro de daños", v: p.seguroDanosMontoMensual != null ? mxn(p.seguroDanosMontoMensual) + " mensual fijo" : (p.seguroDanosAnual ? pct(p.seguroDanosAnual) + " anual" : "No aplica") },
           { k: "Base del seguro de daños", v: { valor_construccion: "Valor de construcción", valor_total: "Valor total" }[p.baseSeguroDanos] || "No aplica" },
           { k: "Factor de construcción", v: pct(p.factorConstruccion) },
           { k: "Avalúo", v: p.avaluo ? mxn(p.avaluo) : "No aplica" },
           { k: "Plazos disponibles", v: p.plazosMeses.join(", ") + " meses" },
-          { k: "Monto mínimo", v: mxn(p.montoMinimo) },
+          { k: "Monto mínimo", v: p.montoMinimo != null ? mxn(p.montoMinimo) : "Sin mínimo" },
           { k: "Vigente desde", v: this.fecha(p.vigenteDesde) },
           { k: "Fuente", v: p.fuente },
+          { k: "Notas", v: p.notas || "—" },
         ]);
       })(),
       cerrarProducto: () => this.cerrarFila(s.productoAbierto),

@@ -4,7 +4,7 @@ import { PIPELINE, ASESORES, ETAPAS, MOTIVOS_PERDIDA } from "./pipeline.js";
 
 export { PIPELINE, ASESORES, ETAPAS, MOTIVOS_PERDIDA };
 
-export const HOY = "2026-09-14";
+export const HOY = new Date().toISOString().slice(0, 10);
 
 const MS_DIA = 86400000;
 const t = (iso) => new Date(iso + "T12:00:00").getTime();
