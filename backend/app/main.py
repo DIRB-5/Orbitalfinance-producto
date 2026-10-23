@@ -59,6 +59,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         convencion_pago=(p.convencion_pago or p.convencion_interes).value,
         convencion_amortizacion=(p.convencion_amortizacion or p.convencion_interes).value,
         seguros_en_pago_fijo=p.seguros_en_pago_fijo,
+        crecimiento_pago_anual=_tasa(p.crecimiento_pago_anual),
         plazos_meses=list(p.plazos_meses),
         aforo_max=_tasa(p.aforo_max),
         comision_apertura=_tasa(p.comision_apertura),

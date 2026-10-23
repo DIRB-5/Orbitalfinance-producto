@@ -41,6 +41,7 @@ class ProductoSalida(ModeloBase):
     convencion_pago: str
     convencion_amortizacion: str
     seguros_en_pago_fijo: bool
+    crecimiento_pago_anual: str
     plazos_meses: List[int]
     aforo_max: str
     comision_apertura: str

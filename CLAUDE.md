@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             83 pruebas. No deben bajar de ahí.
+  tests/             90 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -198,8 +198,14 @@ parches.
    Requiere sustituir `tasa_anual` por un calendario de tasas y derivar
    `plazo_efectivo_meses`.
 
-2. **Mensualidad creciente.** Productos que incrementan el pago un porcentaje
-   anual fijo (p. ej. 2.6 %). Requiere un factor de crecimiento aplicado al pago.
+2. **Mensualidad creciente — HECHO, SIN VALIDAR.** `crecimiento_pago_anual`
+   en el producto: el pago sube ese porcentaje en cada aniversario y el pago
+   inicial se calcula para liquidar en el plazo. Modelo genérico: no se ha
+   reproducido ningún cotizador (Banregio `TablAmoPagosCrec` tiene un escenario
+   capturado; Santander crece con `CAT!F26 = MIN(L24+D26, F25*(1+S26))`).
+   Si el pago inicial no cubre el interés (amortización negativa), el producto
+   es **no elegible** para ese escenario, con el motivo. Decisión de producto,
+   no de cálculo: la tabla se construye igual y cierra en cero.
 
 3. **Comisión mensual fija — HECHO.** `comision_mensual` en el producto; entra
    al pago, al costo total y al CAT (a valor bruto mientras se resuelve el IVA).
@@ -337,7 +343,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 83 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 90 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

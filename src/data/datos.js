@@ -236,7 +236,7 @@ function adaptarProducto(p) {
     comisionApertura: num(p.comisionApertura),
     comisionAperturaMonto: num(p.comisionAperturaMonto),
     comisionMensual: num(p.comisionMensual),
-    crecimientoMensualidadAnual: 0,
+    crecimientoMensualidadAnual: num(p.crecimientoPagoAnual) || 0,
     seguroVidaMensual: num(p.seguroVidaMensual),
     seguroDanosAnual: num(p.seguroDanosAnual),
     seguroDanosMontoMensual: num(p.seguroDanosMontoMensual),
@@ -296,6 +296,9 @@ export function tasaNormalizada(producto) {
 }
 
 export function comportamientoMensualidad(producto) {
+  if ((producto.crecimientoMensualidadAnual || 0) > 0) {
+    return "Creciente " + (producto.crecimientoMensualidadAnual * 100).toFixed(2) + "\u00A0% al año";
+  }
   return producto.seguroVidaMensual > 0 ? "Decreciente" : "Fija";
 }
 

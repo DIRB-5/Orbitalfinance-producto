@@ -176,6 +176,13 @@ def evaluar_producto(
         fecha_primer_pago or escenario.fecha_primer_pago or primer_pago_por_defecto(date.today()),
     )
 
+    if tabla.amortizacion_negativa:
+        motivos.append(
+            "Con este plazo el pago inicial no cubre los intereses y el saldo "
+            f"crecería hasta ${tabla.saldo_maximo:,.0f} antes de bajar "
+            "(amortización negativa). Un plazo menor lo resolvería."
+        )
+
     comision = redondear(producto.comision_apertura_para(monto))
     cat = calcular_cat(tabla, producto)
 

@@ -114,6 +114,13 @@ class ProductoHipotecario:
     # y el capital es lo que queda después de seguros e interés (Banregio).
     seguros_en_pago_fijo: bool = False
 
+    # Mensualidad creciente: el pago sube este porcentaje en cada aniversario
+    # (meses 13, 25, ...) y es fijo dentro del año. 0 = pago fijo. El pago
+    # inicial se calcula para que el crédito se liquide en el plazo.
+    # SIN VALIDAR contra un cotizador: algunos bancos crecen mes a mes o topan
+    # el pago; ajustar cuando se tenga el archivo.
+    crecimiento_pago_anual: Decimal = Decimal("0")
+
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
 

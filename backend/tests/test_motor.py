@@ -634,3 +634,81 @@ def test_el_iva_no_cambia_el_costo_total():
     assert con_iva.costo_total == sin_iva.costo_total
     assert sin_iva.cat_estimado < con_iva.cat_estimado
 
+
+
+# --------------------------------------------------------------------------
+# Mensualidad creciente
+# --------------------------------------------------------------------------
+
+
+def producto_creciente(**kwargs) -> ProductoHipotecario:
+    return producto_limpio(crecimiento_pago_anual=Decimal("0.026"), **kwargs)
+
+
+def test_pago_creciente_sube_en_cada_aniversario():
+    tabla = construir_tabla(
+        LineaCredito(producto_creciente(), Decimal("1850000"), 180), Decimal("2500000")
+    )
+    pago = [r.capital + r.interes for r in tabla.renglones]
+    assert pago[0] == pago[11]  # fijo dentro del año
+    assert abs(pago[12] / pago[11] - Decimal("1.026")) < Decimal("1E-20")
+    assert abs(pago[24] / pago[12] - Decimal("1.026")) < Decimal("1E-20")
+
+
+def test_pago_creciente_cierra_en_cero():
+    monto = Decimal("1850000")
+    tabla = construir_tabla(LineaCredito(producto_creciente(), monto, 180), Decimal("2500000"))
+    ultimo = tabla.renglones[-1]
+    assert ultimo.saldo_final == Decimal("0")
+    esperado = tabla.pago_capital_interes * Decimal("1.026") ** 14
+    assert abs((ultimo.capital + ultimo.interes) - esperado) < Decimal("1E-12")
+    assert abs(sum(r.capital for r in tabla.renglones) - monto) < Decimal("1E-15")
+
+
+def test_sin_crecimiento_la_tabla_no_cambia():
+    linea = LineaCredito(producto_limpio(), Decimal("1850000"), 240)
+    con_cero = LineaCredito(
+        producto_limpio(crecimiento_pago_anual=Decimal("0")), Decimal("1850000"), 240
+    )
+    assert construir_tabla(linea, Decimal("2500000")) == construir_tabla(con_cero, Decimal("2500000"))
+
+
+def test_pago_creciente_empieza_mas_bajo_y_cuesta_mas():
+    fijo = construir_tabla(LineaCredito(producto_limpio(), Decimal("1850000"), 180), Decimal("2500000"))
+    creciente = construir_tabla(
+        LineaCredito(producto_creciente(), Decimal("1850000"), 180), Decimal("2500000")
+    )
+    assert creciente.primer_pago < fijo.primer_pago
+    assert creciente.total_intereses > fijo.total_intereses
+
+
+def test_amortizacion_negativa_se_detecta_sin_romper_la_tabla():
+    """A 240 meses y 10.85 %, crecer 2.6 % deja el pago inicial por debajo del
+    interés: el saldo sube al principio. La tabla se construye igual."""
+    tabla = construir_tabla(
+        LineaCredito(producto_creciente(), Decimal("1850000"), 240), Decimal("2500000")
+    )
+    assert tabla.amortizacion_negativa
+    assert tabla.saldo_maximo > Decimal("1850000")
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
+
+
+def test_amortizacion_negativa_vuelve_no_elegible_al_producto():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240
+    )
+    resultado = evaluar_producto(escenario, producto_creciente())
+    assert not resultado.elegible
+    assert any("no cubre los intereses" in m for m in resultado.motivos_rechazo)
+
+    corto = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=180
+    )
+    assert evaluar_producto(corto, producto_creciente()).elegible
+
+
+def test_pago_fijo_que_no_cubre_intereses_sigue_siendo_error():
+    """Sin crecimiento, un pago que no cubre intereses son parámetros rotos."""
+    linea = LineaCredito(producto_limpio(tasa_anual=Decimal("5")), Decimal("1000000"), 240)
+    with pytest.raises(ValueError):
+        construir_tabla(linea, Decimal("1500000"))

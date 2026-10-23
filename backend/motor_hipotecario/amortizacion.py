@@ -78,6 +78,15 @@ class TablaAmortizacion:
         return sum((r.pago_total for r in self.renglones), Decimal("0"))
 
     @property
+    def amortizacion_negativa(self) -> bool:
+        """True si algún mes el pago no cubre el interés y el saldo sube."""
+        return any(r.capital < 0 for r in self.renglones)
+
+    @property
+    def saldo_maximo(self) -> Dinero:
+        return max([self.monto] + [r.saldo_final for r in self.renglones])
+
+    @property
     def primer_pago(self) -> Dinero:
         return self.renglones[0].pago_total
 
@@ -163,6 +172,29 @@ def _anualidad(monto: Dinero, i: Decimal, plazo_meses: int) -> Decimal:
     return monto * i / (Decimal(1) - factor)
 
 
+def _anualidad_creciente(
+    monto: Dinero, i: Decimal, plazo_meses: int, crecimiento_anual: Decimal
+) -> Decimal:
+    """
+    Pago del primer año de una mensualidad que crece `crecimiento_anual` en
+    cada aniversario, tal que el valor presente de todos los pagos sea el
+    monto. Con crecimiento cero es la anualidad de siempre.
+    """
+    if crecimiento_anual == 0:
+        return _anualidad(monto, i, plazo_meses)
+    if plazo_meses <= 0:
+        raise ValueError("El plazo debe ser mayor a cero.")
+    if monto <= 0:
+        raise ValueError("El monto debe ser mayor a cero.")
+
+    suma = Decimal(0)
+    descuento = Decimal(1)
+    for mes in range(1, plazo_meses + 1):
+        descuento /= Decimal(1) + i
+        suma += (Decimal(1) + crecimiento_anual) ** ((mes - 1) // 12) * descuento
+    return monto / suma
+
+
 def _sumar_meses(fecha: date, meses: int) -> date:
     total = fecha.month - 1 + meses
     anio, mes = fecha.year + total // 12, total % 12 + 1
@@ -222,20 +254,24 @@ def construir_tabla(
     danos = _seguro_danos_mensual(producto, valor_vivienda)
     comision_mensual = producto.comision_mensual
 
+    if convencion_pago is ConvencionDias.DIAS_REALES_360:
+        raise ValueError(
+            "El pago fijo no puede calcularse con días reales: define "
+            "convencion_pago en el producto."
+        )
+
     # Si el pago y el interés usan convenciones distintas (Santander), el
     # último renglón absorbe la diferencia acumulada.
+    crecimiento = producto.crecimiento_pago_anual
+    i_pago = tasa_periodica(tasa, convencion_pago)
+    seguros_en_pago = Decimal(0)
     if producto.seguros_en_pago_fijo:
         # Los seguros van dentro del pago: anualidad con la tasa del seguro de
         # vida sumada a la del periodo, más el seguro de daños.
-        if convencion_pago is ConvencionDias.DIAS_REALES_360:
-            raise ValueError(
-                "El pago fijo no puede calcularse con días reales: define "
-                "convencion_pago en el producto."
-            )
-        i_pago = tasa_periodica(tasa, convencion_pago) + producto.seguro_vida_mensual
-        pago_fijo = _anualidad(monto, i_pago, plazo) + danos
-    else:
-        pago_fijo = pago_frances(monto, tasa, plazo, convencion_pago)
+        i_pago += producto.seguro_vida_mensual
+        seguros_en_pago = danos
+    anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
+    pago_fijo = anualidad + seguros_en_pago
 
     renglones: list[Renglon] = []
     saldo = monto
@@ -254,16 +290,21 @@ def construir_tabla(
         if convencion_amortizacion is not None:
             interes_amortizacion = saldo_inicial * tasa_periodica(tasa, convencion_amortizacion)
 
+        pago_del_mes = pago_fijo
+        if crecimiento:
+            pago_del_mes = anualidad * (Decimal(1) + crecimiento) ** ((mes - 1) // 12) + seguros_en_pago
+
         if mes == plazo:
             # Pago final: liquida todo el saldo remanente
             capital = saldo_inicial
         else:
-            disponible = pago_fijo - (vida + danos if producto.seguros_en_pago_fijo else 0)
+            disponible = pago_del_mes - (vida + danos if producto.seguros_en_pago_fijo else 0)
             capital = disponible - interes_amortizacion
-            # Blindaje: si la tasa fuera tan alta que el pago no cubre el
-            # interés, la tabla nunca amortizaría. Se detecta en vez de
-            # producir una tabla silenciosamente incorrecta.
-            if capital <= 0:
+            # Blindaje: con pago fijo, un pago que no cubre el interés nunca
+            # amortizaría; se detecta en vez de producir una tabla
+            # silenciosamente incorrecta. Con pago creciente es amortización
+            # negativa: la tabla cierra igual y el comparador la rechaza.
+            if capital <= 0 and not crecimiento:
                 raise ValueError(
                     f"El pago mensual no cubre los intereses del mes {mes}. "
                     "Revisa tasa y plazo del producto."
