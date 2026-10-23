@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="position:relative; width:1280px; height:720px; background:#FFFDFB; border:1px solid #E4E1DC; box-sizing:border-box; overflow:hidden; font-family:'IBM Plex Sans', system-ui, sans-serif; color:#1A1917; font-variant-numeric:tabular-nums;">
+
+  <div style="position:absolute; top:34px; left:44px; display:flex; align-items:center; gap:10px; z-index:3;">
+    <div style="width:26px; height:26px; border:1px solid #1B3A5C; color:#1B3A5C; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:600; letter-spacing:0.04em;">{{ logoTexto }}</div>
+    <span style="font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:#7A756C;">{{ marcaPie }}</span>
+  </div>
+  <div style="position:absolute; bottom:28px; right:44px; font-size:11px; color:#9A948A; z-index:3;">{{ numero }}</div>
+  <sc-if value="{{ marcaAgua }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; bottom:28px; left:44px; font-size:10.5px; letter-spacing:0.18em; text-transform:uppercase; color:#C9C3B9; z-index:3;">Vista previa</div>
+  </sc-if>
+
+  <!-- PORTADA -->
+  <sc-if value="{{ esPortada }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute; inset:0; display:grid; grid-template-columns:1fr 468px;">
+      <div style="padding:120px 56px 64px 44px; display:flex; flex-direction:column;">
+        <div style="font-size:12px; letter-spacing:0.13em; text-transform:uppercase; color:#1B3A5C;">Comparativo de opciones de crédito</div>
+        <div style="font-size:52px; font-weight:600; line-height:1.06; letter-spacing:-0.025em; margin-top:20px; max-width:640px; text-wrap:pretty;">Propuesta personalizada para tu hipoteca</div>
+        <div style="margin-top:auto; display:flex; flex-direction:column; gap:5px;">
+          <div style="font-size:24px; font-weight:600;">{{ clienteNombre }}</div>
+          <div style="font-size:15px; color:#4A463F;">{{ etiqueta }} · {{ fecha }}</div>
+        </div>
+        <div style="margin-top:28px; padding-top:18px; border-top:1px solid #E4E1DC; display:flex; gap:34px; font-size:12.5px; color:#4A463F;">
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span style="font-weight:600; color:#1A1917;">{{ asesorNombre }}</span>
+            <span>Cédula {{ asesorCedula }}</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:2px;">
+            <span>{{ asesorTelefono }}</span>
+            <span>{{ asesorCorreo }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="background:#F4F1EC; border-left:1px solid #E4E1DC; display:flex; align-items:center; justify-content:center;">
+        <div style="width:300px; height:300px; border:1px solid #DDD7CE; background:#FBF8F4; display:flex; align-items:center; justify-content:center;">
+          <div style="width:120px; height:120px; border:1px solid #C9C3B9;"></div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ÍNDICE -->
+  <sc-if value="{{ esIndice }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:104px 60px 64px 44px; display:flex; flex-direction:column;">
+      <div style="font-size:32px; font-weight:600; letter-spacing:-0.015em;">Contenido</div>
+      <div style="height:1px; background:#E4E1DC; margin:22px 0 26px;"></div>
+      <div style="{{ indiceGridStyle }}">
+        <sc-for list="{{ indice }}" as="it" hint-placeholder-count="8">
+          <div style="display:flex; align-items:baseline; gap:14px; padding:11px 0; border-bottom:1px solid #F0EDE7;">
+            <span style="font-size:12px; color:#9A948A; width:22px;">{{ it.n }}</span>
+            <span style="font-size:16px;">{{ it.titulo }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- RESUMEN DEL ESCENARIO -->
+  <sc-if value="{{ esResumen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:104px 44px 64px; display:flex; flex-direction:column;">
+      <div style="font-size:32px; font-weight:600; letter-spacing:-0.015em;">Tu escenario</div>
+      <div style="font-size:15px; color:#4A463F; margin-top:6px;">{{ etiqueta }} · plazo de {{ plazoTexto }}</div>
+      <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:1px; background:#E4E1DC; border:1px solid #E4E1DC; margin-top:34px;">
+        <sc-for list="{{ resumen }}" as="r" hint-placeholder-count="5">
+          <div style="background:#FFFDFB; padding:26px 22px; display:flex; flex-direction:column; gap:10px;">
+            <span style="font-size:11.5px; letter-spacing:0.07em; text-transform:uppercase; color:#7A756C;">{{ r.k }}</span>
+            <span style="font-size:29px; font-weight:600; letter-spacing:-0.02em;">{{ r.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="margin-top:34px; max-width:820px; font-size:16px; line-height:1.6; color:#4A463F; text-wrap:pretty;">El aforo es la parte del valor de la casa que financia el banco. Aquí el banco pone {{ aforoTexto }} y tú pones el resto con el enganche. Cada institución fija su aforo máximo, y ese límite decide qué opciones puedes tomar.</div>
+    </div>
+  </sc-if>
+
+  <!-- COMPARATIVO -->
+  <sc-if value="{{ esComparativo }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:82px 44px 56px; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:24px;">
+        <div style="font-size:28px; font-weight:600; letter-spacing:-0.015em;">Comparativo de opciones</div>
+        <div style="font-size:13px; color:#7A756C;">Monto del crédito {{ montoCredito }} · plazo {{ plazoTexto }}</div>
+      </div>
+      <sc-if value="{{ plazosDistintos }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:14px; border:1px solid #1B3A5C; padding:11px 14px; font-size:13.5px; color:#1B3A5C; line-height:1.45;">Las opciones tienen plazos distintos; la suma de mensualidades no es comparable directamente.</div>
+      </sc-if>
+      <table style="width:100%; border-collapse:collapse; margin-top:18px;">
+        <thead>
+          <tr>
+            <th style="width:236px; border-bottom:1px solid #E4E1DC;"></th>
+            <sc-for list="{{ columnas }}" as="c" hint-placeholder-count="3">
+              <th style="{{ c.thStyle }}">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <div style="{{ c.monoStyle }}">{{ c.inicial }}</div>
+                  <span style="font-size:14.5px; font-weight:600;">{{ c.institucion }}</span>
+                </div>
+                <sc-if value="{{ c.esRecomendada }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:inline-block; margin-top:7px; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; background:#1B3A5C; color:#FFFFFF; padding:3px 7px;">Recomendada</div>
+                </sc-if>
+              </th>
+            </sc-for>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{ renglones }}" as="r" hint-placeholder-count="9">
+            <tr style="{{ r.trStyle }}">
+              <td style="{{ r.tdEtiqueta }}">{{ r.k }}</td>
+              <sc-for list="{{ r.celdas }}" as="cel" hint-placeholder-count="3">
+                <td style="{{ cel.style }}">{{ cel.v }}</td>
+              </sc-for>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+      <div style="margin-top:auto; padding-top:14px; display:flex; gap:26px; font-size:10.5px; color:#7A756C; line-height:1.5;">
+        <sc-for list="{{ notas }}" as="n" hint-placeholder-count="3">
+          <div style="max-width:380px;">{{ n }}</div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- DETALLE POR INSTITUCIÓN -->
+  <sc-if value="{{ esDetalle }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:76px 44px 50px; display:flex; flex-direction:column;">
+      <div style="display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:30px; height:30px; border-radius:50%; background:#1B3A5C; color:#FFFFFF; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600;">{{ detInicial }}</div>
+          <span style="font-size:26px; font-weight:600; letter-spacing:-0.015em;">{{ detInstitucion }}</span>
+        </div>
+        <span style="font-size:15px; color:#4A463F;">{{ detNombre }}</span>
+        <span style="font-size:13.5px; color:#7A756C;">{{ detPlazo }} · CAT {{ detCat }} estimado · tasa {{ detTasa }}</span>
+      </div>
+
+      <div style="margin-top:20px; border:1px solid #E4E1DC; padding:18px 22px;">
+        <div style="font-size:12px; letter-spacing:0.07em; text-transform:uppercase; color:#7A756C;">¿Cuál es la inversión total y cómo se paga?</div>
+        <div style="display:flex; align-items:flex-end; gap:34px; margin-top:14px;">
+          <div style="display:flex; align-items:flex-end; gap:16px; height:132px;">
+            <sc-for list="{{ barrasIzq }}" as="b" hint-placeholder-count="3">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px; justify-content:flex-end; height:132px;">
+                <span style="font-size:12.5px; font-weight:600;">{{ b.v }}</span>
+                <div style="{{ b.barStyle }}"></div>
+                <span style="font-size:11px; color:#4A463F; white-space:nowrap;">{{ b.k }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; gap:4px; padding-bottom:26px;">
+            <span style="font-size:11px; color:#7A756C; white-space:nowrap;">¿Cómo se paga?</span>
+            <span style="font-size:18px; color:#1B3A5C;">→</span>
+          </div>
+          <div style="display:flex; align-items:flex-end; gap:16px; height:132px;">
+            <sc-for list="{{ barrasDer }}" as="b" hint-placeholder-count="2">
+              <div style="display:flex; flex-direction:column; align-items:center; gap:6px; justify-content:flex-end; height:132px;">
+                <span style="font-size:12.5px; font-weight:600;">{{ b.v }}</span>
+                <div style="{{ b.barStyle }}"></div>
+                <span style="font-size:11px; color:#4A463F; white-space:nowrap;">{{ b.k }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-left:auto; text-align:right; padding-bottom:8px;">
+            <div style="font-size:11.5px; color:#7A756C;">Ambos grupos suman</div>
+            <div style="font-size:22px; font-weight:600;">{{ detTotalInversion }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:16px; flex:1; min-height:0;">
+        <div style="display:flex; flex-direction:column; gap:14px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+            <div>
+              <div style="font-size:11.5px; letter-spacing:0.07em; text-transform:uppercase; color:#7A756C; margin-bottom:8px;">Gastos iniciales</div>
+              <sc-for list="{{ detGastos }}" as="g" hint-placeholder-count="4">
+                <div style="display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:5px 0; border-bottom:1px solid #F0EDE7;">
+                  <span style="color:#4A463F;">{{ g.k }}</span><span>{{ g.v }}</span>
+                </div>
+              </sc-for>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; padding:7px 0 0;">
+                <span>Total</span><span>{{ detGastosTotal }}</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11.5px; letter-spacing:0.07em; text-transform:uppercase; color:#7A756C; margin-bottom:8px;">Tu mensualidad</div>
+              <sc-for list="{{ detMensualidad }}" as="g" hint-placeholder-count="4">
+                <div style="display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:5px 0; border-bottom:1px solid #F0EDE7;">
+                  <span style="color:#4A463F;">{{ g.k }}</span><span>{{ g.v }}</span>
+                </div>
+              </sc-for>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; padding:7px 0 0;">
+                <span>Total mes 1</span><span>{{ detPagoPrimero }}</span>
+              </div>
+            </div>
+          </div>
+          <div style="border-top:1px solid #E4E1DC; padding-top:12px; display:flex; flex-direction:column; gap:7px; font-size:12.5px;">
+            <div style="display:flex; justify-content:space-between; gap:12px;"><span style="color:#4A463F;">Comportamiento de la mensualidad</span><span style="font-weight:500;">{{ detComportamiento }}</span></div>
+            <div style="display:flex; justify-content:space-between; gap:12px;"><span style="color:#4A463F;">Penalización por prepago</span><span style="font-weight:500;">{{ detPrepago }}</span></div>
+            <div style="display:flex; justify-content:space-between; gap:12px;"><span style="color:#4A463F;">Suma de las mensualidades</span><span style="font-weight:600; font-size:14px;">{{ detSumaMensualidades }}</span></div>
+          </div>
+        </div>
+
+        <div style="border-left:1px solid #E4E1DC; padding-left:18px; display:flex; flex-direction:column;">
+          <div style="font-size:11.5px; letter-spacing:0.07em; text-transform:uppercase; color:#7A756C; margin-bottom:8px;">Mensualidad de cada año</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 18px;">
+            <sc-for list="{{ detAnios }}" as="col" hint-placeholder-count="2">
+              <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                  <tr style="font-size:9.5px; text-transform:uppercase; letter-spacing:0.06em; color:#9A948A;">
+                    <th style="text-align:left; font-weight:500; padding:0 0 5px; border-bottom:1px solid #E4E1DC;">Año</th>
+                    <th style="text-align:right; font-weight:500; padding:0 0 5px; border-bottom:1px solid #E4E1DC;">Mensualidad</th>
+                    <th style="text-align:right; font-weight:500; padding:0 0 5px 6px; border-bottom:1px solid #E4E1DC;">Tasa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ col.filas }}" as="f" hint-placeholder-count="10">
+                    <tr>
+                      <td style="font-size:11.5px; color:#7A756C; padding:4px 0; border-bottom:1px solid #F5F2EC;">{{ f.anio }}</td>
+                      <td style="font-size:11.5px; text-align:right; padding:4px 0; border-bottom:1px solid #F5F2EC;">{{ f.pago }}</td>
+                      <td style="font-size:11.5px; text-align:right; padding:4px 0 4px 6px; border-bottom:1px solid #F5F2EC; color:#7A756C;">{{ f.tasa }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- AVISO LEGAL -->
+  <sc-if value="{{ esLegal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:92px 44px 56px; display:flex; flex-direction:column;">
+      <div style="font-size:28px; font-weight:600; letter-spacing:-0.015em;">Aviso legal</div>
+      <div style="display:flex; gap:40px; margin-top:16px; padding:14px 0; border-top:1px solid #E4E1DC; border-bottom:1px solid #E4E1DC; font-size:12.5px;">
+        <div><span style="color:#7A756C;">Propuesta generada el </span><span style="font-weight:600;">{{ fecha }}</span></div>
+        <div><span style="color:#7A756C;">Condiciones consultadas vigentes al </span><span style="font-weight:600;">{{ fechaVigencia }}</span></div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px 40px; margin-top:20px; align-content:start;">
+        <sc-for list="{{ avisos }}" as="a" hint-placeholder-count="5">
+          <div style="font-size:13px; line-height:1.55; color:#1A1917; text-wrap:pretty;">{{ a }}</div>
+        </sc-for>
+      </div>
+      <div style="margin-top:auto; padding-top:16px; border-top:1px solid #E4E1DC; display:flex; gap:44px; font-size:12.5px;">
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#7A756C;">Asesor responsable</span>
+          <span style="font-weight:600;">{{ asesorNombre }}</span>
+          <span style="color:#4A463F;">Cédula {{ asesorCedula }} · {{ asesorTelefono }} · {{ asesorCorreo }}</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:#7A756C;">Organización responsable</span>
+          <span style="font-weight:600;">{{ nombreOrg }}</span>
+          <span style="color:#4A463F;">{{ orgDireccion }} · {{ orgTelefono }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- PÁGINA DE PLANTILLA -->
+  <sc-if value="{{ esPlantilla }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute; inset:0; padding:96px 44px 56px; display:flex; flex-direction:column;">
+      <div style="font-size:30px; font-weight:600; letter-spacing:-0.015em;">{{ plTitulo }}</div>
+      <div style="height:1px; background:#E4E1DC; margin:20px 0 24px;"></div>
+
+      <sc-for list="{{ plParrafos }}" as="p" hint-placeholder-count="1">
+        <div style="font-size:16px; line-height:1.6; color:#1A1917; max-width:860px; margin-bottom:20px; text-wrap:pretty;">{{ p }}</div>
+      </sc-for>
+
+      <sc-if value="{{ plHayCifras }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex; gap:1px; background:#E4E1DC; border:1px solid #E4E1DC; margin-bottom:22px; width:fit-content;">
+          <sc-for list="{{ plCifras }}" as="c" hint-placeholder-count="3">
+            <div style="background:#FFFDFB; padding:18px 26px; display:flex; flex-direction:column; gap:6px; max-width:220px;">
+              <span style="font-size:24px; font-weight:600; letter-spacing:-0.02em;">{{ c.valor }}</span>
+              <span style="font-size:12px; color:#7A756C; line-height:1.4;">{{ c.etiqueta }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ plHayPasos }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:18px;">
+          <sc-for list="{{ plPasos }}" as="p" hint-placeholder-count="5">
+            <div style="border-top:2px solid #1B3A5C; padding-top:12px; display:flex; flex-direction:column; gap:7px;">
+              <span style="font-size:11.5px; color:#1B3A5C; font-weight:600;">{{ p.n }}</span>
+              <span style="font-size:15px; font-weight:600; line-height:1.25;">{{ p.titulo }}</span>
+              <span style="font-size:12.5px; color:#4A463F; line-height:1.5;">{{ p.texto }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ plHayListas }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:26px;">
+          <sc-for list="{{ plListas }}" as="l" hint-placeholder-count="3">
+            <div>
+              <div style="font-size:14px; font-weight:600; padding-bottom:9px; border-bottom:1px solid #E4E1DC;">{{ l.titulo }}</div>
+              <div style="display:flex; flex-direction:column; gap:8px; margin-top:11px;">
+                <sc-for list="{{ l.items }}" as="it" hint-placeholder-count="4">
+                  <div style="font-size:12.5px; line-height:1.5; color:#4A463F;">{{ it }}</div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ plHayFaq }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px 34px; align-content:start;">
+          <sc-for list="{{ plFaq }}" as="f" hint-placeholder-count="5">
+            <div>
+              <div style="font-size:13.5px; font-weight:600;">{{ f.p }}</div>
+              <div style="font-size:12px; line-height:1.5; color:#4A463F; margin-top:4px; text-wrap:pretty;">{{ f.r }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ esContacto }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:34px; max-width:900px;">
+          <div style="display:flex; flex-direction:column; gap:16px;">
+            <sc-for list="{{ contactoOrg }}" as="c" hint-placeholder-count="4">
+              <div style="display:flex; flex-direction:column; gap:3px;">
+                <span style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#7A756C;">{{ c.k }}</span>
+                <span style="font-size:16px;">{{ c.v }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="border-left:1px solid #E4E1DC; padding-left:34px; display:flex; flex-direction:column; gap:16px;">
+            <div style="font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:#7A756C;">Tu asesor</div>
+            <div style="font-size:20px; font-weight:600;">{{ asesorNombre }}</div>
+            <div style="display:flex; flex-direction:column; gap:5px; font-size:15px; color:#4A463F;">
+              <span>Cédula {{ asesorCedula }}</span>
+              <span>{{ asesorTelefono }}</span>
+              <span>{{ asesorCorreo }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1300,&quot;height&quot;:740},&quot;datos&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;},&quot;paginaId&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;portada&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;numero&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1 / 13&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;marcaAgua&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const ACENTO = "#1B3A5C";
+
+class Component extends DCLogic {
+  renderVals() {
+    const d = this.props.datos || {};
+    const pid = this.props.paginaId || "portada";
+    const org = d.organizacion || {};
+    const plantilla = d.plantilla || { paginasFijas: [], contacto: {} };
+    const asesor = d.asesor || {};
+    const esc = d.escenario || {};
+    const opciones = d.opciones || [];
+    const rec = d.recomendada || opciones[0] || null;
+    const marca = d.marca || "corporativa_asesor";
+
+    const mxn = (n) => (n === null || n === undefined || isNaN(n)) ? "—" : "$" + Number(n).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = (x) => (x === null || x === undefined) ? "—" : (x * 100).toFixed(2) + "\u00A0%";
+    const fechaFmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" });
+
+    const monto = (esc.valorVivienda || 0) - (esc.enganche || 0);
+    const af = esc.valorVivienda ? monto / esc.valorVivienda : 0;
+    const plazosDistintos = !!d.plazosDistintos;
+
+    const esDetalle = pid.indexOf("detalle:") === 0;
+    const det = esDetalle ? opciones.find((o) => o.producto.id === pid.slice(8)) : null;
+    const pagFija = plantilla.paginasFijas.find((p) => p.id === pid) || null;
+
+    const base = {
+      logoTexto: marca === "asesor" ? (asesor.nombre || "  ").slice(0, 2).toUpperCase() : (org.logoTexto || "GID"),
+      marcaPie: marca === "asesor" ? (asesor.nombre || "") : (org.nombre || ""),
+      nombreOrg: org.nombre || "",
+      numero: this.props.numero || "",
+      marcaAgua: this.props.marcaAgua !== false,
+      clienteNombre: (d.cliente && d.cliente.nombre) || "",
+      etiqueta: esc.etiqueta || "",
+      fecha: fechaFmt(d.fecha || "2026-01-15"),
+      fechaVigencia: fechaFmt(d.fechaVigencia || "2026-01-15"),
+      asesorNombre: asesor.nombre || "",
+      asesorCedula: asesor.cedula || "—",
+      asesorTelefono: asesor.telefono || "—",
+      asesorCorreo: asesor.correo || "—",
+      orgDireccion: (plantilla.contacto || {}).direccion || "",
+      orgTelefono: (plantilla.contacto || {}).telefono || "",
+      montoCredito: mxn(monto),
+      plazoTexto: (esc.plazoMeses || 0) + " meses",
+      aforoTexto: pct(af),
+      plazosDistintos,
+      esPortada: pid === "portada",
+      esIndice: pid === "indice",
+      esResumen: pid === "resumen-escenario",
+      esComparativo: pid === "comparativo",
+      esDetalle: !!det,
+      esLegal: pid === "aviso-legal",
+      esPlantilla: !!pagFija,
+      esContacto: pid === "contacto",
+      indice: (d.indice || []).map((t, i) => ({ n: String(i + 1).padStart(2, "0"), titulo: t })),
+      indiceGridStyle: {
+        display: "grid", gap: "0 64px", alignContent: "start", gridAutoFlow: "column",
+        gridTemplateColumns: "1fr 1fr",
+        gridTemplateRows: "repeat(" + Math.ceil(((d.indice || []).length || 2) / 2) + ", auto)",
+      },
+      resumen: [
+        { k: "Valor de la vivienda", v: mxn(esc.valorVivienda) },
+        { k: "Enganche", v: mxn(esc.enganche) },
+        { k: "Monto del crédito", v: mxn(monto) },
+        { k: "Plazo", v: (esc.plazoMeses || 0) + " meses" },
+        { k: "Aforo", v: pct(af) },
+      ],
+      avisos: d.avisoLegal || [],
+      contactoOrg: [
+        { k: "Dirección", v: (plantilla.contacto || {}).direccion || "" },
+        { k: "Teléfono", v: (plantilla.contacto || {}).telefono || "" },
+        { k: "Correo", v: (plantilla.contacto || {}).correo || "" },
+        { k: "Horario", v: (plantilla.contacto || {}).horario || "" },
+      ],
+    };
+
+    // --- Comparativo: columnas por institución, renglones por atributo ----
+    const cols = opciones.slice(0, 4);
+    const minCosto = cols.length ? Math.min.apply(null, cols.map((o) => o.costoTotal)) : null;
+    const esRec = (o) => rec && o.producto.id === rec.producto.id;
+    const celda = (o, texto, destacada) => ({
+      v: texto,
+      style: Object.assign(
+        { textAlign: "right", padding: "9px 14px", fontSize: destacada ? "16px" : "13.5px", borderBottom: "1px solid #F0EDE7", fontWeight: destacada ? 600 : 400 },
+        esRec(o) ? { background: "#F1F4F7" } : {}
+      ),
+    });
+    const renglon = (k, fn, destacada) => ({
+      k, celdas: cols.map((o) => celda(o, fn(o), destacada)),
+      trStyle: destacada ? { background: "#FBFAF7" } : {},
+      tdEtiqueta: {
+        padding: "9px 14px 9px 0", fontSize: destacada ? "14px" : "13px",
+        color: destacada ? "#1A1917" : "#4A463F", fontWeight: destacada ? 600 : 400,
+        borderBottom: "1px solid #F0EDE7", whiteSpace: "nowrap",
+      },
+    });
+    const comportamiento = (o) => {
+      if ((o.producto.crecimientoMensualidadAnual || 0) > 0) return "Creciente " + pct(o.producto.crecimientoMensualidadAnual) + " al año";
+      if (o.tasaVariable) return "Variable según TIIE";
+      return o.producto.seguroVidaMensual > 0 ? "Decreciente" : "Fija";
+    };
+    const etiquetaTasa = (o) => {
+      const tt = o.producto.tasa || {};
+      if (tt.tipo !== "variable") return pct(o.tasaAnual);
+      return (tt.referencia || "").replace("_", " ") + " + " + (tt.spread * 100).toFixed(2) + " = " + pct(o.tasaAnual);
+    };
+
+    base.columnas = cols.map((o) => ({
+      institucion: o.producto.institucion,
+      inicial: o.producto.institucion.trim().slice(-1),
+      esRecomendada: esRec(o),
+      monoStyle: { width: "24px", height: "24px", borderRadius: "50%", background: ACENTO, color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 600, flex: "0 0 auto" },
+      thStyle: Object.assign(
+        { textAlign: "left", padding: "10px 14px 12px", borderBottom: "1px solid #E4E1DC", verticalAlign: "bottom" },
+        esRec(o) ? { background: "#F1F4F7", borderTop: "2px solid " + ACENTO } : {}
+      ),
+    }));
+    base.renglones = [
+      renglon("Crédito (plazo)", (o) => o.producto.nombre + " (" + (o.plazoEfectivoMeses || esc.plazoMeses) + " m)"),
+      renglon("Mensualidad inicial", (o) => mxn(o.pagoPrimerMes)),
+      renglon("Mensualidad final", (o) => mxn(o.pagoUltimoMes)),
+      renglon("Tasa de interés ¹", etiquetaTasa),
+      renglon("CAT estimado ³", (o) => pct(o.catEstimado)),
+      renglon("Comportamiento de la mensualidad", comportamiento),
+      renglon("Suma de las mensualidades", (o) => mxn(o.sumaMensualidades)),
+      renglon("Costo total ²", (o) => mxn(o.costoTotal), true),
+      renglon("Desembolso el día de la firma", (o) => mxn(o.desembolsoInicial)),
+    ];
+    base.notas = [
+      "1 – La tasa aprobada puede variar según el análisis de riesgo de cada institución.",
+      "2 – Los gastos notariales son estimados y varían por notaría y municipio.",
+      "3 – El CAT es estimado y está pendiente de validación contra el publicado por cada institución.",
+    ];
+
+    // --- Detalle por institución ------------------------------------------
+    if (det) {
+      const p = det.producto;
+      const investigacion = p.gastosInvestigacion || 0;
+      const otrosGastos = det.gastosNotariales + det.avaluo + det.comisionApertura + investigacion;
+      const tp = esc.subtipo || "adquisicion";
+      const valorBien = tp === "adquisicion" ? (esc.valorVivienda || 0)
+        : tp === "terreno" ? (esc.valorTerreno || 0)
+        : det.montoCredito;
+      const etiquetaBien = tp === "adquisicion" ? "Inmueble" : tp === "terreno" ? "Terreno" : "Recursos recibidos";
+      const total = valorBien + otrosGastos;
+      // El total de ambos grupos tiene que cuadrar: aportación + crédito = total.
+      const aportacion = total - det.montoCredito;
+      const cofinanciamiento = d.cofinanciamiento || 0;
+      const maxBar = total;
+      const barra = (k, v, fuerte) => ({
+        k, v: mxn(v),
+        barStyle: {
+          width: "62px", height: Math.max(6, Math.round((v / maxBar) * 96)) + "px",
+          background: fuerte ? ACENTO : "#C3CEDA", border: "1px solid " + (fuerte ? ACENTO : "#A9B8C7"),
+        },
+      });
+      const r1 = det.tabla[0] || {};
+      base.detInstitucion = p.institucion;
+      base.detInicial = p.institucion.trim().slice(-1);
+      base.detNombre = p.nombre;
+      base.detPlazo = (det.plazoEfectivoMeses || esc.plazoMeses) + " meses";
+      base.detCat = pct(det.catEstimado);
+      base.detTasa = etiquetaTasa(det);
+      base.barrasIzq = [barra(etiquetaBien, valorBien), barra("Otros gastos", otrosGastos), barra("Total", total, true)];
+      base.barrasDer = [barra("Aportación del cliente", aportacion), barra("Crédito banco", det.montoCredito, true)]
+        .concat(cofinanciamiento > 0 ? [barra("Cofinanciamiento", cofinanciamiento)] : []);
+      base.detTotalInversion = mxn(total);
+      base.detGastos = [
+        { k: "Gastos notariales", v: mxn(det.gastosNotariales) },
+        { k: "Avalúo", v: mxn(det.avaluo) },
+        { k: "Comisión por apertura", v: mxn(det.comisionApertura) },
+        { k: "Gastos de investigación", v: mxn(investigacion) },
+      ];
+      base.detGastosTotal = mxn(otrosGastos);
+      base.detMensualidad = [
+        { k: "Pago a crédito", v: mxn((r1.capital || 0) + (r1.interes || 0)) },
+        { k: "Seguro de vida", v: mxn(r1.seguroVida || 0) },
+        { k: "Seguro de daños", v: mxn(r1.seguroDanos || 0) },
+        { k: "Comisión mensual", v: mxn(r1.comisionMensual || 0) },
+      ].filter((x) => x.v !== "$0.00" || x.k === "Comisión mensual");
+      base.detPagoPrimero = mxn(det.pagoPrimerMes);
+      base.detComportamiento = comportamiento(det);
+      base.detPrepago = p.penalizacionPrepago || "No especificada";
+      base.detSumaMensualidades = mxn(det.sumaMensualidades);
+      const anios = [];
+      const totalAnios = Math.ceil(det.tabla.length / 12);
+      for (let a = 0; a < totalAnios; a++) {
+        const r = det.tabla[a * 12];
+        if (r) anios.push({ anio: a + 1, pago: mxn(r.pagoTotal), tasa: pct(det.tasaAnual) });
+      }
+      const mitad = Math.ceil(anios.length / 2);
+      base.detAnios = [{ filas: anios.slice(0, mitad) }, { filas: anios.slice(mitad) }];
+    }
+
+    // --- Página de plantilla ----------------------------------------------
+    if (pagFija) {
+      const bl = pagFija.bloques || [];
+      const pasos = bl.filter((b) => b.tipo === "pasos").reduce((a, b) => a.concat(b.items), []);
+      const listas = bl.filter((b) => b.tipo === "lista");
+      const faq = bl.filter((b) => b.tipo === "faq").reduce((a, b) => a.concat(b.items), []);
+      const cifras = bl.filter((b) => b.tipo === "cifras").reduce((a, b) => a.concat(b.items), []);
+      base.plTitulo = pagFija.titulo;
+      base.plParrafos = bl.filter((b) => b.tipo === "parrafo").map((b) => b.texto);
+      base.plPasos = pasos.map((p, i) => ({ n: String(i + 1).padStart(2, "0"), titulo: p.titulo, texto: p.texto }));
+      base.plHayPasos = pasos.length > 0;
+      base.plListas = listas;
+      base.plHayListas = listas.length > 0;
+      base.plFaq = faq;
+      base.plHayFaq = faq.length > 0;
+      base.plCifras = cifras;
+      base.plHayCifras = cifras.length > 0;
+    }
+
+    return base;
+  }
+}
+</script>
+</body>
+</html>
