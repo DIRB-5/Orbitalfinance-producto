@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import Enum
-from typing import FrozenSet, Optional
+from typing import FrozenSet, Optional, Tuple
 
 # Alias semántico. Las tasas se expresan como fracción: 0.1085 == 10.85 %
 Tasa = Decimal
@@ -120,6 +120,16 @@ class ProductoHipotecario:
     # SIN VALIDAR contra un cotizador: algunos bancos crecen mes a mes o topan
     # el pago; ajustar cuando se tenga el archivo.
     crecimiento_pago_anual: Decimal = Decimal("0")
+
+    # Tasa escalonada: ((mes desde el que aplica, tasa anual), ...). Antes del
+    # primer escalón aplica `tasa_anual`. Vacío = tasa única.
+    # Con `recalcular_pago_al_cambiar_tasa` en False el pago se calcula con la
+    # tasa inicial y se mantiene: si la tasa baja, el crédito se liquida antes
+    # del plazo (plazo efectivo menor). En True el pago se recalcula al cambiar
+    # la tasa sobre el saldo y el plazo restante (Banamex, TablaCTH!S128).
+    # SIN VALIDAR contra un cotizador.
+    tasas_escalonadas: Tuple[Tuple[int, Decimal], ...] = ()
+    recalcular_pago_al_cambiar_tasa: bool = False
 
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")

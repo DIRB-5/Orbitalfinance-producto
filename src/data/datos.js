@@ -237,6 +237,8 @@ function adaptarProducto(p) {
     comisionAperturaMonto: num(p.comisionAperturaMonto),
     comisionMensual: num(p.comisionMensual),
     crecimientoMensualidadAnual: num(p.crecimientoPagoAnual) || 0,
+    tasasEscalonadas: (p.tasasEscalonadas || []).map((e) => ({ desdeMes: e.desdeMes, tasaAnual: num(e.tasaAnual) })),
+    recalcularPagoAlCambiarTasa: !!p.recalcularPagoAlCambiarTasa,
     seguroVidaMensual: num(p.seguroVidaMensual),
     seguroDanosAnual: num(p.seguroDanosAnual),
     seguroDanosMontoMensual: num(p.seguroDanosMontoMensual),
@@ -291,6 +293,16 @@ export function conceptosNetosDeIva(producto) {
   return lista.length ? lista.join(", ") : "Ninguno (todo con IVA)";
 }
 
+export function descripcionEscalones(producto) {
+  const e = producto.tasasEscalonadas || [];
+  if (!e.length) return "Tasa única";
+  const pct = (x) => (x * 100).toFixed(2) + "\u00A0%";
+  const tramos = [pct(producto.tasa.valor) + " desde el mes 1"].concat(
+    e.map((x) => pct(x.tasaAnual) + " desde el mes " + x.desdeMes)
+  );
+  return tramos.join("; ") + (producto.recalcularPagoAlCambiarTasa ? ". El pago se recalcula." : ". Pago fijo: se liquida antes.");
+}
+
 export function tasaNormalizada(producto) {
   return producto.tasaNormalizada;
 }
@@ -326,7 +338,7 @@ function adaptarOpcion(o, escenario) {
     totalIntereses: v(o.totalIntereses),
     totalSeguros: v(o.totalSeguros),
     sumaMensualidades: v(o.sumaMensualidades),
-    plazoEfectivoMeses: elegible ? o.plazoCalculadoMeses : null,
+    plazoEfectivoMeses: elegible ? o.plazoEfectivoMeses : null,
     costoTotal: v(o.costoTotal),
     costoFinanciero: v(o.costoFinanciero),
     desembolsoInicial: num(o.desembolsoInicial),

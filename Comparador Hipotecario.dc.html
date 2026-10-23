@@ -4032,6 +4032,7 @@ class Component extends DCLogic {
           { k: "Base de días (pago)", v: m.ETIQUETA_CONVENCION[convPago] },
           { k: "Base de días (amortización)", v: m.ETIQUETA_CONVENCION[p.convencionAmortizacion || convInteres] },
           { k: "Seguros dentro del pago fijo", v: p.segurosEnPagoFijo ? "Sí" : "No" },
+          { k: "Tasa escalonada", v: m.descripcionEscalones(p) },
           { k: "Crecimiento del pago", v: p.crecimientoMensualidadAnual ? pct(p.crecimientoMensualidadAnual) + " anual" : "Pago fijo" },
           { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p)) }
         );

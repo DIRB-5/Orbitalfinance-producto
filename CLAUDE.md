@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             90 pruebas. No deben bajar de ahí.
+  tests/             99 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -192,11 +192,19 @@ Estos son productos reales del mercado mexicano que el motor **todavía no
 modela**. Si te topas con ellos, no improvises: son extensiones diseñadas, no
 parches.
 
-1. **Tasa escalonada por periodo.** Hay productos con tasa decreciente por año
-   (p. ej. 11.85 % los primeros tres años bajando a 10.85 % desde el séptimo)
-   manteniendo pago fijo, lo que amortiza más rápido y reduce el plazo efectivo.
-   Requiere sustituir `tasa_anual` por un calendario de tasas y derivar
-   `plazo_efectivo_meses`.
+1. **Tasa escalonada por periodo — HECHO, SIN VALIDAR.** `tasas_escalonadas`
+   en el producto: ((mes desde el que aplica, tasa anual), ...); antes del primer
+   escalón aplica `tasa_anual`. Dos mecánicas, por producto:
+   - pago fijo calculado a la tasa inicial (`recalcular_pago_al_cambiar_tasa`
+     en False): si la tasa baja, el crédito se liquida antes. La tabla termina
+     en el mes en que el saldo llega a cero y `plazo_efectivo_meses` lo expone.
+     No admite tasas que suben.
+   - pago recalculado al cambiar la tasa, sobre saldo y plazo restante (True),
+     como Banamex `TablaCTH!S128`.
+   No se combina con mensualidad creciente. Ojo al comparar: con plazos
+   efectivos distintos la suma de pagos favorece al crédito más corto aunque
+   pague más al mes (riesgo 8.2 del análisis); el prototipo ya avisa cuando los
+   plazos difieren.
 
 2. **Mensualidad creciente — HECHO, SIN VALIDAR.** `crecimiento_pago_anual`
    en el producto: el pago sube ese porcentaje en cada aniversario y el pago
@@ -343,7 +351,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 90 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 99 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

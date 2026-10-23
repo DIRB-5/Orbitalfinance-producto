@@ -78,6 +78,11 @@ class TablaAmortizacion:
         return sum((r.pago_total for r in self.renglones), Decimal("0"))
 
     @property
+    def plazo_efectivo_meses(self) -> int:
+        """Meses en que realmente se liquida; menor al plazo con tasa escalonada."""
+        return len(self.renglones)
+
+    @property
     def amortizacion_negativa(self) -> bool:
         """True si algún mes el pago no cubre el interés y el saldo sube."""
         return any(r.capital < 0 for r in self.renglones)
@@ -216,6 +221,34 @@ def _seguro_danos_mensual(
     return base * producto.seguro_danos_anual / Decimal(12)
 
 
+def _validar_escalones(producto: ProductoHipotecario) -> None:
+    escalones = producto.tasas_escalonadas
+    if not escalones:
+        return
+    if producto.crecimiento_pago_anual:
+        raise ValueError("La tasa escalonada no se combina con mensualidad creciente.")
+    meses = [desde for desde, _ in escalones]
+    if meses[0] < 2 or any(b <= a for a, b in zip(meses, meses[1:])):
+        raise ValueError(
+            "Los escalones de tasa deben empezar después del mes 1 y en meses crecientes."
+        )
+    if not producto.recalcular_pago_al_cambiar_tasa:
+        tasas = [producto.tasa_anual] + [t for _, t in escalones]
+        if any(b > a for a, b in zip(tasas, tasas[1:])):
+            raise ValueError(
+                "Con pago fijo la tasa no puede subir: el pago calculado a la "
+                "tasa inicial no amortizaría. Usa recalcular_pago_al_cambiar_tasa."
+            )
+
+
+def _tasa_del_mes(producto: ProductoHipotecario, mes: int) -> Decimal:
+    tasa = producto.tasa_anual
+    for desde, tasa_escalon in producto.tasas_escalonadas:
+        if mes >= desde:
+            tasa = tasa_escalon
+    return tasa
+
+
 def construir_tabla(
     linea: LineaCredito,
     valor_vivienda: Dinero,
@@ -233,6 +266,9 @@ def construir_tabla(
 
     `fecha_primer_pago` es obligatoria con días reales; con las demás
     convenciones solo sirve para fechar los renglones.
+
+    Con tasa escalonada y pago fijo la tabla puede terminar antes del plazo:
+    el último renglón es el que deja el saldo en cero.
     """
     monto = linea.monto
     tasa = linea.producto.tasa_anual
@@ -250,6 +286,8 @@ def construir_tabla(
         )
     if convencion_amortizacion is ConvencionDias.DIAS_REALES_360:
         raise ValueError("La base de amortización no puede ser días reales.")
+    _validar_escalones(producto)
+    inicios_de_escalon = {desde for desde, _ in producto.tasas_escalonadas}
 
     danos = _seguro_danos_mensual(producto, valor_vivienda)
     comision_mensual = producto.comision_mensual
@@ -272,6 +310,7 @@ def construir_tabla(
         seguros_en_pago = danos
     anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
     pago_fijo = anualidad + seguros_en_pago
+    pago_fijo_inicial = pago_fijo
 
     renglones: list[Renglon] = []
     saldo = monto
@@ -280,6 +319,15 @@ def construir_tabla(
         saldo_inicial = saldo
         fecha = _sumar_meses(fecha_primer_pago, mes - 1) if fecha_primer_pago else None
         dias = calendar.monthrange(fecha.year, fecha.month)[1] if dias_reales else None
+        tasa = _tasa_del_mes(producto, mes)
+
+        if mes in inicios_de_escalon and producto.recalcular_pago_al_cambiar_tasa:
+            # Nuevo pago sobre el saldo y los meses que faltan, a la nueva tasa
+            i_pago = tasa_periodica(tasa, convencion_pago)
+            if producto.seguros_en_pago_fijo:
+                i_pago += producto.seguro_vida_mensual
+            anualidad = _anualidad(saldo_inicial, i_pago, plazo - mes + 1)
+            pago_fijo = anualidad + seguros_en_pago
 
         interes = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
         vida = saldo_inicial * producto.seguro_vida_mensual
@@ -329,11 +377,13 @@ def construir_tabla(
             )
         )
         saldo = saldo_final
+        if saldo == 0:
+            break  # tasa escalonada con pago fijo: se liquidó antes del plazo
 
     return TablaAmortizacion(
         renglones=tuple(renglones),
-        pago_capital_interes=pago_fijo,
+        pago_capital_interes=pago_fijo_inicial,
         monto=monto,
-        tasa_anual=tasa,
+        tasa_anual=producto.tasa_anual,
         plazo_meses=plazo,
     )

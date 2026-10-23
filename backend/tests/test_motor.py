@@ -712,3 +712,75 @@ def test_pago_fijo_que_no_cubre_intereses_sigue_siendo_error():
     linea = LineaCredito(producto_limpio(tasa_anual=Decimal("5")), Decimal("1000000"), 240)
     with pytest.raises(ValueError):
         construir_tabla(linea, Decimal("1500000"))
+
+
+# --------------------------------------------------------------------------
+# Tasa escalonada
+# --------------------------------------------------------------------------
+
+ESCALONES = ((37, Decimal("0.1135")), (73, Decimal("0.1085")))
+
+
+def producto_escalonado(**kwargs) -> ProductoHipotecario:
+    """11.85 % años 1-3, 11.35 % años 4-6, 10.85 % desde el séptimo."""
+    return producto_limpio(tasa_anual=Decimal("0.1185"), tasas_escalonadas=ESCALONES, **kwargs)
+
+
+def _tabla(producto, plazo=240):
+    return construir_tabla(LineaCredito(producto, Decimal("1850000"), plazo), Decimal("2500000"))
+
+
+def test_escalonada_cobra_la_tasa_de_cada_periodo():
+    tabla = _tabla(producto_escalonado())
+    for mes, tasa in ((1, "0.1185"), (36, "0.1185"), (37, "0.1135"), (73, "0.1085")):
+        r = tabla.renglones[mes - 1]
+        assert r.interes == r.saldo_inicial * (Decimal(tasa) / 12)
+
+
+def test_escalonada_con_pago_fijo_acorta_el_plazo():
+    tabla = _tabla(producto_escalonado())
+    pagos = {r.capital + r.interes for r in tabla.renglones[:-1]}
+    assert len(pagos) == 1  # el pago no cambia
+    assert tabla.plazo_efectivo_meses < 240
+    assert tabla.plazo_meses == 240
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
+    assert abs(sum(r.capital for r in tabla.renglones) - Decimal("1850000")) < Decimal("1E-15")
+
+
+def test_escalonada_con_pago_fijo_cuesta_menos_que_la_tasa_inicial_fija():
+    escalonada = _tabla(producto_escalonado())
+    fija = _tabla(producto_limpio(tasa_anual=Decimal("0.1185")))
+    assert escalonada.total_pagado < fija.total_pagado
+
+
+def test_escalonada_que_recalcula_el_pago_conserva_el_plazo():
+    tabla = _tabla(producto_escalonado(recalcular_pago_al_cambiar_tasa=True))
+    pago = [r.capital + r.interes for r in tabla.renglones]
+    assert tabla.plazo_efectivo_meses == 240
+    assert pago[35] > pago[36] > pago[72]
+    assert pago[36] == pago[71]
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
+
+
+def test_sin_escalones_la_tabla_no_cambia():
+    assert _tabla(producto_limpio()) == _tabla(producto_limpio(tasas_escalonadas=()))
+
+
+def test_escalonada_con_pago_fijo_no_admite_tasas_que_suben():
+    """Con pago fijo calculado a la tasa inicial, una tasa mayor no amortiza."""
+    sube = producto_limpio(tasas_escalonadas=((37, Decimal("0.1300")),))
+    with pytest.raises(ValueError, match="sub"):
+        _tabla(sube)
+    _tabla(producto_limpio(tasas_escalonadas=((37, Decimal("0.1300")),),
+                           recalcular_pago_al_cambiar_tasa=True))
+
+
+@pytest.mark.parametrize("escalones", [((1, Decimal("0.10")),), ((73, Decimal("0.10")), (37, Decimal("0.11")))])
+def test_escalones_invalidos(escalones):
+    with pytest.raises(ValueError):
+        _tabla(producto_limpio(tasas_escalonadas=escalones))
+
+
+def test_escalonada_no_se_combina_con_pago_creciente():
+    with pytest.raises(ValueError, match="creciente"):
+        _tabla(producto_escalonado(crecimiento_pago_anual=Decimal("0.02")))

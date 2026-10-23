@@ -30,6 +30,11 @@ class EscenarioEntrada(ModeloBase):
     fecha_primer_pago: Optional[date] = None
 
 
+class EscalonSalida(ModeloBase):
+    desde_mes: int
+    tasa_anual: str
+
+
 class ProductoSalida(ModeloBase):
     id: str
     institucion: str
@@ -42,6 +47,8 @@ class ProductoSalida(ModeloBase):
     convencion_amortizacion: str
     seguros_en_pago_fijo: bool
     crecimiento_pago_anual: str
+    tasas_escalonadas: List[EscalonSalida]
+    recalcular_pago_al_cambiar_tasa: bool
     plazos_meses: List[int]
     aforo_max: str
     comision_apertura: str
@@ -88,6 +95,7 @@ class OpcionSalida(ModeloBase):
     monto_credito: str
     aforo: str
     plazo_calculado_meses: int
+    plazo_efectivo_meses: int
     comision_apertura: str
     avaluo: str
     gastos_notariales: str

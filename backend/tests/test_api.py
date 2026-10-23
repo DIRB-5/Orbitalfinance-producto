@@ -30,6 +30,7 @@ def test_catalogo_en_camel_case_y_decimales_como_texto():
     assert hsbc["seguroDanosMontoMensual"] == "777.63"
     assert hsbc["catNetosDeIva"] == ["avaluo", "comision_mensual", "seguro_danos"]
     assert hsbc["crecimientoPagoAnual"] == "0"
+    assert hsbc["tasasEscalonadas"] == []
 
 
 def test_comparar_ordena_por_costo_total_y_rotula_cat_estimado():
@@ -41,7 +42,7 @@ def test_comparar_ordena_por_costo_total_y_rotula_cat_estimado():
     assert costos == sorted(costos)
     for o in opciones:
         assert "catEstimado" in o and "cat" not in o
-        assert len(o["tabla"]) == o["plazoCalculadoMeses"]
+        assert len(o["tabla"]) == o["plazoEfectivoMeses"] <= o["plazoCalculadoMeses"]
         assert Decimal(o["costoTotal"]).as_tuple().exponent == -2
 
 

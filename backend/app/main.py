@@ -23,6 +23,7 @@ from motor_hipotecario.modelos import Escenario, ProductoHipotecario
 
 from .esquemas import (
     CatalogoSalida,
+    EscalonSalida,
     ComparacionSalida,
     EscenarioEntrada,
     OpcionSalida,
@@ -60,6 +61,11 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         convencion_amortizacion=(p.convencion_amortizacion or p.convencion_interes).value,
         seguros_en_pago_fijo=p.seguros_en_pago_fijo,
         crecimiento_pago_anual=_tasa(p.crecimiento_pago_anual),
+        tasas_escalonadas=[
+            EscalonSalida(desde_mes=desde, tasa_anual=_tasa(tasa))
+            for desde, tasa in p.tasas_escalonadas
+        ],
+        recalcular_pago_al_cambiar_tasa=p.recalcular_pago_al_cambiar_tasa,
         plazos_meses=list(p.plazos_meses),
         aforo_max=_tasa(p.aforo_max),
         comision_apertura=_tasa(p.comision_apertura),
@@ -92,6 +98,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         monto_credito=_dinero(o.monto_credito),
         aforo=_tasa(escenario.aforo),
         plazo_calculado_meses=t.plazo_meses,
+        plazo_efectivo_meses=t.plazo_efectivo_meses,
         comision_apertura=_dinero(o.comision_apertura),
         avaluo=_dinero(o.avaluo),
         gastos_notariales=_dinero(o.gastos_notariales),
