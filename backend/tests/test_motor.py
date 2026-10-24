@@ -999,3 +999,55 @@ def test_valor_minimo_del_inmueble():
     resultado = evaluar_producto(_escenario("450000", "100000", 120), producto)
     assert not resultado.elegible
     assert any("valor del inmueble" in m for m in resultado.motivos_rechazo)
+
+
+# --------------------------------------------------------------------------
+# Primer periodo irregular, día de pago y productos exclusivos de un instituto
+# --------------------------------------------------------------------------
+
+
+def producto_banorte(**kwargs) -> ProductoHipotecario:
+    return producto_limpio(
+        convencion_interes=ConvencionDias.DIAS_30_4_360,
+        primer_periodo_dias_reales=True,
+        dia_de_pago=3,
+        seguro_vida_mensual=Decimal("0.0006"),
+        **kwargs,
+    )
+
+
+def test_comparar_usa_el_dia_de_pago_y_la_fecha_de_comparacion():
+    """Banorte: cotizado el 3 de febrero, primer pago el 3 de marzo, 29 días."""
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240
+    )
+    comparacion = comparar(escenario, [producto_banorte()], momento=date(2026, 2, 3))
+    r = comparacion.opciones[0].tabla.renglones[0]
+    assert r.fecha_pago == date(2026, 3, 3)
+    assert r.interes == Decimal("1850000") * Decimal("0.1085") * 29 / Decimal(360)
+
+
+def test_el_cat_ignora_el_primer_periodo_irregular():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240
+    )
+    resultado = evaluar_producto(escenario, producto_banorte(), momento=date(2026, 2, 3))
+    regular = construir_tabla(
+        LineaCredito(producto_banorte(), Decimal("1850000"), 240), Decimal("2500000"),
+        fecha_primer_pago=date(2026, 3, 3),
+    )
+    assert resultado.cat_estimado == calcular_cat(regular, producto_banorte())
+
+
+def test_producto_exclusivo_requiere_cofinanciamiento():
+    regla = ReglaAportaciones(instituto=TipoLinea.FOVISSSTE, porcentaje_salario=Decimal("0.10"))
+    producto = producto_limpio(regla_aportaciones=regla, requiere_cofinanciamiento=True)
+    sin = Escenario(valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240)
+    resultado = evaluar_producto(sin, producto)
+    assert not resultado.elegible
+    assert any("FOVISSSTE" in m for m in resultado.motivos_rechazo)
+    con = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(instituto=TipoLinea.FOVISSSTE, salario_mensual=Decimal("40000")),
+    )
+    assert evaluar_producto(con, producto).elegible

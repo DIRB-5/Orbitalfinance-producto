@@ -217,7 +217,55 @@ BANREGIO_CRECIENTE = {
     },
 }
 
-TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE]
+# ---------------------------------------------------------------------------
+# Banorte — Hipoteca Fuerte, programa FOVISSSTE para todos
+# ---------------------------------------------------------------------------
+# BANORTE_FOVISSSTE.xlsm, hojas Simulador / Tabla Fijos / Tabla Fijos CAT.
+#   - Pago: PMT(tasa/360 × 30.4, 240, −monto) (Tabla Fijos!P9).
+#   - Interés: 30.4 días desde el mes 2. El mes 1 cobra los días reales desde
+#     la cotización hasta el primer pago, inclusive (Fecha Pago!L4 = K4 −
+#     fecha + 1 = 29); el capital del mes 1 es el PPMT a 30.4 días.
+#   - Seguro de vida 0.0006 sobre saldo; el mes 1 prorrateado a días/30.
+#   - Daños 0 para FOVISSSTE para todos (S3). Apertura 0 %. Avalúo 5,000 + IVA.
+#   - El escenario depende de TODAY(): fecha de cotización 2026-02-03.
+#   - Sin salario capturado: aportaciones en 0.
+BANORTE_FOVISSSTE = {
+    "institucion": "Banorte",
+    "archivo": "BANORTE_FOVISSSTE.xlsm",
+    "hoja": "Simulador / Tabla Fijos",
+    "parametros": {
+        "monto": D("1000000"),
+        "tasa_anual": D("0.095"),
+        "plazo_meses": 240,
+        "fecha_cotizacion": "2026-02-03",
+        "fecha_primer_pago": "2026-03-03",
+        "seguro_vida_mensual": D("0.0006"),
+        "avaluo": D("5800"),
+        "pago_capital_interes": D("9404.1823250109192"),  # Tabla Fijos!P9
+    },
+    # Tabla Fijos CAT!AB14: EFFECT(IRR × 12, 12), con el mes 1 a 30.4 días y
+    # vida sin prorrateo; flujo 0 = −monto + avalúo sin IVA.
+    "cat_esperado": D("0.10934054476706767"),
+    # mes: (fecha, saldo_inicial, capital, interes, vida, pago_total, saldo_final)
+    "renglones": {
+        1: ("2026-03-03", D("1000000"), D("1381.9601027886963"), D("7652.7777777777783"),
+            D("580"), D("9614.7378805664739"), D("998618.03989721136")),
+        2: ("2026-04-03", D("998618.03989721136"), D("1393.0464938355126"), D("8011.1358311754066"),
+            D("599.17082393832675"), D("10003.353148949245"), D("997224.99340337585")),
+        12: ("2027-02-03", D("984173.77456260927"), D("1508.9216001864315"), D("7895.2607248244876"),
+             D("590.50426473756556"), D("9994.686589748484"), D("982664.85296242288")),
+        60: ("2031-02-03", D("896248.69199061755"), D("2214.2761514861877"), D("7189.9061735247315"),
+             D("537.74921519437044"), D("9941.9315402052889"), D("894034.41583913134")),
+        120: ("2036-02-03", D("726462.99020933372"), D("3576.3347813315977"), D("5827.8475436793215"),
+              D("435.87779412560019"), D("9840.0601191365186"), D("722886.65542800212")),
+        239: ("2046-01-03", D("18584.434148460423"), D("9255.0938643977152"), D("149.08846061320472"),
+              D("11.150660489076254"), D("9415.3329854999956"), D("9329.3402840627077")),
+        240: ("2046-02-03", D("9329.3402840627077"), D("9329.3402840627077"), D("74.842040945480832"),
+              D("5.5976041704376245"), D("9409.7799291786268"), D("0")),
+    },
+}
+
+TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE, BANORTE_FOVISSSTE]
 
 # ---------------------------------------------------------------------------
 # Instituciones sin escenario capturado — no validables hoy

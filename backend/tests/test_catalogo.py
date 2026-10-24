@@ -153,3 +153,61 @@ def test_banregio_crecientes_solo_a_20_anios():
     escenario = Escenario(valor_vivienda=D("1350000"), enganche=D("300000"), plazo_meses=180)
     resultado = evaluar_producto(escenario, POR_ID["banregio-adquisicion-crecientes-2023-12"])
     assert not resultado.elegible
+
+
+def _escenario_banorte(salario):
+    from motor_hipotecario.modelos import Cofinanciamiento, Escenario, TipoLinea
+
+    from .fixtures.cotizadores_reales import BANORTE_FOVISSSTE
+
+    p = BANORTE_FOVISSSTE["parametros"]
+    valor = D("1428571.4285714286")  # Simulador!N11 = monto / 0.7
+    return p, Escenario(
+        valor_vivienda=valor,
+        enganche=valor - p["monto"],
+        plazo_meses=p["plazo_meses"],
+        cofinanciamiento=Cofinanciamiento(instituto=TipoLinea.FOVISSSTE, salario_mensual=D(salario)),
+    )
+
+
+def test_banorte_fovissste_reproduce_su_cotizador_desde_el_comparador():
+    """Escenario del archivo (sin salario: aportaciones en 0), cotizado el
+    2026-02-03: el comparador debe derivar el primer pago (3 de marzo), el
+    avalúo del tabulador y reproducir tabla y CAT."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .fixtures.cotizadores_reales import BANORTE_FOVISSSTE
+
+    p, escenario = _escenario_banorte("0")
+    resultado = evaluar_producto(
+        escenario, POR_ID["banorte-fovissste-para-todos-2026-02"], momento=date(2026, 2, 3)
+    )
+    assert resultado.elegible
+    assert resultado.avaluo == p["avaluo"]
+    assert resultado.comision_apertura == 0
+    for mes, (fecha, saldo, capital, interes, vida, total, final) in BANORTE_FOVISSSTE["renglones"].items():
+        r = resultado.tabla.renglones[mes - 1]
+        assert r.fecha_pago.isoformat() == fecha
+        for calc, esp in ((r.saldo_inicial, saldo), (r.capital, capital), (r.interes, interes),
+                          (r.seguro_vida, vida), (r.pago_total, total), (r.saldo_final, final)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - BANORTE_FOVISSSTE["cat_esperado"]) < D("0.0000001")
+
+
+def test_banorte_fovissste_aplica_aportaciones_y_exige_cofinanciamiento():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    producto = POR_ID["banorte-fovissste-para-todos-2026-02"]
+    _, escenario = _escenario_banorte("30000")
+    resultado = evaluar_producto(escenario, producto, momento=date(2026, 2, 3))
+    assert resultado.tabla.renglones[3].aportacion == D("3000")  # 10 % de 30,000
+    assert resultado.tabla.plazo_efectivo_meses < 240
+
+    sin = Escenario(valor_vivienda=escenario.valor_vivienda, enganche=escenario.enganche,
+                    plazo_meses=240)
+    assert not evaluar_producto(sin, producto, momento=date(2026, 2, 3)).elegible

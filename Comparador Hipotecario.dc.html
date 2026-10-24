@@ -4049,6 +4049,7 @@ class Component extends DCLogic {
           { k: "Plazos disponibles", v: p.plazosMeses.join(", ") + " meses" },
           { k: "Monto mínimo", v: p.montoMinimo != null ? mxn(p.montoMinimo) : "Sin mínimo" },
           { k: "Vigente desde", v: this.fecha(p.vigenteDesde) },
+          { k: "Cofinanciamiento", v: p.institutoCofinanciamiento ? (p.requiereCofinanciamiento ? "Exclusivo para " : "Acepta ") + p.institutoCofinanciamiento : "No aplica" },
           { k: "Sin IVA en el CAT", v: m.conceptosNetosDeIva(p) },
           { k: "Fuente", v: p.fuente },
           { k: "Notas", v: p.notas || "—" },

@@ -37,6 +37,7 @@ class EscenarioEntrada(ModeloBase):
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
+    fecha_disposicion: Optional[date] = None
     cofinanciamiento: Optional[CofinanciamientoEntrada] = None
 
 
@@ -81,6 +82,9 @@ class ProductoSalida(ModeloBase):
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]
+    requiere_cofinanciamiento: bool
+    dia_de_pago: Optional[int]
+    primer_periodo_dias_reales: bool
     tabla_tasas: List[TramoTasaSalida]
     tiene_tarifa_avaluo: bool
     valor_minimo_inmueble: Optional[str]

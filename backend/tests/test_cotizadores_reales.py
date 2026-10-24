@@ -33,7 +33,13 @@ from motor_hipotecario.modelos import (
     ProductoHipotecario,
 )
 
-from .fixtures.cotizadores_reales import BANREGIO, BANREGIO_CRECIENTE, HSBC, SANTANDER
+from .fixtures.cotizadores_reales import (
+    BANORTE_FOVISSSTE,
+    BANREGIO,
+    BANREGIO_CRECIENTE,
+    HSBC,
+    SANTANDER,
+)
 
 TOL = D("0.005")  # medio centavo
 
@@ -481,4 +487,56 @@ def test_banregio_creciente_cat_desde_motor():
     )
     assert len(tabla.renglones) == 240
     assert abs(calcular_cat(tabla, producto) - BANREGIO_CRECIENTE["cat_esperado"]) < D("0.0000001")
+
+
+def _banorte_producto(p, **campos):
+    return ProductoHipotecario(
+        id="banorte-fovissste",
+        institucion="Banorte",
+        nombre="Escenario del cotizador",
+        tasa_anual=p["tasa_anual"],
+        plazos_meses=(p["plazo_meses"],),
+        aforo_max=D("1"),
+        convencion_interes=ConvencionDias.DIAS_30_4_360,
+        primer_periodo_dias_reales=True,
+        seguro_vida_mensual=p["seguro_vida_mensual"],
+        **campos,
+    )
+
+
+def _banorte_tabla(producto, p, con_disposicion=True):
+    return construir_tabla(
+        LineaCredito(producto, p["monto"], p["plazo_meses"]),
+        D("1428571.4285714286"),
+        fecha_primer_pago=date.fromisoformat(p["fecha_primer_pago"]),
+        fecha_disposicion=date.fromisoformat(p["fecha_cotizacion"]) if con_disposicion else None,
+    )
+
+
+@pytest.mark.parametrize("mes", sorted(BANORTE_FOVISSSTE["renglones"]))
+def test_banorte_fovissste_renglones(mes):
+    p = BANORTE_FOVISSSTE["parametros"]
+    tabla = _banorte_tabla(_banorte_producto(p), p)
+    assert abs(tabla.pago_capital_interes - p["pago_capital_interes"]) < D("0.000001")
+    r = tabla.renglones[mes - 1]
+    fecha, saldo, capital, interes, vida, total, final = BANORTE_FOVISSSTE["renglones"][mes]
+    assert r.fecha_pago.isoformat() == fecha
+    for calc, esp, nombre in [
+        (r.saldo_inicial, saldo, "saldo"), (r.capital, capital, "capital"),
+        (r.interes, interes, "interés"), (r.seguro_vida, vida, "vida"),
+        (r.pago_total, total, "pago"), (r.saldo_final, final, "saldo final"),
+    ]:
+        assert abs(calc - esp) < TOL, f"mes {mes}, {nombre}: {calc} != {esp}"
+
+
+def test_banorte_fovissste_cat_sobre_tabla_regular():
+    """El CAT del archivo usa el mes 1 a 30.4 días y vida sin prorrateo."""
+    p = BANORTE_FOVISSSTE["parametros"]
+    producto = _banorte_producto(
+        p, avaluo=p["avaluo"], cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO})
+    )
+    regular = _banorte_tabla(producto, p, con_disposicion=False)
+    assert abs(regular.renglones[0].interes - D("8022.2222222222226")) < TOL
+    assert regular.renglones[0].seguro_vida == D("600")
+    assert abs(calcular_cat(regular, producto) - BANORTE_FOVISSSTE["cat_esperado"]) < D("0.0000001")
 

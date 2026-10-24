@@ -8,7 +8,7 @@ imprime, no formatea, no sabe qué es un PDF: devuelve datos.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -165,6 +165,7 @@ def evaluar_producto(
     escenario: Escenario,
     producto: ProductoHipotecario,
     fecha_primer_pago: Optional[date] = None,
+    momento: Optional[date] = None,
 ) -> ResultadoOpcion:
     """Evalúa un escenario contra un producto y devuelve el resultado completo."""
 
@@ -227,15 +228,29 @@ def evaluar_producto(
                 f"{cofinanciamiento.instituto.value.upper()}."
             )
             cofinanciamiento = None
+    elif producto.requiere_cofinanciamiento:
+        instituto = producto.regla_aportaciones.instituto.value.upper() if producto.regla_aportaciones else ""
+        motivos.append(
+            f"Producto exclusivo para derechohabientes de {instituto}: "
+            "requiere capturar el cofinanciamiento."
+        )
 
+    momento = momento or date.today()
     linea = LineaCredito(producto=producto, monto=monto, plazo_meses=plazo_calculo)
-    fecha = fecha_primer_pago or escenario.fecha_primer_pago or primer_pago_por_defecto(date.today())
-    tabla = construir_tabla(linea, escenario.valor_vivienda, fecha, cofinanciamiento)
+    fecha = (
+        fecha_primer_pago
+        or escenario.fecha_primer_pago
+        or primer_pago_por_defecto(momento, producto.dia_de_pago, producto.dia_corte_primer_pago)
+    )
+    disposicion = escenario.fecha_disposicion or momento
+    tabla = construir_tabla(
+        linea, escenario.valor_vivienda, fecha, cofinanciamiento, fecha_disposicion=disposicion
+    )
 
-    # El CAT de los cotizadores excluye las aportaciones: se calcula sobre la
-    # tabla sin abonos.
+    # El CAT de los cotizadores excluye las aportaciones y usa un primer
+    # periodo regular: se calcula sobre esa tabla.
     tabla_cat = tabla
-    if tabla.total_aportaciones:
+    if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
 
     if tabla.amortizacion_negativa:
@@ -284,11 +299,23 @@ def evaluar_producto(
     )
 
 
-def primer_pago_por_defecto(momento: date) -> date:
-    """Día 1 del mes siguiente."""
-    if momento.month == 12:
-        return date(momento.year + 1, 1, 1)
-    return date(momento.year, momento.month + 1, 1)
+def primer_pago_por_defecto(
+    momento: date, dia_de_pago: Optional[int] = None, dia_corte: Optional[int] = None
+) -> date:
+    """
+    Día 1 del mes siguiente. Con `dia_de_pago`: ese día del mes siguiente
+    (fin de mes + días), recorrido 30 días si `momento` cae en `dia_corte` o
+    después.
+    """
+    if dia_de_pago is None:
+        if momento.month == 12:
+            return date(momento.year + 1, 1, 1)
+        return date(momento.year, momento.month + 1, 1)
+    siguiente = date(momento.year + (momento.month == 12), momento.month % 12 + 1, 1)
+    fecha = siguiente - timedelta(days=1) + timedelta(days=dia_de_pago)
+    if dia_corte is not None and momento.day >= dia_corte:
+        fecha += timedelta(days=30)
+    return fecha
 
 
 def comparar(
@@ -314,10 +341,10 @@ def comparar(
             f"No hay productos vigentes al {momento.isoformat()} en el catálogo."
         )
 
-    # Sin fecha capturada se usa el día 1 del mes siguiente a la comparación;
-    # el snapshot guarda `generado_en`, así que el cálculo es reproducible.
-    fecha_primer_pago = escenario.fecha_primer_pago or primer_pago_por_defecto(momento)
-    opciones = tuple(evaluar_producto(escenario, p, fecha_primer_pago) for p in vigentes)
+    # Sin fecha capturada, el primer pago y la disposición se derivan de la
+    # fecha de la comparación; el snapshot guarda `generado_en`, así que el
+    # cálculo es reproducible.
+    opciones = tuple(evaluar_producto(escenario, p, momento=momento) for p in vigentes)
 
     snapshot = Snapshot(
         generado_en=momento,

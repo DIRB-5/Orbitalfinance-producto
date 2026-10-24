@@ -88,6 +88,9 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         ],
         recalcular_pago_al_cambiar_tasa=p.recalcular_pago_al_cambiar_tasa,
         regla_aportaciones=_regla(p),
+        requiere_cofinanciamiento=p.requiere_cofinanciamiento,
+        dia_de_pago=p.dia_de_pago,
+        primer_periodo_dias_reales=p.primer_periodo_dias_reales,
         tabla_tasas=[
             TramoTasaSalida(plazo_max_meses=pl, aforo_max=_tasa(af), tasa_anual=_tasa(t))
             for pl, af, t in p.tabla_tasas
@@ -183,6 +186,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,
+        fecha_disposicion=entrada.fecha_disposicion,
         cofinanciamiento=(
             Cofinanciamiento(**entrada.cofinanciamiento.model_dump())
             if entrada.cofinanciamiento

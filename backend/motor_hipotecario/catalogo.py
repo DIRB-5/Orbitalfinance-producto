@@ -35,7 +35,15 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from .modelos import BaseSeguroDanos, ConceptoIVA, ConvencionDias, ProductoHipotecario
+from .modelos import (
+    AportacionExcedente,
+    BaseSeguroDanos,
+    ConceptoIVA,
+    ConvencionDias,
+    ProductoHipotecario,
+    ReglaAportaciones,
+    TipoLinea,
+)
 
 # Fecha en que se analizaron los cotizadores. Los archivos no traen fecha de
 # vigencia de las condiciones.
@@ -205,5 +213,56 @@ CATALOGO: list[ProductoHipotecario] = [
         "Solo a 20 años: el cotizador fija ese plazo para pagos crecientes. "
         "El escenario del archivo usaba la tasa de 10 años; aquí se aplica la "
         "de 20. No incluye créditos Jumbo (10 millones o más).",
+    ),
+    ProductoHipotecario(
+        id="banorte-fovissste-para-todos-2026-02",
+        institucion="Banorte",
+        nombre="Hipoteca Fuerte — FOVISSSTE para todos",
+        tasa_anual=Decimal("0.095"),                 # 'Tabla Parámetros'!D19, tasa única
+        # Pago e interés a 30.4/360; el mes 1 cobra días reales desde la
+        # cotización (Fecha Pago!L4) y paga el día 3 (B6).
+        convencion_interes=ConvencionDias.DIAS_30_4_360,
+        primer_periodo_dias_reales=True,
+        dia_de_pago=3,
+        dia_corte_primer_pago=30,                    # Fecha Pago!N2
+        plazos_meses=(60, 120, 180, 240, 300),       # 'Tabla Parámetros'!W3:W7
+        aforo_max=Decimal("0.95"),                   # 'Tabla Parámetros'!I51
+        monto_minimo=Decimal("75000"),               # Fovissste!B6
+        comision_apertura=Decimal("0"),              # H30: 0 % para FPT
+        comision_mensual=Decimal("0"),               # W28: 0 para FPT
+        seguro_vida_mensual=Decimal("0.0006"),       # Básico (R5); Amplio sería 0.0008583
+        seguro_danos_anual=Decimal("0"),             # S3: 0 para FPT
+        # Avalúo por tabulador sin IVA (L96:N104) más IVA (Simulador!L47)
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("3000"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("5000"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("8000"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("15000"), Decimal("0")),
+            (Decimal("7000000.01"), Decimal("17000"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("25000"), Decimal("0")),
+            (Decimal("20000000.01"), Decimal("30000"), Decimal("0")),
+            (Decimal("30000000.01"), Decimal("0"), Decimal("1")),
+        ),
+        avaluo_factor_iva=Decimal("1.16"),
+        # Tabla Fijos CAT!AC: avalúo sin IVA; vida completa; daños ÷ 1.16
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS}),
+        # AportPatFov: 10 % del salario por bimestre, sin tope, desde el mes 4;
+        # se abona a capital y Banorte topa el capital al saldo.
+        regla_aportaciones=ReglaAportaciones(
+            instituto=TipoLinea.FOVISSSTE,
+            porcentaje_salario=Decimal("0.10"),
+            excedente=AportacionExcedente.LIMITAR,
+        ),
+        requiere_cofinanciamiento=True,
+        vigente_desde=date(2026, 2, 3),
+        fuente="Cotizador BANORTE_FOVISSSTE.xlsm, Hipoteca Fuerte, programa "
+        "FOVISSSTE para todos (Simulador, Tabla Fijos, Tabla Fijos CAT, "
+        "AportPatFov). Archivo guardado 2026-02-03; validado con su escenario "
+        "capturado (tabla y CAT).",
+        notas="Sin fecha de vigencia en el archivo (la oferta vinculante dura 20 "
+        "días naturales). Seguro de vida Básico. Las aportaciones FOVISSSTE solo "
+        "salen de fórmulas: el escenario del archivo no trae salario. Si una "
+        "aportación excede el saldo, el archivo la pierde y descuenta el total "
+        "del último pago; aquí se aplica solo lo que falta.",
     ),
 ]

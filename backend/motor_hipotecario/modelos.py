@@ -163,6 +163,23 @@ class ProductoHipotecario:
     # y el capital es lo que queda después de seguros e interés (Banregio).
     seguros_en_pago_fijo: bool = False
 
+    # Primer periodo irregular (Banorte): el mes 1 cobra interés por los días
+    # reales desde la disposición hasta el primer pago, inclusive, y prorratea
+    # el seguro de vida a días/30. El capital del mes 1 sigue siendo el del
+    # pago regular. El CAT se calcula sobre la tabla regular.
+    primer_periodo_dias_reales: bool = False
+
+    # Día del mes en que se paga. None = día 1 del mes siguiente a la
+    # comparación. Con día de pago, el primer pago es ese día del mes
+    # siguiente; si la disposición cae en `dia_corte_primer_pago` o después,
+    # se recorre 30 días (Banorte: día 3, corte 30; Fecha Pago!K4).
+    dia_de_pago: Optional[int] = None
+    dia_corte_primer_pago: Optional[int] = None
+
+    # Producto exclusivo de cofinanciamiento (p. ej. FOVISSSTE para todos):
+    # sin cofinanciamiento del instituto de su regla, no es elegible.
+    requiere_cofinanciamiento: bool = False
+
     # Mensualidad creciente: ((mes desde el que aplica, crecimiento mensual),
     # ...). El pago base (capital + interés) se multiplica por
     # (1 + crecimiento) cada mes. Al inicio de cada fase el pago se recalcula
@@ -309,6 +326,10 @@ class Escenario:
     # Fecha del primer pago. Solo la usan los productos con días reales; si no
     # se captura, el comparador usa el día 1 del mes siguiente a la comparación.
     fecha_primer_pago: Optional[date] = None
+
+    # Fecha de disposición del crédito. Solo la usan los productos con primer
+    # periodo irregular; si no se captura, es la fecha de la comparación.
+    fecha_disposicion: Optional[date] = None
 
     # Cofinanciamiento INFONAVIT / FOVISSSTE, si aplica.
     cofinanciamiento: Optional[Cofinanciamiento] = None

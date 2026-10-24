@@ -249,6 +249,8 @@ function adaptarProducto(p) {
     tablaTasas: (p.tablaTasas || []).map((t) => ({ plazoMaxMeses: t.plazoMaxMeses, aforoMax: num(t.aforoMax), tasaAnual: num(t.tasaAnual) })),
     tieneTarifaAvaluo: !!p.tieneTarifaAvaluo,
     valorMinimoInmueble: num(p.valorMinimoInmueble),
+    requiereCofinanciamiento: !!p.requiereCofinanciamiento,
+    institutoCofinanciamiento: p.reglaAportaciones ? p.reglaAportaciones.instituto.toUpperCase() : null,
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,

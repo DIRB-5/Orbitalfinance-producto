@@ -23,7 +23,7 @@ ESCENARIO = {
 
 def test_catalogo_en_camel_case_y_decimales_como_texto():
     productos = cliente.get("/api/catalogo").json()["productos"]
-    assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio"}
+    assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio", "Banorte"}
     hsbc = next(p for p in productos if p["institucion"] == "HSBC")
     assert hsbc["tasaAnual"] == "0.1175"
     assert hsbc["comisionMensual"] == "290.00"

@@ -19,9 +19,9 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-    catalogo.py      Catálogo real (HSBC, Santander, Banregio), reproducido de cotizadores.
+    catalogo.py      Catálogo real (HSBC, Santander, Banregio, Banorte), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             142 pruebas. No deben bajar de ahí.
+  tests/             155 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -380,7 +380,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 142 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 155 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

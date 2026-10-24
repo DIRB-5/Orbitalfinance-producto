@@ -290,6 +290,7 @@ def construir_tabla(
     valor_vivienda: Dinero,
     fecha_primer_pago: Optional[date] = None,
     cofinanciamiento: Optional[Cofinanciamiento] = None,
+    fecha_disposicion: Optional[date] = None,
 ) -> TablaAmortizacion:
     """
     Construye la tabla completa, con precisión completa en cada renglón.
@@ -310,6 +311,9 @@ def construir_tabla(
     Con `cofinanciamiento` y un producto con `regla_aportaciones`, las
     aportaciones patronales se abonan a capital: el pago del cliente no cambia
     y el plazo se acorta.
+
+    Con `fecha_disposicion` y un producto con `primer_periodo_dias_reales`, el
+    mes 1 es irregular. Sin ella, el mes 1 es regular (la tabla del CAT).
     """
     monto = linea.monto
     tasa = linea.producto.tasa_anual
@@ -374,12 +378,21 @@ def construir_tabla(
             anualidad = _anualidad(saldo_inicial, i_pago, plazo - mes + 1)
             pago_fijo = anualidad + seguros_en_pago
 
-        interes = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
+        interes_regular = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
+        interes = interes_regular
         vida = saldo_inicial * producto.seguro_vida_mensual
 
+        if mes == 1 and producto.primer_periodo_dias_reales and fecha_disposicion is not None:
+            if fecha is None:
+                raise ValueError("El primer periodo irregular necesita la fecha del primer pago.")
+            dias_primer_periodo = (fecha - fecha_disposicion).days + 1
+            interes = saldo_inicial * tasa * Decimal(dias_primer_periodo) / Decimal(360)
+            vida = saldo_inicial * producto.seguro_vida_mensual / Decimal(30) * dias_primer_periodo
+
         # Interés que se descuenta del pago para obtener el capital. Si la base
-        # de amortización difiere de la de cobro, no es el interés cobrado.
-        interes_amortizacion = interes
+        # de amortización difiere de la de cobro, no es el interés cobrado; en
+        # un primer periodo irregular es el del periodo regular.
+        interes_amortizacion = interes_regular
         if convencion_amortizacion is not None:
             interes_amortizacion = saldo_inicial * tasa_periodica(tasa, convencion_amortizacion)
 
