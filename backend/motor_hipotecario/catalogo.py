@@ -47,6 +47,21 @@ _SUPUESTOS = (
 )
 
 
+# Tabulador de avalúo de Banregio (Param!AZ8:BE17): (valor desde, fijo, al millar)
+_TARIFA_AVALUO_BANREGIO = (
+    (Decimal("0"), Decimal("2174"), Decimal("0")),
+    (Decimal("800000"), Decimal("0"), Decimal("2.7")),
+    (Decimal("2000000"), Decimal("0"), Decimal("2.5")),
+    (Decimal("3000000"), Decimal("0"), Decimal("2.4")),
+    (Decimal("4000000"), Decimal("0"), Decimal("2.35")),
+    (Decimal("5000000"), Decimal("0"), Decimal("2.3")),
+    (Decimal("6000000"), Decimal("0"), Decimal("2.25")),
+    (Decimal("7000000"), Decimal("0"), Decimal("2.2")),
+    (Decimal("8000000"), Decimal("0"), Decimal("2.1")),
+    (Decimal("9000000"), Decimal("0"), Decimal("2.0")),
+)
+
+
 CATALOGO: list[ProductoHipotecario] = [
     ProductoHipotecario(
         id="hsbc-cicb-2026-10",
@@ -127,18 +142,7 @@ CATALOGO: list[ProductoHipotecario] = [
         base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
         factor_construccion=Decimal("0.70"),
         # Tabulador de avalúo (Param!AZ8:BE17), IVA incluido
-        tarifa_avaluo=(
-            (Decimal("0"), Decimal("2174"), Decimal("0")),
-            (Decimal("800000"), Decimal("0"), Decimal("2.7")),
-            (Decimal("2000000"), Decimal("0"), Decimal("2.5")),
-            (Decimal("3000000"), Decimal("0"), Decimal("2.4")),
-            (Decimal("4000000"), Decimal("0"), Decimal("2.35")),
-            (Decimal("5000000"), Decimal("0"), Decimal("2.3")),
-            (Decimal("6000000"), Decimal("0"), Decimal("2.25")),
-            (Decimal("7000000"), Decimal("0"), Decimal("2.2")),
-            (Decimal("8000000"), Decimal("0"), Decimal("2.1")),
-            (Decimal("9000000"), Decimal("0"), Decimal("2.0")),
-        ),
+        tarifa_avaluo=_TARIFA_AVALUO_BANREGIO,
         avaluo_factor_iva=Decimal("1.16"),
         # TablAmoPagosFijos!AA8, AA10: apertura completa; avalúo, comisión
         # mensual y daños ÷ 1.16; vida, ITP y desempleo completos.
@@ -154,5 +158,52 @@ CATALOGO: list[ProductoHipotecario] = [
         "Seguro de vida incluye desempleo (titular asalariado); sin desempleo "
         "sería 0.53‰. Se modela la opción de 1.5 % de apertura sin "
         "penalización por prepago. No incluye créditos Jumbo (10 millones o más).",
+    ),
+    ProductoHipotecario(
+        id="banregio-adquisicion-crecientes-2023-12",
+        institucion="Banregio",
+        nombre="Adquisición Tradicional (pagos crecientes)",
+        # El cotizador fija el plazo en 20 años: solo se ofrece a 240 meses,
+        # con la tasa del tramo de 20 años según aforo.
+        tasa_anual=Decimal("0.110"),
+        tabla_tasas=(
+            (240, Decimal("0.70"), Decimal("0.105")),
+            (240, Decimal("0.90"), Decimal("0.110")),
+        ),
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+        # TablAmoPagosCrec: el pago base crece cada mes; en el mes 73 se
+        # recalcula sobre el saldo (Param!CU9 = −0.0011, CU10 = 0.0017).
+        # Seguros y comisión van fuera del pago base.
+        crecimiento_pago_mensual=(
+            (1, Decimal(1) / Decimal("0.9989") - 1),
+            (73, Decimal("0.0017")),
+        ),
+        plazos_meses=(240,),
+        aforo_max=Decimal("0.90"),
+        valor_minimo_inmueble=Decimal("500000"),
+        monto_maximo=Decimal("9999999.99"),
+        comision_apertura=Decimal("0.015"),
+        comision_mensual=Decimal("250"),
+        # En pagos crecientes el desempleo se cobra siempre (Z10 sin condición)
+        seguro_vida_mensual=Decimal("0.00083"),
+        seguro_danos_anual=Decimal("0.00103514688"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        tarifa_avaluo=_TARIFA_AVALUO_BANREGIO,
+        avaluo_factor_iva=Decimal("1.16"),
+        # TablAmoPagosCrec!BH8, BH10: mismo tratamiento de IVA que pagos fijos
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DANOS}
+        ),
+        vigente_desde=date(2023, 12, 1),
+        fuente="Cotizador BANREGIO MULTIPRODUCTO.xlsm, producto 1 Adquisición "
+        "Tradicional, hoja TablAmoPagosCrec. Archivo guardado 2023-12-01; "
+        "validado con su escenario capturado (tabla y CAT).",
+        notas="TASAS DE DICIEMBRE DE 2023: confirmar vigencia con Banregio. "
+        "Solo a 20 años: el cotizador fija ese plazo para pagos crecientes. "
+        "El escenario del archivo usaba la tasa de 10 años; aquí se aplica la "
+        "de 20. No incluye créditos Jumbo (10 millones o más).",
     ),
 ]

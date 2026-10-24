@@ -96,3 +96,60 @@ def test_banregio_reproduce_su_cotizador_desde_el_comparador():
                           (r.seguro_vida + r.seguro_danos, seguros), (r.pago_total, total)):
             assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
     assert abs(resultado.cat_estimado - BANREGIO["cat_esperado"]) < D("0.0000001")
+
+
+def test_banregio_crecientes_reproduce_su_cotizador():
+    """
+    El escenario de TablAmoPagosCrec usa la tasa del tramo de 10 años (10.20 %)
+    con plazo de 20: se fija esa tasa y todo lo demás del producto del
+    catálogo debe reproducir la tabla y el CAT del archivo.
+    """
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.cat import calcular_cat
+
+    from .fixtures.cotizadores_reales import BANREGIO_CRECIENTE
+
+    p = BANREGIO_CRECIENTE["parametros"]
+    producto = replace(
+        POR_ID["banregio-adquisicion-crecientes-2023-12"],
+        tabla_tasas=(),
+        tasa_anual=p["tasa_anual"],
+        tarifa_avaluo=(),
+        avaluo=p["avaluo"],
+    )
+    tabla = construir_tabla(
+        LineaCredito(producto, p["monto"], p["plazo_meses"]),
+        p["valor_inmueble"],
+        fecha_primer_pago=date.fromisoformat(p["fecha_primer_pago"]),
+    )
+    for mes, (_, saldo, interes, capital, seguros, total, final) in BANREGIO_CRECIENTE["renglones"].items():
+        r = tabla.renglones[mes - 1]
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida + r.seguro_danos, seguros), (r.pago_total, total),
+                          (r.saldo_final, final)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(calcular_cat(tabla, producto) - BANREGIO_CRECIENTE["cat_esperado"]) < D("0.0000001")
+
+
+@pytest.mark.parametrize("enganche, tasa", [("1000000", "0.105"), ("135000", "0.110")])
+def test_banregio_crecientes_usa_la_tasa_de_20_anios(enganche, tasa):
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    escenario = Escenario(
+        valor_vivienda=D("1350000"), enganche=D(enganche), plazo_meses=240
+    )
+    resultado = evaluar_producto(escenario, POR_ID["banregio-adquisicion-crecientes-2023-12"])
+    assert resultado.elegible
+    assert resultado.producto.tasa_anual == D(tasa)
+
+
+def test_banregio_crecientes_solo_a_20_anios():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    escenario = Escenario(valor_vivienda=D("1350000"), enganche=D("300000"), plazo_meses=180)
+    resultado = evaluar_producto(escenario, POR_ID["banregio-adquisicion-crecientes-2023-12"])
+    assert not resultado.elegible
