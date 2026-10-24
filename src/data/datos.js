@@ -349,6 +349,7 @@ function adaptarOpcion(o, escenario) {
     subtipo: "adquisicion",
     tasaAnual: producto ? producto.tasa.valor : null,
     tasaVariable: false,
+    alternativaSinCofinanciamiento: !!o.alternativaSinCofinanciamiento,
     montoCredito: num(o.montoCredito),
     aforo: num(o.aforo),
     comisionApertura: num(o.comisionApertura),

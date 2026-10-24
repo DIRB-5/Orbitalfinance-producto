@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander, Banregio, Banorte), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             156 pruebas. No deben bajar de ahí.
+  tests/             158 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -246,7 +246,14 @@ parches.
    - El CAT se calcula sin aportaciones, como en los tres cotizadores.
    - El costo total SÍ las incluye: son dinero de la subcuenta del trabajador.
      Decisión de producto pendiente de confirmar con riesgo.
-   - Un producto sin regla, o con regla de otro instituto, es no elegible.
+   - Un producto sin regla, o con regla de otro instituto, se evalúa como
+     **alternativa sin cofinanciamiento**: mismo enganche propio, el banco
+     financia también lo que cubrirían el crédito del instituto y la subcuenta,
+     sin aportaciones (`alternativa_sin_cofinanciamiento`). Los productos
+     exclusivos (`requiere_cofinanciamiento`) no tienen alternativa.
+   - Comparar rutas no es homogéneo: la ruta con cofinanciamiento no incluye
+     los pagos del crédito del instituto (se advierte) ni cuenta la subcuenta
+     usada como enganche. Criterio pendiente con riesgo.
    - El salario es "ingreso aproximado" (regla 7): no se pide NSS ni CURP.
    - En el prototipo, la sección "Cofinanciamiento" del escenario de
      adquisición: el "Monto del crédito" es el bancario y el enganche del
@@ -383,7 +390,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 156 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 158 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

@@ -123,6 +123,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
     t = o.tabla
     return OpcionSalida(
         producto_id=o.producto.id,
+        alternativa_sin_cofinanciamiento=o.alternativa_sin_cofinanciamiento,
         tasa_anual=_tasa(o.producto.tasa_anual),
         tasa_normalizada=_tasa(tasa_normalizada(o.producto)),
         elegible=o.elegible,

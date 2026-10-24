@@ -901,16 +901,41 @@ def test_aportacion_que_excede_el_saldo(excedente):
     assert tabla.renglones[-1].saldo_final == 0
 
 
-def test_producto_sin_regla_no_es_elegible_con_cofinanciamiento():
+def test_producto_sin_regla_se_evalua_como_alternativa_sin_cofinanciamiento():
+    """
+    El cliente compra la misma vivienda con el mismo enganche propio, sin usar
+    al instituto: el banco financia también lo que cubrirían el crédito del
+    instituto y la subcuenta, y no hay aportaciones.
+    """
     escenario = Escenario(
         valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
         plazo_meses=240, cofinanciamiento=COFI,
     )
-    assert not evaluar_producto(escenario, producto_limpio()).elegible
+    resultado = evaluar_producto(escenario, producto_limpio())
+    assert resultado.elegible
+    assert resultado.alternativa_sin_cofinanciamiento
+    assert resultado.monto_credito == Decimal("2250000")  # 2.5M − 250k
+    assert resultado.total_aportaciones == 0
+    assert any("sin cofinanciamiento" in a for a in resultado.advertencias)
+
     otra = ReglaAportaciones(instituto=TipoLinea.FOVISSSTE, porcentaje_salario=Decimal("0.10"))
-    resultado = evaluar_producto(escenario, producto_limpio(regla_aportaciones=otra))
-    assert any("INFONAVIT" in m for m in resultado.motivos_rechazo)
-    assert evaluar_producto(escenario, producto_cofi()).elegible
+    de_otro = evaluar_producto(escenario, producto_limpio(regla_aportaciones=otra))
+    assert de_otro.alternativa_sin_cofinanciamiento
+
+    con_cofi = evaluar_producto(escenario, producto_cofi())
+    assert con_cofi.elegible and not con_cofi.alternativa_sin_cofinanciamiento
+    assert con_cofi.monto_credito == Decimal("1800000")
+
+
+def test_alternativa_respeta_las_reglas_del_producto():
+    """Con el crédito más grande, la alternativa puede exceder el aforo."""
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("100000"),
+        plazo_meses=240, cofinanciamiento=COFI,
+    )
+    resultado = evaluar_producto(escenario, producto_limpio(aforo_max=Decimal("0.90")))
+    assert resultado.alternativa_sin_cofinanciamiento
+    assert not resultado.elegible  # 2.4M / 2.5M = 96 %
 
 
 def test_cat_ignora_aportaciones_y_costo_total_las_incluye():
@@ -1062,3 +1087,22 @@ def test_aportaciones_se_advierten_en_el_resultado():
     texto = " ".join(resultado.advertencias)
     assert "aportaciones patronales de INFONAVIT" in texto
     assert f"{resultado.tabla.plazo_efectivo_meses} meses" in texto
+
+
+def test_se_advierte_que_no_incluye_el_credito_del_instituto():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
+        plazo_meses=240, cofinanciamiento=COFI,  # crédito INFONAVIT de 300,000
+    )
+    texto = " ".join(evaluar_producto(escenario, producto_cofi()).advertencias)
+    assert "no incluye" in texto and "$300,000" in texto
+
+    sin_credito = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("550000"), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(
+            instituto=TipoLinea.INFONAVIT, salario_mensual=Decimal("60000"),
+            saldo_subcuenta=Decimal("150000"),
+        ),
+    )
+    texto = " ".join(evaluar_producto(sin_credito, producto_cofi()).advertencias)
+    assert "no incluye" not in texto

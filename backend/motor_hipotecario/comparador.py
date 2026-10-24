@@ -52,6 +52,11 @@ class ResultadoOpcion:
 
     enganche: Dinero = Decimal("0")
 
+    # True si el escenario traía cofinanciamiento que este producto no acepta
+    # y se evaluó como la ruta sin instituto (mismo enganche propio, el banco
+    # financia también lo que cubriría el instituto).
+    alternativa_sin_cofinanciamiento: bool = False
+
     @property
     def pago_primer_mes(self) -> Dinero:
         return self.tabla.primer_pago
@@ -130,6 +135,11 @@ class Comparacion:
         return ordenadas[-1].costo_total - ordenadas[0].costo_total
 
 
+def _acepta(producto: ProductoHipotecario, cofinanciamiento) -> bool:
+    regla = producto.regla_aportaciones
+    return regla is not None and regla.instituto is cofinanciamiento.instituto
+
+
 def resolver_para_escenario(
     producto: ProductoHipotecario, escenario: Escenario, plazo: int
 ) -> ProductoHipotecario:
@@ -168,6 +178,24 @@ def evaluar_producto(
     momento: Optional[date] = None,
 ) -> ResultadoOpcion:
     """Evalúa un escenario contra un producto y devuelve el resultado completo."""
+
+    cofi = escenario.cofinanciamiento
+    if cofi is not None and not producto.requiere_cofinanciamiento and not _acepta(producto, cofi):
+        # Ruta alternativa: la misma vivienda sin usar al instituto.
+        resultado = evaluar_producto(
+            replace(escenario, cofinanciamiento=None), producto, fecha_primer_pago, momento
+        )
+        aviso = (
+            f"Alternativa sin cofinanciamiento: el producto no acepta "
+            f"{cofi.instituto.value.upper()}. No usa la subcuenta ni el crédito del "
+            f"instituto: el banco financia ${resultado.monto_credito:,.0f} y no hay "
+            "aportaciones patronales."
+        )
+        return replace(
+            resultado,
+            advertencias=resultado.advertencias + (aviso,),
+            alternativa_sin_cofinanciamiento=True,
+        )
 
     monto = escenario.monto_credito
     plazo = escenario.plazo_meses
@@ -221,8 +249,8 @@ def evaluar_producto(
 
     cofinanciamiento = escenario.cofinanciamiento
     if cofinanciamiento is not None:
-        regla = producto.regla_aportaciones
-        if regla is None or regla.instituto is not cofinanciamiento.instituto:
+        if not _acepta(producto, cofinanciamiento):
+            # Solo llega aquí un producto exclusivo de otro instituto
             motivos.append(
                 "El producto no acepta cofinanciamiento con "
                 f"{cofinanciamiento.instituto.value.upper()}."
@@ -252,6 +280,13 @@ def evaluar_producto(
     tabla_cat = tabla
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
+
+    if cofinanciamiento is not None and cofinanciamiento.monto_credito_instituto > 0:
+        advertencias.append(
+            f"El costo total no incluye el crédito de {cofinanciamiento.instituto.value.upper()} "
+            f"por ${cofinanciamiento.monto_credito_instituto:,.0f}: se paga aparte, por nómina, "
+            "con las condiciones del instituto."
+        )
 
     if tabla.total_aportaciones:
         advertencias.append(

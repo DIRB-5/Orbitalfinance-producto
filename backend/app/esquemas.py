@@ -129,6 +129,7 @@ class RenglonSalida(ModeloBase):
 
 class OpcionSalida(ModeloBase):
     producto_id: str
+    alternativa_sin_cofinanciamiento: bool
     tasa_anual: str
     tasa_normalizada: str
     elegible: bool
