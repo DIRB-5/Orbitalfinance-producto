@@ -23,7 +23,7 @@ ESCENARIO = {
 
 def test_catalogo_en_camel_case_y_decimales_como_texto():
     productos = cliente.get("/api/catalogo").json()["productos"]
-    assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio", "Banorte"}
+    assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio", "Banorte", "BX+"}
     hsbc = next(p for p in productos if p["institucion"] == "HSBC")
     assert hsbc["tasaAnual"] == "0.1175"
     assert hsbc["comisionMensual"] == "290.00"
@@ -60,9 +60,9 @@ def test_renglones_traen_fecha_de_pago():
 
 
 def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
-    """Con INFONAVIT ningún producto del catálogo lo acepta: los bancarios se
-    muestran como alternativa (el banco financia 1.85 millones) y Banorte
-    FOVISSSTE no aparece porque es exclusivo de FOVISSSTE."""
+    """Con INFONAVIT: BX+ Cofinavit lo usa (crédito bancario de 1.4 millones y
+    crédito del instituto); los demás bancarios se muestran como alternativa
+    (el banco financia 1.85 millones) y Banorte FOVISSSTE no aparece."""
     cuerpo = dict(ESCENARIO, cofinanciamiento={
         "instituto": "infonavit", "salarioMensual": "60000",
         "montoCreditoInstituto": "300000", "saldoSubcuenta": "150000",
@@ -71,6 +71,10 @@ def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
     for o in opciones:
         if o["productoId"].startswith("banorte"):
             assert not o["elegible"]
+        elif o["productoId"].startswith("bx"):
+            assert o["elegible"] and not o["alternativaSinCofinanciamiento"]
+            assert o["montoCredito"] == "1400000.00"
+            assert o["creditoInstituto"]["monto"] == "300000.00"
         else:
             assert o["elegible"] and o["alternativaSinCofinanciamiento"]
             assert o["montoCredito"] == "1850000.00"

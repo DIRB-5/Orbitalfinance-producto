@@ -211,3 +211,80 @@ def test_banorte_fovissste_aplica_aportaciones_y_exige_cofinanciamiento():
     sin = Escenario(valor_vivienda=escenario.valor_vivienda, enganche=escenario.enganche,
                     plazo_meses=240)
     assert not evaluar_producto(sin, producto, momento=date(2026, 2, 3)).elegible
+
+
+# ---------------------------------------------------------------------------
+# BX+ Cofinavit: el archivo no trae escenario capturado. Se contrasta contra
+# una implementación de referencia escrita con las fórmulas de VResPlus.
+# ---------------------------------------------------------------------------
+
+def _bx_referencia(valor, credito, tasa, plazo):
+    """VResPlus: F14 = −PMT(tasa/12, n, F11); P = O·tasa/12; Q = R − P;
+    U = O·0.00065; V = 70 % valor × 0.301‰ × 1.16; W = 299 × 1.16."""
+    i = tasa / 12
+    pago = credito * i / (1 - (1 + i) ** -plazo)
+    danos = valor * D("0.7") * D("0.301") / 1000 * D("1.16")
+    saldo, filas = credito, []
+    for _ in range(plazo):
+        interes = saldo * i
+        capital = min(pago - interes, saldo)
+        vida = saldo * D("0.00065")
+        filas.append((saldo, interes, capital, vida, danos, capital + interes + vida + danos + D("346.84")))
+        saldo -= capital
+    # CAT (AJ): −crédito + apertura + avalúo s/IVA; capital + interés + vida
+    # + daños/1.16 + 299
+    apertura = min(credito * D("0.01"), D("150000"))
+    flujos = [cap + intr + v + d / D("1.16") + D("299") for (_, intr, cap, v, d, _) in filas]
+    return filas, apertura, flujos
+
+
+def test_bx_cofinavit_reproduce_las_formulas_del_cotizador():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Cofinanciamiento, Escenario, TipoLinea
+
+    from .test_cotizadores_reales import _cat
+
+    valor = D("2500000")
+    escenario = Escenario(
+        valor_vivienda=valor, enganche=D("550000"), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(
+            instituto=TipoLinea.INFONAVIT, salario_mensual=D("0"),
+            monto_credito_instituto=D("300000"), saldo_subcuenta=D("150000"),
+        ),
+    )
+    resultado = evaluar_producto(escenario, POR_ID["bx-cofinavit-2026-01"])
+    assert resultado.elegible
+    assert resultado.monto_credito == D("1500000")       # aforo bancario 60 %
+    assert resultado.producto.tasa_anual == D("0.0965")   # tramo hasta 70 %
+    assert resultado.comision_apertura == D("15000")
+    assert resultado.avaluo == D("4600") * D("1.16")       # tramo 2-3 millones
+
+    filas, apertura, flujos = _bx_referencia(valor, D("1500000"), D("0.0965"), 240)
+    for mes in (1, 2, 12, 120, 239, 240):
+        r = resultado.tabla.renglones[mes - 1]
+        saldo, interes, capital, vida, danos, total = filas[mes - 1]
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida, vida), (r.seguro_danos, danos), (r.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    cat_ref = _cat(flujos, D("1500000") - apertura - D("4600"))
+    assert abs(resultado.cat_estimado - cat_ref) < D("0.0000001")
+
+
+# Crédito bancario = 2.5M − enganche − 300k (Infonavit) − 150k (SSV)
+@pytest.mark.parametrize("enganche, tasa", [
+    ("300000", "0.0965"),  # 1.75M = 70 %
+    ("250000", "0.0985"),  # 1.80M = 72 %
+    ("0", "0.1030"),       # 2.05M = 82 %
+])
+def test_bx_cofinavit_tasa_por_aforo_bancario(enganche, tasa):
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Cofinanciamiento, Escenario, TipoLinea
+
+    escenario = Escenario(
+        valor_vivienda=D("2500000"), enganche=D(enganche), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(
+            instituto=TipoLinea.INFONAVIT, salario_mensual=D("0"),
+            monto_credito_instituto=D("300000"), saldo_subcuenta=D("150000"),
+        ),
+    )
+    assert evaluar_producto(escenario, POR_ID["bx-cofinavit-2026-01"]).producto.tasa_anual == D(tasa)

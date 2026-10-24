@@ -1189,3 +1189,20 @@ def test_fovissste_no_otorga_credito_en_cofinanciamiento_bancario():
         plazo_meses=240, cofinanciamiento=cofi,
     )
     assert any("FOVISSSTE" in e for e in escenario.validar())
+
+
+def test_comision_apertura_con_tope():
+    producto = producto_limpio(
+        comision_apertura=Decimal("0.01"), comision_apertura_tope=Decimal("150000")
+    )
+    assert producto.comision_apertura_para(Decimal("1000000")) == Decimal("10000")
+    assert producto.comision_apertura_para(Decimal("20000000")) == Decimal("150000")
+
+
+def test_producto_que_requiere_credito_del_instituto():
+    producto = producto_cofi(requiere_cofinanciamiento=True, requiere_credito_instituto=True)
+    con_credito = evaluar_producto(_escenario_cofi(), producto)
+    assert con_credito.elegible
+    solo_subcuenta = evaluar_producto(_escenario_cofi(COFI_SIN_CREDITO, "550000"), producto)
+    assert not solo_subcuenta.elegible
+    assert any("crédito del instituto" in m for m in solo_subcuenta.motivos_rechazo)

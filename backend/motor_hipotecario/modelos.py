@@ -180,6 +180,10 @@ class ProductoHipotecario:
     # sin cofinanciamiento del instituto de su regla, no es elegible.
     requiere_cofinanciamiento: bool = False
 
+    # Además requiere crédito del instituto (Cofinavit); con solo subcuenta
+    # el producto que aplica es otro (Apoyo Infonavit).
+    requiere_credito_instituto: bool = False
+
     # Mensualidad creciente: ((mes desde el que aplica, crecimiento mensual),
     # ...). El pago base (capital + interés) se multiplica por
     # (1 + crecimiento) cada mes. Al inicio de cada fase el pago se recalcula
@@ -208,6 +212,9 @@ class ProductoHipotecario:
     # Comisión por apertura como monto fijo. Si se define, sustituye a la
     # fracción (hay instituciones que cobran una cantidad fija).
     comision_apertura_monto: Optional[Dinero] = None
+
+    # Tope de la comisión por apertura cuando es fracción (BX+: $150,000).
+    comision_apertura_tope: Optional[Dinero] = None
 
     # Comisión mensual fija: cargo recurrente que no es interés ni seguro.
     # Entra al pago, al costo total y al CAT.
@@ -277,7 +284,10 @@ class ProductoHipotecario:
     def comision_apertura_para(self, monto: Dinero) -> Dinero:
         if self.comision_apertura_monto is not None:
             return self.comision_apertura_monto
-        return self.comision_apertura * monto
+        comision = self.comision_apertura * monto
+        if self.comision_apertura_tope is not None:
+            comision = min(comision, self.comision_apertura_tope)
+        return comision
 
     @property
     def etiqueta(self) -> str:

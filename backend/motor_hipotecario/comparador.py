@@ -286,6 +286,16 @@ def evaluar_producto(
 
     # Crédito del instituto (Cofinavit): las aportaciones lo pagan primero y
     # el banco las recibe solo después de liquidarlo (Ley INFONAVIT 43 Bis).
+    if (
+        producto.requiere_credito_instituto
+        and cofinanciamiento is not None
+        and cofinanciamiento.monto_credito_instituto <= 0
+    ):
+        motivos.append(
+            "El producto requiere crédito del instituto (Cofinavit); con solo la "
+            "subcuenta aplica Apoyo Infonavit."
+        )
+
     tabla_instituto = None
     linea_banco = linea
     if cofinanciamiento is not None and cofinanciamiento.monto_credito_instituto > 0:
