@@ -7,7 +7,7 @@ imprime, no formatea, no sabe qué es un PDF: devuelve datos.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -130,6 +130,37 @@ class Comparacion:
         return ordenadas[-1].costo_total - ordenadas[0].costo_total
 
 
+def resolver_para_escenario(
+    producto: ProductoHipotecario, escenario: Escenario, plazo: int
+) -> ProductoHipotecario:
+    """
+    Condiciones que dependen del escenario: la tasa por plazo y aforo, y el
+    avalúo por tabulador. Devuelve una copia con los valores resueltos (el
+    snapshot queda reproducible) o el mismo producto si no hay nada que
+    resolver.
+    """
+    cambios: dict = {}
+
+    if producto.tabla_tasas:
+        aforo = escenario.aforo
+        for plazo_max, aforo_max, tasa in producto.tabla_tasas:
+            if plazo <= plazo_max and aforo <= aforo_max:
+                cambios["tasa_anual"] = tasa
+                break
+
+    if producto.tarifa_avaluo:
+        valor = escenario.valor_vivienda
+        tramo = None
+        for desde, fijo, al_millar in producto.tarifa_avaluo:
+            if valor >= desde:
+                tramo = (fijo, al_millar)
+        if tramo is not None:
+            fijo, al_millar = tramo
+            cambios["avaluo"] = (fijo + valor / Decimal(1000) * al_millar) * producto.avaluo_factor_iva
+
+    return replace(producto, **cambios) if cambios else producto
+
+
 def evaluar_producto(
     escenario: Escenario,
     producto: ProductoHipotecario,
@@ -162,6 +193,15 @@ def evaluar_producto(
             f"(${producto.monto_minimo:,.0f})."
         )
 
+    if (
+        producto.valor_minimo_inmueble is not None
+        and escenario.valor_vivienda < producto.valor_minimo_inmueble
+    ):
+        motivos.append(
+            f"El valor del inmueble está por debajo del mínimo del producto "
+            f"(${producto.valor_minimo_inmueble:,.0f})."
+        )
+
     if producto.monto_maximo is not None and monto > producto.monto_maximo:
         motivos.append(
             f"El monto excede el máximo del producto "
@@ -175,6 +215,8 @@ def evaluar_producto(
         (p for p in producto.plazos_meses if p <= plazo),
         default=min(producto.plazos_meses),
     )
+
+    producto = resolver_para_escenario(producto, escenario, plazo_calculo)
 
     cofinanciamiento = escenario.cofinanciamiento
     if cofinanciamiento is not None:

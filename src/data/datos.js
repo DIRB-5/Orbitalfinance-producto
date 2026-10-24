@@ -246,6 +246,9 @@ function adaptarProducto(p) {
     factorConstruccion: num(p.factorConstruccion),
     avaluo: num(p.avaluo),
     catNetosDeIva: p.catNetosDeIva || [],
+    tablaTasas: (p.tablaTasas || []).map((t) => ({ plazoMaxMeses: t.plazoMaxMeses, aforoMax: num(t.aforoMax), tasaAnual: num(t.tasaAnual) })),
+    tieneTarifaAvaluo: !!p.tieneTarifaAvaluo,
+    valorMinimoInmueble: num(p.valorMinimoInmueble),
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,
@@ -303,6 +306,13 @@ export function descripcionEscalones(producto) {
   return tramos.join("; ") + (producto.recalcularPagoAlCambiarTasa ? ". El pago se recalcula." : ". Pago fijo: se liquida antes.");
 }
 
+export function descripcionTablaTasas(producto) {
+  const t = producto.tablaTasas || [];
+  if (!t.length) return "Tasa única";
+  const pct = (x) => (x * 100).toFixed(2) + "\u00A0%";
+  return t.map((x) => "hasta " + x.plazoMaxMeses + " meses y aforo " + pct(x.aforoMax) + ": " + pct(x.tasaAnual)).join("; ");
+}
+
 export function tasaNormalizada(producto) {
   return producto.tasaNormalizada;
 }
@@ -316,7 +326,14 @@ export function comportamientoMensualidad(producto) {
 
 // Opción de la API → forma que usa la interfaz.
 function adaptarOpcion(o, escenario) {
-  const producto = productos.find((p) => p.id === o.productoId);
+  const delCatalogo = productos.find((p) => p.id === o.productoId);
+  // La tasa y el avalúo pueden depender del escenario (tabla por plazo y
+  // aforo, tabulador de avalúo): se muestran los que usó el motor.
+  const producto = delCatalogo && Object.assign({}, delCatalogo, {
+    tasa: Object.assign({}, delCatalogo.tasa, { valor: num(o.tasaAnual) }),
+    tasaNormalizada: num(o.tasaNormalizada),
+    avaluo: num(o.avaluo),
+  });
   const elegible = o.elegible;
   const v = (x) => (elegible ? num(x) : null);
   return {

@@ -23,7 +23,7 @@ ESCENARIO = {
 
 def test_catalogo_en_camel_case_y_decimales_como_texto():
     productos = cliente.get("/api/catalogo").json()["productos"]
-    assert {p["institucion"] for p in productos} == {"HSBC", "Santander"}
+    assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio"}
     hsbc = next(p for p in productos if p["institucion"] == "HSBC")
     assert hsbc["tasaAnual"] == "0.1175"
     assert hsbc["comisionMensual"] == "290.00"
@@ -70,4 +70,13 @@ def test_cofinanciamiento_sin_productos_que_lo_acepten():
     assert opciones and not any(o["elegible"] for o in opciones)
     assert all(o["montoCredito"] == "1400000.00" for o in opciones)
     assert all("INFONAVIT" in " ".join(o["motivosRechazo"]) for o in opciones)
+
+
+def test_opcion_trae_la_tasa_resuelta_para_el_escenario():
+    """Banregio publica 11.00 % como referencia; a 240 meses y 74 % de aforo
+    su tabla da 11.00 %, a 120 meses da 10.20 %."""
+    for plazo, tasa in ((240, "0.11"), (120, "0.102")):
+        datos = cliente.post("/api/comparar", json=dict(ESCENARIO, plazoMeses=plazo)).json()
+        banregio = next(o for o in datos["opciones"] if o["productoId"].startswith("banregio"))
+        assert banregio["tasaAnual"] == tasa
 

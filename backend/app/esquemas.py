@@ -45,6 +45,12 @@ class EscalonSalida(ModeloBase):
     tasa_anual: str
 
 
+class TramoTasaSalida(ModeloBase):
+    plazo_max_meses: int
+    aforo_max: str
+    tasa_anual: str
+
+
 class ReglaAportacionesSalida(ModeloBase):
     instituto: str
     porcentaje_salario: str
@@ -70,6 +76,9 @@ class ProductoSalida(ModeloBase):
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]
+    tabla_tasas: List[TramoTasaSalida]
+    tiene_tarifa_avaluo: bool
+    valor_minimo_inmueble: Optional[str]
     plazos_meses: List[int]
     aforo_max: str
     comision_apertura: str
@@ -111,6 +120,8 @@ class RenglonSalida(ModeloBase):
 
 class OpcionSalida(ModeloBase):
     producto_id: str
+    tasa_anual: str
+    tasa_normalizada: str
     elegible: bool
     motivos_rechazo: List[str]
     advertencias: List[str]

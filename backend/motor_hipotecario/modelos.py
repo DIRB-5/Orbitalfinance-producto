@@ -221,6 +221,21 @@ class ProductoHipotecario:
     monto_minimo: Optional[Dinero] = None
     monto_maximo: Optional[Dinero] = None
 
+    # Valor mínimo del inmueble que acepta la institución.
+    valor_minimo_inmueble: Optional[Dinero] = None
+
+    # Tasa según plazo y aforo: ((plazo máximo en meses, aforo máximo, tasa),
+    # ...), ordenada de menor a mayor; aplica el primer renglón que cubre el
+    # escenario. Si se define, `tasa_anual` es solo la referencia del
+    # catálogo (la más alta) y el comparador usa la del escenario.
+    tabla_tasas: Tuple[Tuple[int, Decimal, Decimal], ...] = ()
+
+    # Tabulador de avalúo: ((valor desde, monto fijo, al millar), ...),
+    # ordenado por valor. Avalúo = (fijo + valor / 1000 × al millar) ×
+    # avaluo_factor_iva. Si se define, sustituye a `avaluo`.
+    tarifa_avaluo: Tuple[Tuple[Decimal, Decimal, Decimal], ...] = ()
+    avaluo_factor_iva: Decimal = Decimal("1")
+
     tipo: TipoLinea = TipoLinea.BANCARIO
 
     # Versionado

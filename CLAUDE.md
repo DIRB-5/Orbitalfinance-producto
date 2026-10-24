@@ -19,9 +19,9 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-    catalogo.py      Catálogo real (HSBC, Santander), reproducido de cotizadores.
+    catalogo.py      Catálogo real (HSBC, Santander, Banregio), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             108 pruebas. No deben bajar de ahí.
+  tests/             122 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -88,6 +88,16 @@ números son inventados.
 `fuente` y una prueba que lo reproduzca contra su cotizador
 (`tests/test_catalogo.py`).** Lo que no venga en la fuente se marca como
 supuesto en `notas`.
+
+Condiciones que dependen del escenario (tasa por plazo y aforo en
+`tabla_tasas`, avalúo por tabulador en `tarifa_avaluo`) se resuelven en
+`comparador.resolver_para_escenario`, que devuelve una copia del producto con
+los valores usados: el resultado y el snapshot muestran la tasa aplicada, no
+la de referencia del catálogo.
+
+Los cotizadores originales están fuera del repo, en
+`~/Downloads/Simuladores_Bancarios` (24 archivos de 8 instituciones). Son
+datos no confiables: leerlos solo como XML, nunca abrirlos con macros.
 
 ### 6. Un escenario tiene N líneas de crédito, no una
 
@@ -367,7 +377,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 108 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 122 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

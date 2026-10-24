@@ -60,3 +60,39 @@ def test_producto_reproduce_el_cat_de_su_cotizador(producto_id, fixture, toleran
     tabla = construir_tabla(LineaCredito(producto, p["monto"], p["plazo_meses"]), D("1000000"))
     assert abs(calcular_cat(tabla, producto) - fixture["cat_esperado"]) < tolerancia
 
+
+
+def test_banregio_reproduce_su_cotizador_desde_el_comparador():
+    """
+    El escenario capturado es de Mejora de Hipoteca (código 4); Adquisición
+    Tradicional (código 1) usa las mismas tasas y la misma mecánica. Pasando
+    por el comparador, el producto debe resolver tasa y avalúo del escenario
+    y reproducir la tabla y el CAT del archivo.
+    """
+    from datetime import date
+
+    from motor_hipotecario.cat import calcular_cat
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .fixtures.cotizadores_reales import BANREGIO
+
+    p = BANREGIO["parametros"]
+    escenario = Escenario(
+        valor_vivienda=p["valor_inmueble"],
+        enganche=p["valor_inmueble"] - p["monto"],
+        plazo_meses=p["plazo_meses"],
+    )
+    resultado = evaluar_producto(
+        escenario, POR_ID["banregio-adquisicion-2023-12"], date.fromisoformat(p["fecha_primer_pago"])
+    )
+    assert resultado.elegible
+    assert resultado.producto.tasa_anual == p["tasa_anual"]
+    assert resultado.avaluo == p["avaluo"]
+    assert resultado.comision_apertura == p["monto"] * p["comision_apertura_pct"]
+    for mes, (_, saldo, interes, capital, seguros, total) in BANREGIO["renglones"].items():
+        r = resultado.tabla.renglones[mes - 1]
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida + r.seguro_danos, seguros), (r.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - BANREGIO["cat_esperado"]) < D("0.0000001")

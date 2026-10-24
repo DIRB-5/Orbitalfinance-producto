@@ -26,6 +26,7 @@ import pytest
 from motor_hipotecario.amortizacion import construir_tabla
 from motor_hipotecario.cat import calcular_cat, flujos_cat
 from motor_hipotecario.modelos import (
+    BaseSeguroDanos,
     ConceptoIVA,
     ConvencionDias,
     LineaCredito,
@@ -301,6 +302,60 @@ def test_banregio_renglones(mes):
                               (capital, e_cap, "amortización"), (seguro, e_seg, "seguros"),
                               (total, e_tot, "pago")]:
         assert abs(calc - esp) < TOL, f"mes {mes}, {nombre}: {calc} != {esp}"
+
+
+def _banregio_producto_y_tabla(p, **campos):
+    """Daños como tasa sobre el valor de construcción, como en el archivo."""
+    producto = ProductoHipotecario(
+        id="banregio",
+        institucion="Banregio",
+        nombre="Escenario del cotizador",
+        tasa_anual=p["tasa_anual"],
+        plazos_meses=(p["plazo_meses"],),
+        aforo_max=D("1"),
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+        seguros_en_pago_fijo=True,
+        seguro_vida_mensual=p["seguro_tasa_saldo"],
+        seguro_danos_anual=p["seguro_danos_tasa_anual"],
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=p["seguro_danos_factor_construccion"],
+        comision_mensual=p["comision_mensual"],
+        **campos,
+    )
+    tabla = construir_tabla(
+        LineaCredito(producto, p["monto"], p["plazo_meses"]),
+        p["valor_inmueble"],
+        fecha_primer_pago=date.fromisoformat(p["fecha_primer_pago"]),
+    )
+    return producto, tabla
+
+
+def test_banregio_danos_sobre_valor_reproduce_el_archivo_exacto():
+    """Con el daño calculado sobre el valor (no el fijo cortado), el motor
+    empata el archivo en toda la tabla de control."""
+    _, tabla = _banregio_producto_y_tabla(BANREGIO["parametros"])
+    for mes, (fecha, saldo, interes, capital, seguros, total) in BANREGIO["renglones"].items():
+        r = tabla.renglones[mes - 1]
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida + r.seguro_danos, seguros), (r.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+
+
+def test_banregio_cat_desde_motor():
+    p = BANREGIO["parametros"]
+    producto, tabla = _banregio_producto_y_tabla(
+        p,
+        comision_apertura=p["comision_apertura_pct"],
+        avaluo=p["avaluo"],
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DANOS}
+        ),
+    )
+    neto, _ = flujos_cat(tabla, producto)
+    assert abs(neto - D("1193130")) < TOL  # AA9
+    assert abs(calcular_cat(tabla, producto) - BANREGIO["cat_esperado"]) < D("0.0000001")
 
 
 def _banregio_desde_motor(p):

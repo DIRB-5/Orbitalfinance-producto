@@ -21,10 +21,12 @@ LÍMITES DE ESTOS DATOS — léelos antes de usarlos frente a un cliente:
 Actualizar condiciones = cerrar la vigencia del producto y crear uno nuevo con
 su propia fuente. Nunca editar en sitio (CLAUDE.md, regla 3).
 
+Banregio es distinto: sus tasas salen de la tabla del cotizador por plazo y
+aforo, y el avalúo de su tabulador, así que el comparador los resuelve para
+cada escenario. Pero el archivo es de diciembre de 2023: sus tasas pueden
+estar desactualizadas.
+
 Pendientes:
-  Banregio  — el motor ya lo reproduce; faltan la comisión por apertura y el
-              avalúo, que no se extrajeron del cotizador. Sin ellos saldría
-              artificialmente barato frente a los demás.
   Scotiabank, Banamex — los cotizadores se recibieron sin escenario capturado
 """
 
@@ -33,7 +35,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from .modelos import ConceptoIVA, ConvencionDias, ProductoHipotecario
+from .modelos import BaseSeguroDanos, ConceptoIVA, ConvencionDias, ProductoHipotecario
 
 # Fecha en que se analizaron los cotizadores. Los archivos no traen fecha de
 # vigencia de las condiciones.
@@ -90,5 +92,67 @@ CATALOGO: list[ProductoHipotecario] = [
         fuente="Cotizador Santander.xlsm, hoja CAT (escenario capturado: "
         "$1,770,000 a 300 meses). Analizado 2026-10-22.",
         notas=_SUPUESTOS + " El cotizador no trae avalúo.",
+    ),
+    ProductoHipotecario(
+        id="banregio-adquisicion-2023-12",
+        institucion="Banregio",
+        nombre="Adquisición Tradicional (pagos fijos)",
+        # Referencia del catálogo: la tasa más alta. El comparador usa la de
+        # `tabla_tasas` según plazo y aforo del escenario (TablaTasas!E17:I47).
+        tasa_anual=Decimal("0.110"),
+        tabla_tasas=(
+            (120, Decimal("0.70"), Decimal("0.096")),
+            (120, Decimal("0.90"), Decimal("0.102")),
+            (180, Decimal("0.70"), Decimal("0.102")),
+            (180, Decimal("0.90"), Decimal("0.109")),
+            (240, Decimal("0.70"), Decimal("0.105")),
+            (240, Decimal("0.90"), Decimal("0.110")),
+        ),
+        # Interés con días reales, capital con tasa/12, seguros dentro del pago
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+        seguros_en_pago_fijo=True,
+        plazos_meses=tuple(range(12, 241, 12)),  # 1 a 20 años (Param!CF52:CF71)
+        aforo_max=Decimal("0.90"),                # TablaTasas!D13
+        valor_minimo_inmueble=Decimal("500000"),  # Param!CM8
+        # Jumbo (+0.5 % desde 10 millones) no modelado: se excluye
+        monto_maximo=Decimal("9999999.99"),
+        comision_apertura=Decimal("0.015"),       # Param!AL8
+        comision_mensual=Decimal("250"),          # Param!AK8, IVA incluido
+        # Vida 0.424‰ + ITP 0.106‰ + desempleo 0.3‰ sobre saldo (Param!D12:D14)
+        seguro_vida_mensual=Decimal("0.00083"),
+        # Daños 0.074364‰ mensual × 1.16 sobre 70 % del valor (Param!D8, D9)
+        seguro_danos_anual=Decimal("0.00103514688"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        # Tabulador de avalúo (Param!AZ8:BE17), IVA incluido
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("2174"), Decimal("0")),
+            (Decimal("800000"), Decimal("0"), Decimal("2.7")),
+            (Decimal("2000000"), Decimal("0"), Decimal("2.5")),
+            (Decimal("3000000"), Decimal("0"), Decimal("2.4")),
+            (Decimal("4000000"), Decimal("0"), Decimal("2.35")),
+            (Decimal("5000000"), Decimal("0"), Decimal("2.3")),
+            (Decimal("6000000"), Decimal("0"), Decimal("2.25")),
+            (Decimal("7000000"), Decimal("0"), Decimal("2.2")),
+            (Decimal("8000000"), Decimal("0"), Decimal("2.1")),
+            (Decimal("9000000"), Decimal("0"), Decimal("2.0")),
+        ),
+        avaluo_factor_iva=Decimal("1.16"),
+        # TablAmoPagosFijos!AA8, AA10: apertura completa; avalúo, comisión
+        # mensual y daños ÷ 1.16; vida, ITP y desempleo completos.
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DANOS}
+        ),
+        vigente_desde=date(2023, 12, 1),
+        fuente="Cotizador BANREGIO MULTIPRODUCTO.xlsm, producto 1 Adquisición "
+        "Tradicional (TablaTasas, Param, TablAmoPagosFijos). Archivo guardado "
+        "2023-12-01; validado con su escenario de Mejora de Hipoteca, que usa "
+        "las mismas tasas y mecánica.",
+        notas="TASAS DE DICIEMBRE DE 2023: confirmar vigencia con Banregio. "
+        "Seguro de vida incluye desempleo (titular asalariado); sin desempleo "
+        "sería 0.53‰. Se modela la opción de 1.5 % de apertura sin "
+        "penalización por prepago. No incluye créditos Jumbo (10 millones o más).",
     ),
 ]

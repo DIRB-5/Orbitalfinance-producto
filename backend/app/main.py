@@ -30,6 +30,7 @@ from .esquemas import (
     ProductoSalida,
     ReglaAportacionesSalida,
     RenglonSalida,
+    TramoTasaSalida,
 )
 
 app = FastAPI(title="Comparador hipotecario", version=VERSION_MOTOR)
@@ -83,6 +84,12 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         ],
         recalcular_pago_al_cambiar_tasa=p.recalcular_pago_al_cambiar_tasa,
         regla_aportaciones=_regla(p),
+        tabla_tasas=[
+            TramoTasaSalida(plazo_max_meses=pl, aforo_max=_tasa(af), tasa_anual=_tasa(t))
+            for pl, af, t in p.tabla_tasas
+        ],
+        tiene_tarifa_avaluo=bool(p.tarifa_avaluo),
+        valor_minimo_inmueble=_dinero_opcional(p.valor_minimo_inmueble),
         plazos_meses=list(p.plazos_meses),
         aforo_max=_tasa(p.aforo_max),
         comision_apertura=_tasa(p.comision_apertura),
@@ -109,6 +116,8 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
     t = o.tabla
     return OpcionSalida(
         producto_id=o.producto.id,
+        tasa_anual=_tasa(o.producto.tasa_anual),
+        tasa_normalizada=_tasa(tasa_normalizada(o.producto)),
         elegible=o.elegible,
         motivos_rechazo=list(o.motivos_rechazo),
         advertencias=list(o.advertencias),

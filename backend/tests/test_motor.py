@@ -904,3 +904,73 @@ def test_cat_ignora_aportaciones_y_costo_total_las_incluye():
         con.tabla.total_pagado + con.total_aportaciones + con.comision_apertura
         + con.avaluo + con.gastos_notariales
     )
+
+
+# --------------------------------------------------------------------------
+# Tasa por plazo y aforo, tabulador de avalúo, valor mínimo del inmueble
+# --------------------------------------------------------------------------
+
+from motor_hipotecario.comparador import resolver_para_escenario  # noqa: E402
+
+# (plazo máximo en meses, aforo máximo, tasa): forma de la tabla de Banregio
+TABLA = (
+    (120, Decimal("0.70"), Decimal("0.096")),
+    (120, Decimal("0.90"), Decimal("0.102")),
+    (240, Decimal("0.70"), Decimal("0.105")),
+    (240, Decimal("0.90"), Decimal("0.110")),
+)
+# (valor desde, monto fijo, al millar)
+TARIFA = (
+    (Decimal("0"), Decimal("2174"), Decimal("0")),
+    (Decimal("800000"), Decimal("0"), Decimal("2.7")),
+    (Decimal("2000000"), Decimal("0"), Decimal("2.5")),
+)
+
+
+def _escenario(valor, enganche, plazo):
+    return Escenario(valor_vivienda=Decimal(valor), enganche=Decimal(enganche), plazo_meses=plazo)
+
+
+@pytest.mark.parametrize(
+    "valor, enganche, plazo, tasa",
+    [
+        ("2000000", "1000000", 120, "0.096"),   # aforo 50 %, 10 años
+        ("2000000", "400000", 120, "0.102"),    # aforo 80 %
+        ("2000000", "1000000", 180, "0.105"),   # 15 años cae en el siguiente tramo
+        ("2000000", "200000", 240, "0.110"),    # aforo 90 %, 20 años
+    ],
+)
+def test_tasa_segun_plazo_y_aforo(valor, enganche, plazo, tasa):
+    producto = producto_limpio(tabla_tasas=TABLA, plazos_meses=(120, 180, 240))
+    resuelto = resolver_para_escenario(producto, _escenario(valor, enganche, plazo), plazo)
+    assert resuelto.tasa_anual == Decimal(tasa)
+    assert resuelto.id == producto.id
+
+
+@pytest.mark.parametrize(
+    "valor, avaluo",
+    [("700000", "2521.84"), ("1350000", "4228.2"), ("2500000", "7250")],
+)
+def test_tabulador_de_avaluo(valor, avaluo):
+    producto = producto_limpio(tarifa_avaluo=TARIFA, avaluo_factor_iva=Decimal("1.16"))
+    resuelto = resolver_para_escenario(producto, _escenario(valor, "100000", 120), 120)
+    assert resuelto.avaluo == Decimal(avaluo)
+
+
+def test_sin_tabla_ni_tarifa_el_producto_no_cambia():
+    producto = producto_limpio(avaluo=Decimal("9000"))
+    assert resolver_para_escenario(producto, _escenario("2000000", "500000", 120), 120) is producto
+
+
+def test_resultado_usa_la_tasa_resuelta():
+    producto = producto_limpio(tabla_tasas=TABLA, plazos_meses=(120, 240))
+    resultado = evaluar_producto(_escenario("2000000", "1000000", 120), producto)
+    assert resultado.producto.tasa_anual == Decimal("0.096")
+    assert resultado.tabla.tasa_anual == Decimal("0.096")
+
+
+def test_valor_minimo_del_inmueble():
+    producto = producto_limpio(valor_minimo_inmueble=Decimal("500000"))
+    resultado = evaluar_producto(_escenario("450000", "100000", 120), producto)
+    assert not resultado.elegible
+    assert any("valor del inmueble" in m for m in resultado.motivos_rechazo)

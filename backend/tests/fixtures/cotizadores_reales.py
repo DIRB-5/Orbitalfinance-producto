@@ -121,7 +121,20 @@ BANREGIO = {
         "seguro_fijo": D("81.5178"),
         "seguro_tasa_saldo": D("0.00083"),
         "comision_mensual": D("250"),
+        # Añadidos al releer el archivo (HojaMaestra, Param, TablaTasas):
+        "producto": "Mejora de Hipoteca (código 4), Pagos Fijos",
+        "valor_inmueble": D("1350000"),                 # HojaMaestra!C7
+        # Daños: valor × 70 % × 0.074364‰ × 1.16 mensual (X10). seguro_fijo
+        # de arriba es ese valor cortado a 4 decimales (81.5178168).
+        "seguro_danos_factor_construccion": D("0.7"),   # Param!D9
+        "seguro_danos_tasa_anual": D("0.00103514688"),  # 0.074364/1000 × 1.16 × 12
+        # Vida 0.424‰ + ITP 0.106‰ + desempleo 0.3‰ (Titular asalariado)
+        "comision_apertura_pct": D("0.015"),            # Param!AL8, sin IVA
+        "avaluo": D("4228.2"),                          # 2.7‰ × valor × 1.16
     },
+    # CAT: apertura completa; avalúo, comisión mensual y daños ÷ 1.16;
+    # vida/ITP/desempleo completos. TablAmoPagosFijos!O7 "CAT sin IVA".
+    "cat_esperado": D("0.12916475266745042"),
     # mes: (fecha, saldo_inicial, interes, amortizacion, seguros, pago_total)
     "renglones": {
         1:   ("2023-12-01", D("1215000"),           D("10671.749999999998"),
