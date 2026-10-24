@@ -1206,3 +1206,12 @@ def test_producto_que_requiere_credito_del_instituto():
     solo_subcuenta = evaluar_producto(_escenario_cofi(COFI_SIN_CREDITO, "550000"), producto)
     assert not solo_subcuenta.elegible
     assert any("crédito del instituto" in m for m in solo_subcuenta.motivos_rechazo)
+
+
+def test_producto_que_excluye_credito_del_instituto():
+    """Apoyo Infonavit: solo subcuenta y aportaciones; con crédito, aplica Cofinavit."""
+    producto = producto_cofi(requiere_cofinanciamiento=True, excluye_credito_instituto=True)
+    assert evaluar_producto(_escenario_cofi(COFI_SIN_CREDITO, "550000"), producto).elegible
+    con_credito = evaluar_producto(_escenario_cofi(), producto)
+    assert not con_credito.elegible
+    assert any("Cofinavit" in m for m in con_credito.motivos_rechazo)

@@ -328,4 +328,68 @@ CATALOGO: list[ProductoHipotecario] = [
         "con excelente historial. Seguro de daños de la región 'resto de la "
         "República'. Vida para un asegurado. El archivo no trae vigencia.",
     ),
+    ProductoHipotecario(
+        id="bx-apoyo-infonavit-2026-01",
+        institucion="BX+",
+        nombre="Adquisición Apoyo Infonavit",
+        # Tasa por aforo del crédito BX+ solo (Simulador!CC12): la primera
+        # opción de cada tramo de VResPlus!H36:K50. El archivo ofrece otras
+        # (p. ej. 9.35 % al 70 %) para "excelente historial crediticio".
+        # En este archivo el tramo de 85 % devuelve error (C9 busca en
+        # H36:K46): solo se ofrecen 70 % y 80 %.
+        tasa_anual=Decimal("0.0985"),
+        tabla_tasas=(
+            (240, Decimal("0.70"), Decimal("0.0965")),
+            (240, Decimal("0.80"), Decimal("0.0985")),
+        ),
+        convencion_interes=ConvencionDias.TASA_ENTRE_12,
+        plazos_meses=tuple(range(12, 241, 12)),        # 1 a 20 años (D12)
+        aforo_max=Decimal("0.80"),
+        monto_minimo=Decimal("600000"),                  # AI15
+        comision_apertura=Decimal("0.01"),               # D14, sin IVA
+        comision_apertura_tope=Decimal("150000"),        # F32
+        comision_mensual=Decimal("346.84"),              # 299 × 1.16 (F22)
+        seguro_vida_mensual=Decimal("0.00065"),          # un asegurado (C53)
+        # Daños 0.301‰ mensual × 1.16 sobre 70 % del valor (resto de la
+        # República; Quintana Roo 0.52‰, Yucatán 0.34‰)
+        seguro_danos_anual=Decimal("0.00418992"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        tarifa_avaluo=(                                  # H20:J29, sin IVA
+            (Decimal("0"), Decimal("1300"), Decimal("0")),
+            (Decimal("600000.01"), Decimal("2000"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("2700"), Decimal("0")),
+            (Decimal("1500000.01"), Decimal("3400"), Decimal("0")),
+            (Decimal("2000000.01"), Decimal("4600"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("6000"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("8750"), Decimal("0")),
+            (Decimal("7000000.01"), Decimal("12500"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("18000"), Decimal("0")),
+            (Decimal("15000000.01"), Decimal("25000"), Decimal("0")),
+        ),
+        avaluo_factor_iva=Decimal("1.16"),
+        # CAT (AJ): apertura completa; avalúo, daños y comisión sin IVA
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL}
+        ),
+        # Simulador col. N: meses pares desde el 4, MIN(10 % salario,
+        # 7,884.24), × 1.03 por año desde el mes 14; se omite si no cabe.
+        regla_aportaciones=ReglaAportaciones(
+            instituto=TipoLinea.INFONAVIT,
+            porcentaje_salario=Decimal("0.10"),
+            tope=Decimal("7884.24"),
+            incremento_anual=Decimal("0.03"),
+            excedente=AportacionExcedente.OMITIR,
+        ),
+        requiere_cofinanciamiento=True,
+        excluye_credito_instituto=True,
+        vigente_desde=date(2026, 1, 15),
+        fuente="Cotizador BX+ INFONAVIT.xlsx (Simulador CH BX+, VResPlus). "
+        "Archivo guardado 2026-01-15. SIN escenario capturado: validado contra "
+        "sus fórmulas, aportaciones incluidas, no contra cifras del banco.",
+        notas="Apoyo Infonavit: la subcuenta reduce el crédito y las aportaciones "
+        "se abonan a capital; sin crédito del instituto. Tasa: primera opción de "
+        "cada tramo de aforo. Daños de 'resto de la República'. Vida para un "
+        "asegurado. El archivo no trae vigencia.",
+    ),
 ]

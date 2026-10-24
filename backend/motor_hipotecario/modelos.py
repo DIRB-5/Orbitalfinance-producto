@@ -184,6 +184,10 @@ class ProductoHipotecario:
     # el producto que aplica es otro (Apoyo Infonavit).
     requiere_credito_instituto: bool = False
 
+    # No admite crédito del instituto (Apoyo Infonavit: solo subcuenta y
+    # aportaciones); con crédito, el producto que aplica es Cofinavit.
+    excluye_credito_instituto: bool = False
+
     # Mensualidad creciente: ((mes desde el que aplica, crecimiento mensual),
     # ...). El pago base (capital + interés) se multiplica por
     # (1 + crecimiento) cada mes. Al inicio de cada fase el pago se recalcula

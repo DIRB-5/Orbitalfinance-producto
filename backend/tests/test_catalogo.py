@@ -288,3 +288,69 @@ def test_bx_cofinavit_tasa_por_aforo_bancario(enganche, tasa):
         ),
     )
     assert evaluar_producto(escenario, POR_ID["bx-cofinavit-2026-01"]).producto.tasa_anual == D(tasa)
+
+
+def _bx_apoyo_referencia(valor, credito, tasa, plazo, salario):
+    """
+    BX+ INFONAVIT (Simulador col. N, VResPlus O/Q/R/Z): pago fijo; aportación
+    en meses pares desde el 4 = MIN(10 % salario, 7,884.24), × 1.03 cada año
+    desde el mes 14; se paga solo si el saldo tras el capital es positivo y
+    se omite si no cabe; reduce el saldo del mismo mes.
+    """
+    i = tasa / 12
+    pago = credito * i / (1 - (1 + i) ** -plazo)
+    base = min(D("0.10") * salario, D("7884.24"))
+    saldo, filas = credito, []
+    for mes in range(1, plazo + 1):
+        interes = saldo * i
+        capital = saldo if (saldo - (pago - interes) <= 0 or mes == plazo) else pago - interes
+        aport = D("0")
+        if mes >= 4 and mes % 2 == 0:
+            aport = base * D("1.03") ** ((mes - 1) // 12)
+            if saldo - capital <= 0 or aport > saldo - capital:
+                aport = D("0")
+        filas.append((saldo, interes, capital, aport))
+        saldo = saldo - capital - aport
+        if saldo == 0:
+            break
+    return filas
+
+
+def test_bx_apoyo_infonavit_reproduce_las_formulas_del_cotizador():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Cofinanciamiento, Escenario, TipoLinea
+
+    valor, salario = D("2500000"), D("60000")
+    escenario = Escenario(
+        valor_vivienda=valor, enganche=D("600000"), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(
+            instituto=TipoLinea.INFONAVIT, salario_mensual=salario, saldo_subcuenta=D("150000"),
+        ),
+    )
+    resultado = evaluar_producto(escenario, POR_ID["bx-apoyo-infonavit-2026-01"])
+    assert resultado.elegible
+    assert resultado.monto_credito == D("1750000")        # la subcuenta reduce el crédito
+    assert resultado.producto.tasa_anual == D("0.0965")   # 70 %
+    assert resultado.tabla_instituto is None
+
+    filas = _bx_apoyo_referencia(valor, D("1750000"), D("0.0965"), 240, salario)
+    assert resultado.tabla.plazo_efectivo_meses == len(filas)
+    for r, (saldo, interes, capital, aport) in zip(resultado.tabla.renglones, filas):
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes),
+                          (r.capital, capital), (r.aportacion, aport)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
+    assert resultado.tabla.renglones[3].aportacion == D("6000")
+    assert resultado.tabla.renglones[13].aportacion == D("6000") * D("1.03")
+
+
+def test_bx_apoyo_infonavit_no_ofrece_aforo_de_85():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Cofinanciamiento, Escenario, TipoLinea
+
+    escenario = Escenario(
+        valor_vivienda=D("2500000"), enganche=D("200000"), plazo_meses=240,
+        cofinanciamiento=Cofinanciamiento(
+            instituto=TipoLinea.INFONAVIT, salario_mensual=D("60000"), saldo_subcuenta=D("150000"),
+        ),
+    )  # crédito 2.15M = 86 %
+    assert not evaluar_producto(escenario, POR_ID["bx-apoyo-infonavit-2026-01"]).elegible

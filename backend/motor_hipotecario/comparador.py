@@ -296,6 +296,17 @@ def evaluar_producto(
             "subcuenta aplica Apoyo Infonavit."
         )
 
+    if (
+        producto.excluye_credito_instituto
+        and cofinanciamiento is not None
+        and cofinanciamiento.monto_credito_instituto > 0
+    ):
+        motivos.append(
+            "El producto no admite crédito del instituto: con crédito Infonavit "
+            "aplica Cofinavit."
+        )
+        cofinanciamiento = replace(cofinanciamiento, monto_credito_instituto=Decimal("0"))
+
     tabla_instituto = None
     linea_banco = linea
     if cofinanciamiento is not None and cofinanciamiento.monto_credito_instituto > 0:

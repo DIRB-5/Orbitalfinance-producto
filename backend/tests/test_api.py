@@ -71,7 +71,9 @@ def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
     for o in opciones:
         if o["productoId"].startswith("banorte"):
             assert not o["elegible"]
-        elif o["productoId"].startswith("bx"):
+        elif o["productoId"].startswith("bx-apoyo"):
+            assert not o["elegible"]  # con crédito Infonavit aplica Cofinavit
+        elif o["productoId"].startswith("bx-cofinavit"):
             assert o["elegible"] and not o["alternativaSinCofinanciamiento"]
             assert o["montoCredito"] == "1400000.00"
             assert o["creditoInstituto"]["monto"] == "300000.00"
