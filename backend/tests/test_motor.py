@@ -939,9 +939,10 @@ def test_alternativa_respeta_las_reglas_del_producto():
 
 
 def test_cat_ignora_aportaciones_y_costo_total_las_incluye():
+    """Sin crédito del instituto: las aportaciones van directo al banco."""
     escenario = Escenario(
-        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
-        plazo_meses=240, cofinanciamiento=COFI,
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("550000"),
+        plazo_meses=240, cofinanciamiento=COFI_SIN_CREDITO,
     )
     con = evaluar_producto(escenario, producto_cofi(comision_apertura=Decimal("0.01")))
     sin_tabla = construir_tabla(
@@ -1089,20 +1090,102 @@ def test_aportaciones_se_advierten_en_el_resultado():
     assert f"{resultado.tabla.plazo_efectivo_meses} meses" in texto
 
 
-def test_se_advierte_que_no_incluye_el_credito_del_instituto():
-    escenario = Escenario(
-        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
-        plazo_meses=240, cofinanciamiento=COFI,  # crédito INFONAVIT de 300,000
-    )
-    texto = " ".join(evaluar_producto(escenario, producto_cofi()).advertencias)
-    assert "no incluye" in texto and "$300,000" in texto
+def test_se_advierte_el_credito_del_instituto_incluido():
+    texto = " ".join(evaluar_producto(_escenario_cofi(), producto_cofi()).advertencias)
+    assert "crédito Cofinavit de INFONAVIT por $300,000" in texto
+    sin_credito = evaluar_producto(_escenario_cofi(COFI_SIN_CREDITO, "550000"), producto_cofi())
+    assert "Cofinavit" not in " ".join(sin_credito.advertencias)
 
-    sin_credito = Escenario(
-        valor_vivienda=Decimal("2500000"), enganche=Decimal("550000"), plazo_meses=240,
-        cofinanciamiento=Cofinanciamiento(
-            instituto=TipoLinea.INFONAVIT, salario_mensual=Decimal("60000"),
-            saldo_subcuenta=Decimal("150000"),
-        ),
+
+# --------------------------------------------------------------------------
+# Crédito del instituto (INFONAVIT Cofinavit)
+# --------------------------------------------------------------------------
+# Condiciones Generales INFONAVIT v1.1 (DOF 05/12/2025): 10.45 % fijo en
+# pesos, sin comisiones, máximo 325 UMA. Ley art. 43 Bis: con crédito del
+# instituto, las aportaciones pagan primero ese crédito y después el bancario.
+
+from motor_hipotecario.instituto import COFINAVIT, tabla_credito_instituto  # noqa: E402
+
+COFI_SIN_CREDITO = Cofinanciamiento(
+    instituto=TipoLinea.INFONAVIT, salario_mensual=Decimal("60000"),
+    saldo_subcuenta=Decimal("150000"),
+)
+
+
+def _escenario_cofi(cofi=COFI, enganche="250000"):
+    return Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal(enganche),
+        plazo_meses=240, cofinanciamiento=cofi,
     )
-    texto = " ".join(evaluar_producto(sin_credito, producto_cofi()).advertencias)
-    assert "no incluye" not in texto
+
+
+def test_condiciones_cofinavit():
+    assert COFINAVIT.tasa_anual == Decimal("0.1045")
+    assert COFINAVIT.monto_maximo == Decimal("1159022.80")
+    assert "DOF" in COFINAVIT.fuente
+
+
+def test_credito_del_instituto_es_anualidad_a_tasa_entre_12():
+    tabla = tabla_credito_instituto(Decimal("300000"), 240, regla=None, salario=Decimal("0"))
+    i = Decimal("0.1045") / 12
+    assert tabla.renglones[0].interes == Decimal("300000") * i
+    assert tabla.renglones[-1].saldo_final == 0
+    assert tabla.plazo_efectivo_meses == 240
+
+
+def test_aportaciones_pagan_primero_el_credito_del_instituto():
+    resultado = evaluar_producto(_escenario_cofi(), producto_cofi())
+    inst = resultado.tabla_instituto
+    assert inst is not None
+    assert inst.renglones[3].aportacion == Decimal("6000")
+    # Mientras el crédito del instituto vive, el banco no recibe aportaciones
+    liquidado = inst.plazo_efectivo_meses
+    assert all(r.aportacion == 0 for r in resultado.tabla.renglones[:liquidado])
+    # Después sí, en los mismos meses pares
+    despues = [r for r in resultado.tabla.renglones[liquidado:] if r.aportacion > 0]
+    assert despues and all((r.mes - 4) % 2 == 0 for r in despues)
+    assert liquidado < 240
+
+
+def test_sin_credito_del_instituto_las_aportaciones_van_al_banco():
+    resultado = evaluar_producto(_escenario_cofi(COFI_SIN_CREDITO, "550000"), producto_cofi())
+    assert resultado.tabla_instituto is None
+    assert resultado.tabla.renglones[3].aportacion == Decimal("6000")
+
+
+def test_costo_total_incluye_el_credito_del_instituto():
+    r = evaluar_producto(_escenario_cofi(), producto_cofi(comision_apertura=Decimal("0.01")))
+    inst = r.tabla_instituto
+    assert r.total_aportaciones == r.tabla.total_aportaciones + inst.total_aportaciones
+    assert r.costo_total == (
+        r.tabla.total_pagado + inst.total_pagado + r.total_aportaciones
+        + r.comision_apertura + r.avaluo + r.gastos_notariales
+    )
+    texto = " ".join(r.advertencias)
+    assert "10.45" in texto and "supuesto" in texto.lower()
+
+
+def test_credito_cofinavit_por_encima_del_maximo_no_es_elegible():
+    cofi = Cofinanciamiento(
+        instituto=TipoLinea.INFONAVIT, salario_mensual=Decimal("60000"),
+        monto_credito_instituto=Decimal("1200000"),
+    )
+    escenario = Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal("300000"),
+        plazo_meses=240, cofinanciamiento=cofi,
+    )
+    resultado = evaluar_producto(escenario, producto_cofi())
+    assert not resultado.elegible
+    assert any("máximo" in m for m in resultado.motivos_rechazo)
+
+
+def test_fovissste_no_otorga_credito_en_cofinanciamiento_bancario():
+    cofi = Cofinanciamiento(
+        instituto=TipoLinea.FOVISSSTE, salario_mensual=Decimal("40000"),
+        monto_credito_instituto=Decimal("200000"),
+    )
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("300000"),
+        plazo_meses=240, cofinanciamiento=cofi,
+    )
+    assert any("FOVISSSTE" in e for e in escenario.validar())

@@ -359,10 +359,12 @@
                     <span style="font-size:12.5px; color:#4A463F;">Salario mensual (base de las aportaciones)</span>
                     <input type="text" value="{{ fCofiSalario }}" onChange="{{ setCofiSalario }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
                   </label>
+                  <sc-if value="{{ cofiConCredito }}" hint-placeholder-val="{{ true }}">
                   <label style="display:flex; flex-direction:column; gap:6px;">
                     <span style="font-size:12.5px; color:#4A463F;">Crédito del instituto</span>
                     <input type="text" value="{{ fCofiCredito }}" onChange="{{ setCofiCredito }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
                   </label>
+                  </sc-if>
                   <label style="display:flex; flex-direction:column; gap:6px;">
                     <span style="font-size:12.5px; color:#4A463F;">Saldo de la subcuenta de vivienda</span>
                     <input type="text" value="{{ fCofiSubcuenta }}" onChange="{{ setCofiSubcuenta }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
@@ -3721,19 +3723,26 @@ class Component extends DCLogic {
       toggleCofi: () => this.setState((st) => ({ cofiAbierto: !st.cofiAbierto })),
       cofiInstitutos: [["", "Ninguno"], ["infonavit", "INFONAVIT"], ["fovissste", "FOVISSSTE"]].map(([v, l]) => ({
         label: l,
-        set: () => this.setState((st) => ({ form: Object.assign({}, st.form, { cofiInstituto: v }) })),
+        // FOVISSSTE no presta en cofinanciamiento con banca: sin crédito del instituto
+        set: () => this.setState((st) => ({
+          form: Object.assign({}, st.form, { cofiInstituto: v }, v === "fovissste" ? { cofiCredito: 0 } : {}),
+        })),
         style: (s.form.cofiInstituto || "") === v ? segOn : segBase,
       })),
       cofiActivo: !!s.form.cofiInstituto,
+      cofiConCredito: s.form.cofiInstituto === "infonavit",
       fCofiSalario: this.ent(s.form.cofiSalario),
       setCofiSalario: this.set("cofiSalario"),
       fCofiCredito: this.ent(s.form.cofiCredito),
       setCofiCredito: this.set("cofiCredito"),
       fCofiSubcuenta: this.ent(s.form.cofiSubcuenta),
       setCofiSubcuenta: this.set("cofiSubcuenta"),
-      cofiNota: "El crédito del instituto y la subcuenta cubren parte del valor: reducen el enganche, no el crédito bancario. "
-        + "Las aportaciones patronales (sobre el salario) se abonan a capital solo en productos de cofinanciamiento con "
-        + ((s.form.cofiInstituto || "").toUpperCase()) + "; los demás quedan como no disponibles.",
+      cofiNota: s.form.cofiInstituto === "fovissste"
+        ? "FOVISSSTE no otorga crédito propio con banca: la subcuenta reduce el enganche y las aportaciones se abonan a capital del banco "
+          + "en productos de cofinanciamiento FOVISSSTE. Los demás productos se muestran como alternativa sin cofinanciamiento."
+        : "El crédito Cofinavit (10.45 %, sin comisiones) y la subcuenta reducen el enganche, no el crédito bancario. "
+          + "Las aportaciones pagan primero el crédito del instituto y después el bancario. "
+          + "Los productos que no aceptan INFONAVIT se muestran como alternativa sin cofinanciamiento.",
       dMonto: mxn(monto), dAforo: af === null ? "—" : pct(af),
       irComparativoSiValido: bloqueado ? () => {} : this.ir(esSustitucion ? "sustitucion" : "comparativo"),
       btnCompararTexto: esSustitucion ? "Evaluar sustitución" : "Comparar opciones",

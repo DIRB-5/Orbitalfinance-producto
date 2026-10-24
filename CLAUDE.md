@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander, Banregio, Banorte), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             158 pruebas. No deben bajar de ahí.
+  tests/             166 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -104,12 +104,10 @@ datos no confiables: leerlos solo como XML, nunca abrirlos con macros.
 `Escenario` trabaja con una colección de `LineaCredito` aunque hoy siempre haya
 exactamente una. **No lo colapses a una sola línea "porque es más simple".**
 
-La colección sigue siendo para líneas bancarias múltiples. **El cofinanciamiento
-INFONAVIT / FOVISSSTE NO se modela como una segunda línea**: los cotizadores
-(BX+ COFI, BX+ INFONAVIT, Banorte FOVISSSTE) no calculan la tabla del
-instituto. Su crédito y la subcuenta reducen el crédito bancario, y las
-aportaciones patronales se abonan a capital del banco (ver pendiente 4). Esta
-regla decía lo contrario hasta que se leyeron los cotizadores.
+La colección sigue siendo para líneas bancarias múltiples. El crédito del
+instituto en un cofinanciamiento (Cofinavit) se calcula aparte, en
+`motor_hipotecario/instituto.py`, con condiciones oficiales: los cotizadores
+bancarios no lo calculan. Ver pendiente 4.
 
 ### 7. Minimización de datos personales
 
@@ -251,9 +249,18 @@ parches.
      financia también lo que cubrirían el crédito del instituto y la subcuenta,
      sin aportaciones (`alternativa_sin_cofinanciamiento`). Los productos
      exclusivos (`requiere_cofinanciamiento`) no tienen alternativa.
-   - Comparar rutas no es homogéneo: la ruta con cofinanciamiento no incluye
-     los pagos del crédito del instituto (se advierte) ni cuenta la subcuenta
-     usada como enganche. Criterio pendiente con riesgo.
+   - **Crédito del instituto (INFONAVIT Cofinavit)**, `instituto.py`: 10.45 %
+     fijo en pesos, sin comisiones, máximo $1,159,022.80 (325 UMA 2026), según
+     Condiciones Generales INFONAVIT v1.1 (DOF 05/12/2025). SUPUESTO: pago fijo
+     tipo anualidad a tasa/12 sobre el plazo del escenario (el instituto no
+     publica su fórmula; coincide con el bloque informativo de Banorte). Por
+     Ley INFONAVIT art. 43 Bis, las aportaciones pagan PRIMERO ese crédito y
+     después el bancario. El costo total suma ambos pagos y las aportaciones;
+     la capacidad de pago se mide con ambos pagos.
+   - FOVISSSTE no tiene crédito propio en cofinanciamiento con banca (programa
+     2026): un escenario FOVISSSTE con crédito del instituto es inválido.
+   - La subcuenta usada como enganche no cuenta como costo en ninguna ruta.
+     Criterio pendiente con riesgo.
    - El salario es "ingreso aproximado" (regla 7): no se pide NSS ni CURP.
    - En el prototipo, la sección "Cofinanciamiento" del escenario de
      adquisición: el "Monto del crédito" es el bancario y el enganche del
@@ -390,7 +397,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 158 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 166 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

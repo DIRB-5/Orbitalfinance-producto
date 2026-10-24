@@ -365,6 +365,15 @@ class Escenario:
             errores.append("El enganche no puede cubrir el valor total del inmueble.")
         if self.plazo_meses <= 0:
             errores.append("El plazo debe ser mayor a cero meses.")
+        if (
+            self.cofinanciamiento
+            and self.cofinanciamiento.instituto is TipoLinea.FOVISSSTE
+            and self.cofinanciamiento.monto_credito_instituto > 0
+        ):
+            errores.append(
+                "FOVISSSTE no otorga crédito propio en cofinanciamiento con banca: "
+                "FOVISSSTE para Todos solo usa la subcuenta."
+            )
         if self.enganche < self.valor_vivienda and self.monto_credito <= 0:
             errores.append(
                 "El enganche y el cofinanciamiento cubren el valor del inmueble: "

@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 
 from motor_hipotecario.amortizacion import redondear, tasa_normalizada
 from motor_hipotecario.catalogo import CATALOGO
+from motor_hipotecario.instituto import COFINAVIT
 from motor_hipotecario.comparador import (
     VERSION_MOTOR,
     ResultadoOpcion,
@@ -23,9 +24,10 @@ from motor_hipotecario.modelos import Cofinanciamiento, Escenario, ProductoHipot
 
 from .esquemas import (
     CatalogoSalida,
+    ComparacionSalida,
+    CreditoInstitutoSalida,
     EscalonSalida,
     FaseCrecimientoSalida,
-    ComparacionSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
@@ -119,6 +121,23 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
     )
 
 
+def _credito_instituto(o: ResultadoOpcion) -> Optional[CreditoInstitutoSalida]:
+    t = o.tabla_instituto
+    if t is None:
+        return None
+    return CreditoInstitutoSalida(
+        instituto=COFINAVIT.instituto.value,
+        producto=COFINAVIT.producto,
+        monto=_dinero(t.monto),
+        tasa_anual=_tasa(t.tasa_anual),
+        pago_mensual=_dinero(t.primer_pago),
+        plazo_efectivo_meses=t.plazo_efectivo_meses,
+        total_pagado=_dinero(t.total_pagado),
+        total_aportaciones=_dinero(t.total_aportaciones),
+        fuente=COFINAVIT.fuente,
+    )
+
+
 def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
     t = o.tabla
     return OpcionSalida(
@@ -142,7 +161,8 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         total_intereses=_dinero(o.total_intereses),
         total_seguros=_dinero(o.total_seguros),
         total_comision_mensual=_dinero(t.total_comision_mensual),
-        total_aportaciones=_dinero(t.total_aportaciones),
+        total_aportaciones=_dinero(o.total_aportaciones),
+        credito_instituto=_credito_instituto(o),
         suma_mensualidades=_dinero(t.total_pagado),
         costo_total=_dinero(o.costo_total),
         costo_financiero=_dinero(o.costo_financiero),

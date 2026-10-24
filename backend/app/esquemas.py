@@ -127,6 +127,18 @@ class RenglonSalida(ModeloBase):
     saldo_final: str
 
 
+class CreditoInstitutoSalida(ModeloBase):
+    instituto: str
+    producto: str
+    monto: str
+    tasa_anual: str
+    pago_mensual: str
+    plazo_efectivo_meses: int
+    total_pagado: str
+    total_aportaciones: str
+    fuente: str
+
+
 class OpcionSalida(ModeloBase):
     producto_id: str
     alternativa_sin_cofinanciamiento: bool
@@ -149,6 +161,7 @@ class OpcionSalida(ModeloBase):
     total_seguros: str
     total_comision_mensual: str
     total_aportaciones: str
+    credito_instituto: Optional[CreditoInstitutoSalida]
     suma_mensualidades: str
     costo_total: str
     costo_financiero: str

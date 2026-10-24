@@ -84,3 +84,12 @@ def test_opcion_trae_la_tasa_resuelta_para_el_escenario():
         banregio = next(o for o in datos["opciones"] if o["productoId"].startswith("banregio"))
         assert banregio["tasaAnual"] == tasa
 
+
+def test_credito_fovissste_en_cofinanciamiento_bancario_es_invalido():
+    cuerpo = dict(ESCENARIO, cofinanciamiento={
+        "instituto": "fovissste", "salarioMensual": "40000", "montoCreditoInstituto": "200000",
+    })
+    respuesta = cliente.post("/api/comparar", json=cuerpo)
+    assert respuesta.status_code == 422
+    assert "FOVISSSTE" in respuesta.json()["detail"]
+

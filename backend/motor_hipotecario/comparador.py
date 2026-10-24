@@ -14,6 +14,7 @@ from typing import Optional
 
 from .amortizacion import TablaAmortizacion, construir_tabla, redondear
 from .cat import calcular_cat
+from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_instituto
 from .modelos import (
     Dinero,
     Escenario,
@@ -57,6 +58,10 @@ class ResultadoOpcion:
     # financia también lo que cubriría el instituto).
     alternativa_sin_cofinanciamiento: bool = False
 
+    # Crédito del instituto en cofinanciamiento (Cofinavit), si lo hay. Las
+    # aportaciones lo pagan primero; después van al crédito bancario.
+    tabla_instituto: Optional[TablaAmortizacion] = None
+
     @property
     def pago_primer_mes(self) -> Dinero:
         return self.tabla.primer_pago
@@ -75,7 +80,10 @@ class ResultadoOpcion:
 
     @property
     def total_aportaciones(self) -> Dinero:
-        return self.tabla.total_aportaciones
+        total = self.tabla.total_aportaciones
+        if self.tabla_instituto is not None:
+            total += self.tabla_instituto.total_aportaciones
+        return total
 
     @property
     def costo_total(self) -> Dinero:
@@ -85,9 +93,13 @@ class ResultadoOpcion:
         patronales del cofinanciamiento: son dinero de la subcuenta del
         trabajador, aunque no salgan de su bolsillo cada mes.
         """
+        pagado_instituto = (
+            self.tabla_instituto.total_pagado if self.tabla_instituto is not None else Decimal("0")
+        )
         return (
             self.tabla.total_pagado
-            + self.tabla.total_aportaciones
+            + pagado_instituto
+            + self.total_aportaciones
             + self.comision_apertura
             + self.avaluo
             + self.gastos_notariales
@@ -271,8 +283,30 @@ def evaluar_producto(
         or primer_pago_por_defecto(momento, producto.dia_de_pago, producto.dia_corte_primer_pago)
     )
     disposicion = escenario.fecha_disposicion or momento
+
+    # Crédito del instituto (Cofinavit): las aportaciones lo pagan primero y
+    # el banco las recibe solo después de liquidarlo (Ley INFONAVIT 43 Bis).
+    tabla_instituto = None
+    linea_banco = linea
+    if cofinanciamiento is not None and cofinanciamiento.monto_credito_instituto > 0:
+        if cofinanciamiento.monto_credito_instituto > COFINAVIT.monto_maximo:
+            motivos.append(
+                f"El crédito {COFINAVIT.producto} excede el máximo del instituto "
+                f"(${COFINAVIT.monto_maximo:,.2f}, 325 UMA)."
+            )
+        regla = producto.regla_aportaciones
+        tabla_instituto = tabla_credito_instituto(
+            cofinanciamiento.monto_credito_instituto,
+            plazo_calculo,
+            regla,
+            cofinanciamiento.salario_mensual,
+            fecha,
+        )
+        regla_banco = aportaciones_despues_de(regla, tabla_instituto.plazo_efectivo_meses)
+        linea_banco = replace(linea, producto=replace(producto, regla_aportaciones=regla_banco))
+
     tabla = construir_tabla(
-        linea, escenario.valor_vivienda, fecha, cofinanciamiento, fecha_disposicion=disposicion
+        linea_banco, escenario.valor_vivienda, fecha, cofinanciamiento, fecha_disposicion=disposicion
     )
 
     # El CAT de los cotizadores excluye las aportaciones y usa un primer
@@ -281,17 +315,28 @@ def evaluar_producto(
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
 
-    if cofinanciamiento is not None and cofinanciamiento.monto_credito_instituto > 0:
+    if tabla_instituto is not None:
         advertencias.append(
-            f"El costo total no incluye el crédito de {cofinanciamiento.instituto.value.upper()} "
-            f"por ${cofinanciamiento.monto_credito_instituto:,.0f}: se paga aparte, por nómina, "
-            "con las condiciones del instituto."
+            f"Incluye el crédito {COFINAVIT.producto} de INFONAVIT por "
+            f"${cofinanciamiento.monto_credito_instituto:,.0f} a "
+            f"{COFINAVIT.tasa_anual * 100:.2f} %: pago de "
+            f"${tabla_instituto.primer_pago:,.2f} por nómina, liquidado en "
+            f"{tabla_instituto.plazo_efectivo_meses} meses con las aportaciones. "
+            "Supuesto: pago fijo tipo anualidad; el instituto no publica su fórmula."
         )
 
-    if tabla.total_aportaciones:
+    total_aportaciones = tabla.total_aportaciones + (
+        tabla_instituto.total_aportaciones if tabla_instituto is not None else 0
+    )
+    if total_aportaciones:
+        destino = (
+            "primero pagan el crédito del instituto y luego se abonan a capital del banco"
+            if tabla_instituto is not None
+            else "se abonan a capital"
+        )
         advertencias.append(
-            f"Incluye ${tabla.total_aportaciones:,.0f} de aportaciones patronales de "
-            f"{cofinanciamiento.instituto.value.upper()} abonadas a capital: el crédito "
+            f"Incluye ${total_aportaciones:,.0f} de aportaciones patronales de "
+            f"{cofinanciamiento.instituto.value.upper()}: {destino}; el crédito bancario "
             f"se liquida en {tabla.plazo_efectivo_meses} meses. El CAT no las considera."
         )
 
@@ -308,13 +353,17 @@ def evaluar_producto(
     # --- Capacidad de pago -------------------------------------------------
     if escenario.ingreso_mensual:
         tope = escenario.ingreso_mensual * escenario.factor_pago_ingreso
-        if tabla.primer_pago > tope:
+        # Con crédito del instituto, la capacidad se mide con ambos pagos
+        pago_inicial = tabla.primer_pago + (
+            tabla_instituto.primer_pago if tabla_instituto is not None else 0
+        )
+        if pago_inicial > tope:
             motivos.append(
-                f"El pago inicial (${tabla.primer_pago:,.2f}) supera el "
+                f"El pago inicial (${pago_inicial:,.2f}) supera el "
                 f"{escenario.factor_pago_ingreso:.0%} del ingreso comprobable "
                 f"(${tope:,.2f})."
             )
-        elif tabla.primer_pago > tope * Decimal("0.85"):
+        elif pago_inicial > tope * Decimal("0.85"):
             advertencias.append(
                 "El pago se acerca al límite de capacidad de pago. El banco "
                 "podría requerir un coacreditado."
@@ -338,6 +387,7 @@ def evaluar_producto(
         motivos_rechazo=tuple(motivos),
         advertencias=tuple(advertencias),
         enganche=escenario.enganche,
+        tabla_instituto=tabla_instituto,
     )
 
 

@@ -355,6 +355,13 @@ function adaptarOpcion(o, escenario) {
     comisionApertura: num(o.comisionApertura),
     totalComisionMensual: v(o.totalComisionMensual),
     totalAportaciones: v(o.totalAportaciones),
+    creditoInstituto: o.creditoInstituto ? {
+      producto: o.creditoInstituto.producto,
+      monto: num(o.creditoInstituto.monto),
+      tasaAnual: num(o.creditoInstituto.tasaAnual),
+      pagoMensual: num(o.creditoInstituto.pagoMensual),
+      plazoEfectivoMeses: o.creditoInstituto.plazoEfectivoMeses,
+    } : null,
     avaluo: num(o.avaluo),
     gastosNotariales: num(o.gastosNotariales),
     penalizacionSalida: 0,
