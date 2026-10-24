@@ -1051,3 +1051,14 @@ def test_producto_exclusivo_requiere_cofinanciamiento():
         cofinanciamiento=Cofinanciamiento(instituto=TipoLinea.FOVISSSTE, salario_mensual=Decimal("40000")),
     )
     assert evaluar_producto(con, producto).elegible
+
+
+def test_aportaciones_se_advierten_en_el_resultado():
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("250000"),
+        plazo_meses=240, cofinanciamiento=COFI,
+    )
+    resultado = evaluar_producto(escenario, producto_cofi())
+    texto = " ".join(resultado.advertencias)
+    assert "aportaciones patronales de INFONAVIT" in texto
+    assert f"{resultado.tabla.plazo_efectivo_meses} meses" in texto

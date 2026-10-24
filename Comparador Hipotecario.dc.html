@@ -335,6 +335,44 @@
             </sc-if>
           </div>
           </sc-if>
+          <sc-if value="{{ hayCofi }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#FFFDFB; padding:22px 28px;">
+            <div onClick="{{ toggleCofi }}" style="display:flex; align-items:center; gap:10px; cursor:pointer; width:fit-content;">
+              <span style="font-size:11px; color:#7A756C; width:12px;">{{ cofiIcono }}</span>
+              <span style="font-size:15px; font-weight:600;">Cofinanciamiento INFONAVIT / FOVISSSTE</span>
+              <span style="font-size:12.5px; color:#7A756C;">Opcional</span>
+            </div>
+            <sc-if value="{{ cofiAbierto }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ gridForm }}">
+                <div style="display:flex; flex-direction:column; gap:8px; grid-column:span 2;">
+                  <span style="font-size:12.5px; color:#4A463F;">Instituto</span>
+                  <div style="display:flex; gap:1px; background:#DFDBD4; border:1px solid #DFDBD4; width:fit-content;">
+                    <sc-for list="{{ cofiInstitutos }}" as="ci" hint-placeholder-count="3">
+                      <div onClick="{{ ci.set }}" style="{{ ci.style }}">{{ ci.label }}</div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+              <sc-if value="{{ cofiActivo }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ gridForm }}">
+                  <label style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12.5px; color:#4A463F;">Salario mensual (base de las aportaciones)</span>
+                    <input type="text" value="{{ fCofiSalario }}" onChange="{{ setCofiSalario }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
+                  </label>
+                  <label style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12.5px; color:#4A463F;">Crédito del instituto</span>
+                    <input type="text" value="{{ fCofiCredito }}" onChange="{{ setCofiCredito }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
+                  </label>
+                  <label style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12.5px; color:#4A463F;">Saldo de la subcuenta de vivienda</span>
+                    <input type="text" value="{{ fCofiSubcuenta }}" onChange="{{ setCofiSubcuenta }}" style="border:1px solid #DFDBD4; background:#FFFFFF; padding:9px 11px; font-size:15px; font-variant-numeric:tabular-nums; text-align:right;" />
+                  </label>
+                  <div style="grid-column:span 2; font-size:12.5px; color:#7A756C; line-height:1.5;">{{ cofiNota }}</div>
+                </div>
+              </sc-if>
+            </sc-if>
+          </div>
+          </sc-if>
         </div>
 
         <div style="position:sticky; top:24px; display:flex; flex-direction:column; gap:1px; background:#E4E1DC; border:1px solid #E4E1DC;">
@@ -1865,6 +1903,7 @@ class Component extends DCLogic {
     pantalla: "login",
     form: null,
     capacidadAbierta: false,
+    cofiAbierto: false,
     escenarioRef: "base",
     reordenando: false,
     institucionesAbiertas: {},
@@ -1986,10 +2025,19 @@ class Component extends DCLogic {
     };
     const capacidad = { ingresoMensual: f.ingresoMensual, factorPagoIngreso: f.factorPagoIngreso };
     if (subtipo === "adquisicion") {
+      // El crédito del instituto y la subcuenta cubren parte del valor: lo
+      // que queda es el enganche del cliente.
+      const cofi = f.cofiInstituto ? {
+        instituto: f.cofiInstituto,
+        salarioMensual: f.cofiSalario || 0,
+        montoCreditoInstituto: f.cofiCredito || 0,
+        saldoSubcuenta: f.cofiSubcuenta || 0,
+      } : null;
       return Object.assign(base, capacidad, {
         valorVivienda: f.valorVivienda || 0,
-        enganche: (f.valorVivienda || 0) - (f.montoCredito || 0),
+        enganche: (f.valorVivienda || 0) - (f.montoCredito || 0) - this.aportesCofi(f),
         gastosNotariales: Math.round((f.valorVivienda || 0) * (f.gastosNotarialesPct || 0)),
+        cofinanciamiento: cofi,
       });
     }
     if (subtipo === "sustitucion") {
@@ -2030,6 +2078,12 @@ class Component extends DCLogic {
       valorGarantia: f.garantia === "Inmobiliaria" ? (f.valorGarantia || 0) : null,
       modalidad: f.modalidad,
     });
+  }
+
+  // Lo que cubre el instituto (crédito + subcuenta) en adquisición.
+  aportesCofi(f) {
+    if ((f.subtipo || "adquisicion") !== "adquisicion" || !f.cofiInstituto) return 0;
+    return (f.cofiCredito || 0) + (f.cofiSubcuenta || 0);
   }
 
   valorBaseDe(subtipo, e) {
@@ -3120,11 +3174,11 @@ class Component extends DCLogic {
       const campoValor = subtipo === "terreno" ? "valorTerreno" : "valorVivienda";
       this.setState((st) => ({
         ultimoEditado: "enganche",
-        form: Object.assign({}, st.form, { montoCredito: (st.form[campoValor] || 0) - v }),
+        form: Object.assign({}, st.form, { montoCredito: (st.form[campoValor] || 0) - v - this.aportesCofi(st.form) }),
       }));
     };
     const parMontoEnganche = (campoValor) => {
-      const engancheVal = (s.form[campoValor] || 0) - (s.form.montoCredito || 0);
+      const engancheVal = (s.form[campoValor] || 0) - (s.form.montoCredito || 0) - this.aportesCofi(s.form);
       const editandoMonto = s.ultimoEditado !== "enganche";
       return [
         campoNumero("montoCredito", "Monto del crédito", {
@@ -3661,6 +3715,25 @@ class Component extends DCLogic {
       capacidadAbierta: s.capacidadAbierta,
       capacidadIcono: s.capacidadAbierta ? "▾" : "▸",
       toggleCapacidad: () => this.setState((st) => ({ capacidadAbierta: !st.capacidadAbierta })),
+      hayCofi: subtipo === "adquisicion",
+      cofiAbierto: s.cofiAbierto,
+      cofiIcono: s.cofiAbierto ? "▾" : "▸",
+      toggleCofi: () => this.setState((st) => ({ cofiAbierto: !st.cofiAbierto })),
+      cofiInstitutos: [["", "Ninguno"], ["infonavit", "INFONAVIT"], ["fovissste", "FOVISSSTE"]].map(([v, l]) => ({
+        label: l,
+        set: () => this.setState((st) => ({ form: Object.assign({}, st.form, { cofiInstituto: v }) })),
+        style: (s.form.cofiInstituto || "") === v ? segOn : segBase,
+      })),
+      cofiActivo: !!s.form.cofiInstituto,
+      fCofiSalario: this.ent(s.form.cofiSalario),
+      setCofiSalario: this.set("cofiSalario"),
+      fCofiCredito: this.ent(s.form.cofiCredito),
+      setCofiCredito: this.set("cofiCredito"),
+      fCofiSubcuenta: this.ent(s.form.cofiSubcuenta),
+      setCofiSubcuenta: this.set("cofiSubcuenta"),
+      cofiNota: "El crédito del instituto y la subcuenta cubren parte del valor: reducen el enganche, no el crédito bancario. "
+        + "Las aportaciones patronales (sobre el salario) se abonan a capital solo en productos de cofinanciamiento con "
+        + ((s.form.cofiInstituto || "").toUpperCase()) + "; los demás quedan como no disponibles.",
       dMonto: mxn(monto), dAforo: af === null ? "—" : pct(af),
       irComparativoSiValido: bloqueado ? () => {} : this.ir(esSustitucion ? "sustitucion" : "comparativo"),
       btnCompararTexto: esSustitucion ? "Evaluar sustitución" : "Comparar opciones",

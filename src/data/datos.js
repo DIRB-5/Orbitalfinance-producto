@@ -353,6 +353,7 @@ function adaptarOpcion(o, escenario) {
     aforo: num(o.aforo),
     comisionApertura: num(o.comisionApertura),
     totalComisionMensual: v(o.totalComisionMensual),
+    totalAportaciones: v(o.totalAportaciones),
     avaluo: num(o.avaluo),
     gastosNotariales: num(o.gastosNotariales),
     penalizacionSalida: 0,
@@ -380,6 +381,7 @@ function adaptarOpcion(o, escenario) {
           seguroVida: num(r.seguroVida),
           seguroDanos: num(r.seguroDanos),
           comisionMensual: num(r.comisionMensual),
+          aportacion: num(r.aportacion),
           pagoTotal: num(r.pagoTotal),
           saldoFinal: num(r.saldoFinal),
         }))
@@ -396,14 +398,23 @@ function cuerpoComparacion(escenario) {
   if (escenario.subtipo !== "adquisicion") return null;
   const valor = escenario.valorVivienda || 0;
   const monto = escenario.montoCredito || 0;
-  if (valor <= 0 || monto <= 0 || monto >= valor || !escenario.plazoMeses) return null;
+  // El enganche ya descuenta lo que cubre el instituto (crédito + subcuenta).
+  const enganche = escenario.enganche === undefined ? valor - monto : escenario.enganche;
+  if (valor <= 0 || monto <= 0 || enganche < 0 || !escenario.plazoMeses) return null;
+  const cofi = escenario.cofinanciamiento;
   return {
     valorVivienda: String(valor),
-    enganche: String(valor - monto),
+    enganche: String(enganche),
     plazoMeses: escenario.plazoMeses,
     gastosNotariales: String(escenario.gastosNotariales || 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
+    cofinanciamiento: cofi ? {
+      instituto: cofi.instituto,
+      salarioMensual: String(cofi.salarioMensual || 0),
+      montoCreditoInstituto: String(cofi.montoCreditoInstituto || 0),
+      saldoSubcuenta: String(cofi.saldoSubcuenta || 0),
+    } : null,
   };
 }
 

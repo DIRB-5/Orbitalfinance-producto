@@ -253,6 +253,13 @@ def evaluar_producto(
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
 
+    if tabla.total_aportaciones:
+        advertencias.append(
+            f"Incluye ${tabla.total_aportaciones:,.0f} de aportaciones patronales de "
+            f"{cofinanciamiento.instituto.value.upper()} abonadas a capital: el crédito "
+            f"se liquida en {tabla.plazo_efectivo_meses} meses. El CAT no las considera."
+        )
+
     if tabla.amortizacion_negativa:
         motivos.append(
             "Con este plazo el pago inicial no cubre los intereses y el saldo "
