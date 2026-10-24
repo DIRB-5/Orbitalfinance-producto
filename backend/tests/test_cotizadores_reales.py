@@ -33,7 +33,7 @@ from motor_hipotecario.modelos import (
     ProductoHipotecario,
 )
 
-from .fixtures.cotizadores_reales import BANREGIO, HSBC, SANTANDER
+from .fixtures.cotizadores_reales import BANREGIO, BANREGIO_CRECIENTE, HSBC, SANTANDER
 
 TOL = D("0.005")  # medio centavo
 
@@ -422,3 +422,63 @@ def test_banregio_pago_no_es_fijo():
     assert abs(dic - BANREGIO["pago_dic_2023"]) < D("0.01")
     assert abs(feb - BANREGIO["pago_feb_2024"]) < D("0.01")
     assert dic - feb > BANREGIO["variacion_primer_anio"]
+
+
+def _banregio_creciente_producto_y_tabla(p, **campos):
+    """Pagos crecientes: seguros fuera del pago base, dos fases de crecimiento."""
+    producto = ProductoHipotecario(
+        id="banregio-creciente",
+        institucion="Banregio",
+        nombre="Escenario del cotizador",
+        tasa_anual=p["tasa_anual"],
+        plazos_meses=(p["plazo_meses"],),
+        aforo_max=D("1"),
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        convencion_amortizacion=ConvencionDias.TASA_ENTRE_12,
+        crecimiento_pago_mensual=(
+            (1, D(1) / p["fase_1_divisor"] - 1),
+            (p["fase_2_desde_mes"], p["fase_2_factor"] - 1),
+        ),
+        seguro_vida_mensual=p["seguro_tasa_saldo"],
+        seguro_danos_anual=p["seguro_danos_tasa_anual"],
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=p["seguro_danos_factor_construccion"],
+        comision_mensual=p["comision_mensual"],
+        **campos,
+    )
+    tabla = construir_tabla(
+        LineaCredito(producto, p["monto"], p["plazo_meses"]),
+        p["valor_inmueble"],
+        fecha_primer_pago=date.fromisoformat(p["fecha_primer_pago"]),
+    )
+    return producto, tabla
+
+
+@pytest.mark.parametrize("mes", sorted(BANREGIO_CRECIENTE["renglones"]))
+def test_banregio_creciente_renglones(mes):
+    _, tabla = _banregio_creciente_producto_y_tabla(BANREGIO_CRECIENTE["parametros"])
+    r = tabla.renglones[mes - 1]
+    fecha, saldo, interes, capital, seguros, total, saldo_final = BANREGIO_CRECIENTE["renglones"][mes]
+    assert r.fecha_pago.isoformat() == fecha
+    for calc, esp, nombre in [
+        (r.saldo_inicial, saldo, "saldo"), (r.interes, interes, "interés"),
+        (r.capital, capital, "capital"), (r.seguro_vida + r.seguro_danos, seguros, "seguros"),
+        (r.pago_total, total, "pago"), (r.saldo_final, saldo_final, "saldo final"),
+    ]:
+        assert abs(calc - esp) < TOL, f"mes {mes}, {nombre}: {calc} != {esp}"
+
+
+def test_banregio_creciente_cat_desde_motor():
+    p = BANREGIO_CRECIENTE["parametros"]
+    producto, tabla = _banregio_creciente_producto_y_tabla(
+        p,
+        comision_apertura=p["comision_apertura_pct"],
+        avaluo=p["avaluo"],
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DANOS}
+        ),
+    )
+    assert len(tabla.renglones) == 240
+    assert abs(calcular_cat(tabla, producto) - BANREGIO_CRECIENTE["cat_esperado"]) < D("0.0000001")
+

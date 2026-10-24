@@ -24,6 +24,7 @@ from motor_hipotecario.modelos import Cofinanciamiento, Escenario, ProductoHipot
 from .esquemas import (
     CatalogoSalida,
     EscalonSalida,
+    FaseCrecimientoSalida,
     ComparacionSalida,
     EscenarioEntrada,
     OpcionSalida,
@@ -77,7 +78,10 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         convencion_pago=(p.convencion_pago or p.convencion_interes).value,
         convencion_amortizacion=(p.convencion_amortizacion or p.convencion_interes).value,
         seguros_en_pago_fijo=p.seguros_en_pago_fijo,
-        crecimiento_pago_anual=_tasa(p.crecimiento_pago_anual),
+        crecimiento_pago_mensual=[
+            FaseCrecimientoSalida(desde_mes=desde, crecimiento_mensual=_tasa(g))
+            for desde, g in p.crecimiento_pago_mensual
+        ],
         tasas_escalonadas=[
             EscalonSalida(desde_mes=desde, tasa_anual=_tasa(tasa))
             for desde, tasa in p.tasas_escalonadas

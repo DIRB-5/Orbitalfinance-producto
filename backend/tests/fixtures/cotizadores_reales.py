@@ -153,7 +153,71 @@ BANREGIO = {
     "variacion_primer_anio": D("685"),  # diferencia mínima esperada
 }
 
-TODOS = [HSBC, SANTANDER, BANREGIO]
+# ---------------------------------------------------------------------------
+# Banregio — pagos crecientes (hoja TablAmoPagosCrec del mismo archivo)
+# ---------------------------------------------------------------------------
+# Mismo monto, tasa, valor, fecha y seguros que BANREGIO. Diferencias:
+#   - Plazo fijo de 240 meses en las fórmulas (no sigue HojaMaestra!C4); la
+#     tasa 10.20 % es la del tramo de 10 años: el archivo mezcla ambos.
+#   - El pago base (capital + interés a tasa/12) crece CADA MES, en dos fases:
+#       meses 1-72:  ÷ (1 − 0.0011)   (Param!CU9 = −0.0011, AC = AC_prev/0.9989)
+#       mes 73:      se recalcula sobre el saldo y los 168 meses restantes
+#       meses 73+:   × 1.0017         (Param!CU10)
+#     En cada fase el pago inicial es la anualidad creciente que liquida el
+#     saldo en el plazo restante (AB10, AB82).
+#   - Seguros y comisión van fuera del pago base (no crecen).
+#   - El seguro de desempleo se cobra siempre (sin la condición de fijos).
+BANREGIO_CRECIENTE = {
+    "institucion": "Banregio",
+    "archivo": "BANREGIO_MULTIPRODUCTO.xlsm",
+    "hoja": "TablAmoPagosCrec",
+    "parametros": {
+        "monto": D("1215000"),
+        "tasa_anual": D("0.1020"),
+        "plazo_meses": 240,
+        "fecha_primer_pago": "2023-12-01",
+        "valor_inmueble": D("1350000"),
+        "seguro_tasa_saldo": D("0.00083"),
+        "seguro_danos_factor_construccion": D("0.7"),
+        "seguro_danos_tasa_anual": D("0.00103514688"),
+        "comision_mensual": D("250"),
+        "comision_apertura_pct": D("0.015"),
+        "avaluo": D("4228.2"),
+        "fase_1_divisor": D("0.9989"),     # 1 + Param!CU9
+        "fase_2_desde_mes": 73,
+        "fase_2_factor": D("1.0017"),      # 1 + Param!CU10
+    },
+    "cat_esperado": D("0.12622154700526034"),  # O7
+    # mes: (fecha, saldo_inicial, interes, capital, seguros, pago_total, saldo_final)
+    "renglones": {
+        1: ("2023-12-01", D("1215000"), D("10671.749999999998"), D("513.76987179268326"),
+            D("1089.9678168"), D("12525.487688592682"), D("1214486.2301282072")),
+        2: ("2024-01-01", D("1214486.2301282072"), D("10667.23738795942"), D("530.0754449440592"),
+            D("1089.5413878064119"), D("12536.854220709891"), D("1213956.1546832633")),
+        12: ("2024-11-01", D("1208426.2514980787"), D("10271.62313773367"), D("701.69602616366501"),
+             D("1084.5116055434053"), D("12307.830769440739"), D("1207724.5554719151")),
+        13: ("2024-12-01", D("1207724.5554719151"), D("10607.847345561655"), D("719.74438580410424"),
+             D("1083.9291978416895"), D("12661.520929207449"), D("1207004.811086111")),
+        24: ("2025-11-01", D("1198777.3110131787"), D("10189.607143612018"), D("929.60083351658795"),
+             D("1076.5029849409384"), D("12445.710962069545"), D("1197847.7101796621")),
+        25: ("2025-12-01", D("1197847.7101796621"), D("10521.095721078031"), D("949.74703843393581"),
+             D("1075.7314162491195"), D("12796.574175761087"), D("1196897.9631412281")),
+        60: ("2028-11-01", D("1151201.9408350645"), D("9785.2164970980466"), D("1783.3988417346773"),
+             D("1037.0154276931037"), D("12855.630766525828"), D("1149418.5419933298")),
+        72: ("2029-11-01", D("1127903.5262416091"), D("9587.1799730536786"), D("2135.238562177823"),
+             D("1017.6777435805355"), D("12990.096278812038"), D("1125768.2876794313")),
+        73: ("2029-12-01", D("1125768.2876794313"), D("9887.9981267843377"), D("1703.6683208809227"),
+             D("1015.9054955739279"), D("12857.571943239189"), D("1124064.6193585503")),
+        120: ("2033-11-01", D("1003629.1702317928"), D("8530.8479469702397"), D("3678.6714493484124"),
+              D("914.53002809238808"), D("13374.04942441104"), D("999950.4987824444")),
+        121: ("2033-12-01", D("999950.4987824444"), D("8782.8985476391372"), D("3730.6963396416159"),
+              D("911.47673078942876"), D("13675.071618070182"), D("996219.80244280281")),
+        240: ("2043-11-01", D("14843.746177573685"), D("126.17184250937632"), D("14843.746177573685"),
+              D("93.838126127386147"), D("15313.756146210448"), D("0")),
+    },
+}
+
+TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE]
 
 # ---------------------------------------------------------------------------
 # Instituciones sin escenario capturado — no validables hoy

@@ -4034,7 +4034,7 @@ class Component extends DCLogic {
           { k: "Seguros dentro del pago fijo", v: p.segurosEnPagoFijo ? "Sí" : "No" },
           { k: "Tasa según plazo y aforo", v: m.descripcionTablaTasas(p) },
           { k: "Tasa escalonada", v: m.descripcionEscalones(p) },
-          { k: "Crecimiento del pago", v: p.crecimientoMensualidadAnual ? pct(p.crecimientoMensualidadAnual) + " anual" : "Pago fijo" },
+          { k: "Crecimiento del pago", v: m.descripcionCrecimiento(p) },
           { k: "Tasa normalizada (para ordenar)", v: pct(m.tasaNormalizada(p)) }
         );
         return campoTasa.concat([

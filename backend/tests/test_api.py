@@ -29,7 +29,7 @@ def test_catalogo_en_camel_case_y_decimales_como_texto():
     assert hsbc["comisionMensual"] == "290.00"
     assert hsbc["seguroDanosMontoMensual"] == "777.63"
     assert hsbc["catNetosDeIva"] == ["avaluo", "comision_mensual", "seguro_danos"]
-    assert hsbc["crecimientoPagoAnual"] == "0"
+    assert hsbc["crecimientoPagoMensual"] == []
     assert hsbc["tasasEscalonadas"] == []
 
 

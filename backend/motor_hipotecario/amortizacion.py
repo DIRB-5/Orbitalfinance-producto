@@ -187,14 +187,17 @@ def _anualidad(monto: Dinero, i: Decimal, plazo_meses: int) -> Decimal:
 
 
 def _anualidad_creciente(
-    monto: Dinero, i: Decimal, plazo_meses: int, crecimiento_anual: Decimal
+    monto: Dinero, i: Decimal, plazo_meses: int, crecimiento_mensual: Decimal
 ) -> Decimal:
     """
-    Pago del primer año de una mensualidad que crece `crecimiento_anual` en
-    cada aniversario, tal que el valor presente de todos los pagos sea el
-    monto. Con crecimiento cero es la anualidad de siempre.
+    Primer pago de una mensualidad que crece `crecimiento_mensual` cada mes,
+    tal que el valor presente de todos los pagos sea el monto:
+
+        monto = Σ P · (1 + g)^(k−1) / (1 + i)^k,   k = 1..n
+
+    Con crecimiento cero es la anualidad de siempre.
     """
-    if crecimiento_anual == 0:
+    if crecimiento_mensual == 0:
         return _anualidad(monto, i, plazo_meses)
     if plazo_meses <= 0:
         raise ValueError("El plazo debe ser mayor a cero.")
@@ -202,11 +205,23 @@ def _anualidad_creciente(
         raise ValueError("El monto debe ser mayor a cero.")
 
     suma = Decimal(0)
-    descuento = Decimal(1)
-    for mes in range(1, plazo_meses + 1):
-        descuento /= Decimal(1) + i
-        suma += (Decimal(1) + crecimiento_anual) ** ((mes - 1) // 12) * descuento
+    termino = Decimal(1) / (Decimal(1) + i)
+    razon = (Decimal(1) + crecimiento_mensual) / (Decimal(1) + i)
+    for _ in range(plazo_meses):
+        suma += termino
+        termino *= razon
     return monto / suma
+
+
+def _validar_crecimiento(producto: ProductoHipotecario) -> None:
+    fases = producto.crecimiento_pago_mensual
+    if not fases:
+        return
+    meses = [desde for desde, _ in fases]
+    if meses[0] != 1 or any(b <= a for a, b in zip(meses, meses[1:])):
+        raise ValueError(
+            "Las fases de crecimiento deben empezar en el mes 1 y en meses crecientes."
+        )
 
 
 def _sumar_meses(fecha: date, meses: int) -> date:
@@ -246,7 +261,7 @@ def _validar_escalones(producto: ProductoHipotecario) -> None:
     escalones = producto.tasas_escalonadas
     if not escalones:
         return
-    if producto.crecimiento_pago_anual:
+    if producto.crecimiento_pago_mensual:
         raise ValueError("La tasa escalonada no se combina con mensualidad creciente.")
     meses = [desde for desde, _ in escalones]
     if meses[0] < 2 or any(b <= a for a, b in zip(meses, meses[1:])):
@@ -313,6 +328,7 @@ def construir_tabla(
     if convencion_amortizacion is ConvencionDias.DIAS_REALES_360:
         raise ValueError("La base de amortización no puede ser días reales.")
     _validar_escalones(producto)
+    _validar_crecimiento(producto)
     inicios_de_escalon = {desde for desde, _ in producto.tasas_escalonadas}
     regla = producto.regla_aportaciones if cofinanciamiento else None
 
@@ -327,7 +343,9 @@ def construir_tabla(
 
     # Si el pago y el interés usan convenciones distintas (Santander), el
     # último renglón absorbe la diferencia acumulada.
-    crecimiento = producto.crecimiento_pago_anual
+    fases_crecimiento = dict(producto.crecimiento_pago_mensual)
+    crece = bool(fases_crecimiento)
+    crecimiento = fases_crecimiento.get(1, Decimal(0))
     i_pago = tasa_periodica(tasa, convencion_pago)
     seguros_en_pago = Decimal(0)
     if producto.seguros_en_pago_fijo:
@@ -366,8 +384,14 @@ def construir_tabla(
             interes_amortizacion = saldo_inicial * tasa_periodica(tasa, convencion_amortizacion)
 
         pago_del_mes = pago_fijo
-        if crecimiento:
-            pago_del_mes = anualidad * (Decimal(1) + crecimiento) ** ((mes - 1) // 12) + seguros_en_pago
+        if crece:
+            if mes in fases_crecimiento and mes > 1:
+                # Nueva fase: se recalcula sobre el saldo y el plazo restante
+                crecimiento = fases_crecimiento[mes]
+                anualidad = _anualidad_creciente(saldo_inicial, i_pago, plazo - mes + 1, crecimiento)
+            elif mes > 1:
+                anualidad *= Decimal(1) + crecimiento
+            pago_del_mes = anualidad + seguros_en_pago
 
         if mes == plazo:
             # Pago final: liquida todo el saldo remanente
@@ -379,7 +403,7 @@ def construir_tabla(
             # amortizaría; se detecta en vez de producir una tabla
             # silenciosamente incorrecta. Con pago creciente es amortización
             # negativa: la tabla cierra igual y el comparador la rechaza.
-            if capital <= 0 and not crecimiento:
+            if capital <= 0 and not crece:
                 raise ValueError(
                     f"El pago mensual no cubre los intereses del mes {mes}. "
                     "Revisa tasa y plazo del producto."

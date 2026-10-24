@@ -45,6 +45,11 @@ class EscalonSalida(ModeloBase):
     tasa_anual: str
 
 
+class FaseCrecimientoSalida(ModeloBase):
+    desde_mes: int
+    crecimiento_mensual: str
+
+
 class TramoTasaSalida(ModeloBase):
     plazo_max_meses: int
     aforo_max: str
@@ -72,7 +77,7 @@ class ProductoSalida(ModeloBase):
     convencion_pago: str
     convencion_amortizacion: str
     seguros_en_pago_fijo: bool
-    crecimiento_pago_anual: str
+    crecimiento_pago_mensual: List[FaseCrecimientoSalida]
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]

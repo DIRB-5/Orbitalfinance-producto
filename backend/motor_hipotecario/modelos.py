@@ -163,12 +163,13 @@ class ProductoHipotecario:
     # y el capital es lo que queda después de seguros e interés (Banregio).
     seguros_en_pago_fijo: bool = False
 
-    # Mensualidad creciente: el pago sube este porcentaje en cada aniversario
-    # (meses 13, 25, ...) y es fijo dentro del año. 0 = pago fijo. El pago
-    # inicial se calcula para que el crédito se liquide en el plazo.
-    # SIN VALIDAR contra un cotizador: algunos bancos crecen mes a mes o topan
-    # el pago; ajustar cuando se tenga el archivo.
-    crecimiento_pago_anual: Decimal = Decimal("0")
+    # Mensualidad creciente: ((mes desde el que aplica, crecimiento mensual),
+    # ...). El pago base (capital + interés) se multiplica por
+    # (1 + crecimiento) cada mes. Al inicio de cada fase el pago se recalcula
+    # sobre el saldo para liquidar en los meses restantes con ese ritmo. La
+    # primera fase empieza en el mes 1. Vacío = pago fijo.
+    # Validado contra Banregio TablAmoPagosCrec: ((1, 1/0.9989 − 1), (73, 0.0017)).
+    crecimiento_pago_mensual: Tuple[Tuple[int, Decimal], ...] = ()
 
     # Tasa escalonada: ((mes desde el que aplica, tasa anual), ...). Antes del
     # primer escalón aplica `tasa_anual`. Vacío = tasa única.

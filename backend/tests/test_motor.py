@@ -639,20 +639,23 @@ def test_el_iva_no_cambia_el_costo_total():
 # --------------------------------------------------------------------------
 # Mensualidad creciente
 # --------------------------------------------------------------------------
+# Como en Banregio (TablAmoPagosCrec): el pago base crece cada mes; en cada
+# fase se recalcula sobre el saldo para liquidar en el plazo restante.
+
+CRECE = Decimal("0.002")  # 0.2 % mensual
 
 
 def producto_creciente(**kwargs) -> ProductoHipotecario:
-    return producto_limpio(crecimiento_pago_anual=Decimal("0.026"), **kwargs)
+    return producto_limpio(crecimiento_pago_mensual=((1, CRECE),), **kwargs)
 
 
-def test_pago_creciente_sube_en_cada_aniversario():
+def test_pago_creciente_sube_cada_mes():
     tabla = construir_tabla(
         LineaCredito(producto_creciente(), Decimal("1850000"), 180), Decimal("2500000")
     )
     pago = [r.capital + r.interes for r in tabla.renglones]
-    assert pago[0] == pago[11]  # fijo dentro del año
-    assert abs(pago[12] / pago[11] - Decimal("1.026")) < Decimal("1E-20")
-    assert abs(pago[24] / pago[12] - Decimal("1.026")) < Decimal("1E-20")
+    for k in (1, 12, 100):
+        assert abs(pago[k] / pago[k - 1] - (1 + CRECE)) < Decimal("1E-20")
 
 
 def test_pago_creciente_cierra_en_cero():
@@ -660,15 +663,28 @@ def test_pago_creciente_cierra_en_cero():
     tabla = construir_tabla(LineaCredito(producto_creciente(), monto, 180), Decimal("2500000"))
     ultimo = tabla.renglones[-1]
     assert ultimo.saldo_final == Decimal("0")
-    esperado = tabla.pago_capital_interes * Decimal("1.026") ** 14
+    esperado = tabla.pago_capital_interes * (1 + CRECE) ** 179
     assert abs((ultimo.capital + ultimo.interes) - esperado) < Decimal("1E-12")
     assert abs(sum(r.capital for r in tabla.renglones) - monto) < Decimal("1E-15")
+
+
+def test_nueva_fase_recalcula_el_pago_sobre_el_saldo():
+    """Banregio: en el mes 73 el pago se recalcula y cambia de ritmo."""
+    producto = producto_limpio(
+        crecimiento_pago_mensual=((1, Decimal("0.0011")), (73, Decimal("0.0017")))
+    )
+    tabla = construir_tabla(LineaCredito(producto, Decimal("1850000"), 240), Decimal("2500000"))
+    pago = [r.capital + r.interes for r in tabla.renglones]
+    assert abs(pago[71] / pago[70] - Decimal("1.0011")) < Decimal("1E-20")
+    assert abs(pago[73] / pago[72] - Decimal("1.0017")) < Decimal("1E-20")
+    assert pago[72] != pago[71] * Decimal("1.0011")  # recalculado, no continuado
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
 
 
 def test_sin_crecimiento_la_tabla_no_cambia():
     linea = LineaCredito(producto_limpio(), Decimal("1850000"), 240)
     con_cero = LineaCredito(
-        producto_limpio(crecimiento_pago_anual=Decimal("0")), Decimal("1850000"), 240
+        producto_limpio(crecimiento_pago_mensual=()), Decimal("1850000"), 240
     )
     assert construir_tabla(linea, Decimal("2500000")) == construir_tabla(con_cero, Decimal("2500000"))
 
@@ -682,9 +698,18 @@ def test_pago_creciente_empieza_mas_bajo_y_cuesta_mas():
     assert creciente.total_intereses > fijo.total_intereses
 
 
+@pytest.mark.parametrize("fases", [((2, Decimal("0.001")),), ((1, Decimal("0.001")), (1, Decimal("0.002")))])
+def test_fases_de_crecimiento_invalidas(fases):
+    with pytest.raises(ValueError):
+        construir_tabla(
+            LineaCredito(producto_limpio(crecimiento_pago_mensual=fases), Decimal("1000000"), 120),
+            Decimal("1500000"),
+        )
+
+
 def test_amortizacion_negativa_se_detecta_sin_romper_la_tabla():
-    """A 240 meses y 10.85 %, crecer 2.6 % deja el pago inicial por debajo del
-    interés: el saldo sube al principio. La tabla se construye igual."""
+    """A 240 meses y 10.85 %, crecer 0.2 % mensual deja el pago inicial por
+    debajo del interés: el saldo sube al principio. La tabla se construye igual."""
     tabla = construir_tabla(
         LineaCredito(producto_creciente(), Decimal("1850000"), 240), Decimal("2500000")
     )
@@ -783,7 +808,7 @@ def test_escalones_invalidos(escalones):
 
 def test_escalonada_no_se_combina_con_pago_creciente():
     with pytest.raises(ValueError, match="creciente"):
-        _tabla(producto_escalonado(crecimiento_pago_anual=Decimal("0.02")))
+        _tabla(producto_escalonado(crecimiento_pago_mensual=((1, Decimal("0.002")),)))
 
 
 # --------------------------------------------------------------------------

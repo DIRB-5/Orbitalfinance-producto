@@ -21,7 +21,7 @@ suscripción es la brokerage, y el asesor rota.
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real (HSBC, Santander, Banregio), reproducido de cotizadores.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             122 pruebas. No deben bajar de ahí.
+  tests/             138 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -219,14 +219,17 @@ parches.
    pague más al mes (riesgo 8.2 del análisis); el prototipo ya avisa cuando los
    plazos difieren.
 
-2. **Mensualidad creciente — HECHO, SIN VALIDAR.** `crecimiento_pago_anual`
-   en el producto: el pago sube ese porcentaje en cada aniversario y el pago
-   inicial se calcula para liquidar en el plazo. Modelo genérico: no se ha
-   reproducido ningún cotizador (Banregio `TablAmoPagosCrec` tiene un escenario
-   capturado; Santander crece con `CAT!F26 = MIN(L24+D26, F25*(1+S26))`).
+2. **Mensualidad creciente — HECHO Y VALIDADO contra Banregio.**
+   `crecimiento_pago_mensual` en el producto: ((mes desde, crecimiento
+   mensual), ...). El pago base (capital + interés) crece cada mes; al inicio
+   de cada fase se recalcula sobre el saldo para liquidar en el plazo
+   restante. Seguros y comisión van fuera y no crecen. Banregio
+   (`TablAmoPagosCrec`): ((1, 1/0.9989 − 1), (73, 0.0017)), reproducido a
+   1e-8 en los renglones de control y su CAT a 1e-7
+   (`test_banregio_creciente_*`). Ojo: ese archivo fija el plazo en 240 meses
+   y la fase en el mes 73 sin importar el plazo capturado.
    Si el pago inicial no cubre el interés (amortización negativa), el producto
-   es **no elegible** para ese escenario, con el motivo. Decisión de producto,
-   no de cálculo: la tabla se construye igual y cierra en cero.
+   es **no elegible** para ese escenario, con el motivo.
 
 3. **Comisión mensual fija — HECHO.** `comision_mensual` en el producto; entra
    al pago, al costo total y al CAT (a valor bruto mientras se resuelve el IVA).
@@ -377,7 +380,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 122 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 138 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.
