@@ -178,6 +178,12 @@ class OpcionSalida(ModeloBase):
     cat_estimado: str
     pago_primer_mes: str
     pago_ultimo_mes: str
+    # Pago regular: el primero y el último completos (sin periodo irregular
+    # ni pago de cierre). Es el que se presenta como mensualidad.
+    pago_regular_inicial: str
+    pago_regular_final: str
+    primer_pago_irregular: bool
+    dias_primer_periodo: Optional[int]
     total_intereses: str
     total_seguros: str
     total_comision_mensual: str

@@ -99,3 +99,13 @@ def test_credito_fovissste_en_cofinanciamiento_bancario_es_invalido():
     assert respuesta.status_code == 422
     assert "FOVISSSTE" in respuesta.json()["detail"]
 
+
+def test_opcion_trae_el_pago_regular():
+    opciones = cliente.post("/api/comparar", json=ESCENARIO).json()["opciones"]
+    banorte = next(o for o in opciones if o["productoId"].startswith("banorte-hipoteca"))
+    assert banorte["primerPagoIrregular"] and banorte["diasPrimerPeriodo"]
+    assert Decimal(banorte["pagoRegularInicial"]) > Decimal(banorte["pagoPrimerMes"])
+    santander = next(o for o in opciones if o["productoId"].startswith("santander"))
+    assert not santander["primerPagoIrregular"]
+    assert santander["pagoRegularInicial"] == santander["pagoPrimerMes"]
+

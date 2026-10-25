@@ -65,6 +65,10 @@ class TablaAmortizacion:
     monto: Dinero
     tasa_anual: Decimal
     plazo_meses: int
+    # True si el mes 1 no es un pago regular (periodo irregular o solo
+    # intereses); dias_primer_periodo dice cuántos días cubrió.
+    primer_renglon_irregular: bool = False
+    dias_primer_periodo: Optional[int] = None
 
     @property
     def total_intereses(self) -> Dinero:
@@ -109,6 +113,27 @@ class TablaAmortizacion:
 
     @property
     def ultimo_pago(self) -> Dinero:
+        return self.renglones[-1].pago_total
+
+    @property
+    def pago_regular_inicial(self) -> Dinero:
+        """
+        Primer pago completo: el del mes 2 si el mes 1 fue irregular. Es el que
+        se presenta como mensualidad y con el que se mide la capacidad de pago.
+        """
+        indice = 1 if self.primer_renglon_irregular and len(self.renglones) > 1 else 0
+        return self.renglones[indice].pago_total
+
+    @property
+    def pago_regular_final(self) -> Dinero:
+        """
+        Último pago completo: el anterior al de cierre, que liquida el saldo
+        remanente y puede ser menor (redondeo al millar, pago creciente,
+        aportaciones).
+        """
+        inicio = 1 if self.primer_renglon_irregular else 0
+        if len(self.renglones) - 2 >= inicio:
+            return self.renglones[-2].pago_total
         return self.renglones[-1].pago_total
 
     def saldo_al_mes(self, mes: int) -> Dinero:
@@ -557,10 +582,18 @@ def construir_tabla(
         if saldo == 0:
             break  # se liquidó antes del plazo (tasa escalonada o aportaciones)
 
+    periodo_irregular = producto.primer_periodo_dias_reales and fecha_disposicion is not None
+    dias_primero = None
+    if entre_pagos:
+        dias_primero = dias_periodo[0]
+    elif periodo_irregular and fecha_primer_pago is not None:
+        dias_primero = (fecha_primer_pago - fecha_disposicion).days + 1
     return TablaAmortizacion(
         renglones=tuple(renglones),
         pago_capital_interes=pago_fijo_inicial,
         monto=monto,
         tasa_anual=producto.tasa_anual,
         plazo_meses=plazo,
+        primer_renglon_irregular=periodo_irregular or producto.primer_pago_solo_intereses,
+        dias_primer_periodo=dias_primero,
     )

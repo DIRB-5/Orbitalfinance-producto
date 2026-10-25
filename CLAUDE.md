@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      Banregio, Banorte, BX+, Banamex, Scotiabank, Afirme).
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             212 pruebas. No deben bajar de ahí.
+  tests/             218 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -175,6 +175,11 @@ Si esa prueba falla, el comparador dejó de aportar algo que un Excel no haga.
 **El pago mensual no es fijo.** El seguro de vida se calcula sobre saldo
 insoluto, así que la mensualidad baja mes a mes. Nunca presentes "la
 mensualidad" como un número único sin mostrar el rango.
+
+**La mensualidad que se presenta es el pago regular** (`pago_regular_inicial`
+/ `pago_regular_final`): sin el primer periodo irregular (Banorte, Afirme) ni
+el pago de cierre (Banamex). El primer pago real se muestra aparte, con sus
+días. La capacidad de pago se mide con el pago regular.
 
 **El orden por defecto es costo total**, no tasa ni mensualidad.
 
@@ -408,7 +413,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 212 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 218 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

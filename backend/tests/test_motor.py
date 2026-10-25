@@ -1451,3 +1451,51 @@ def test_primer_pago_recorrido_un_mes():
     assert primer_pago_por_defecto(date(2026, 7, 19), 4, 20, recorrer_un_mes=True) == date(2026, 8, 4)
     assert primer_pago_por_defecto(date(2026, 7, 20), 4, 20, recorrer_un_mes=True) == date(2026, 9, 4)
     assert primer_pago_por_defecto(date(2026, 12, 25), 4, 20, recorrer_un_mes=True) == date(2027, 2, 4)
+
+
+# --------------------------------------------------------------------------
+# Pago regular: el que se presenta y con el que se mide la capacidad
+# --------------------------------------------------------------------------
+
+
+def test_pago_regular_en_producto_normal_es_el_primero():
+    tabla = construir_tabla(LineaCredito(producto_limpio(), Decimal("1850000"), 240), Decimal("2500000"))
+    assert not tabla.primer_renglon_irregular
+    assert tabla.pago_regular_inicial == tabla.primer_pago
+    assert tabla.pago_regular_final == tabla.renglones[-2].pago_total
+
+
+def test_pago_regular_salta_el_primer_periodo_irregular():
+    tabla = construir_tabla(
+        LineaCredito(producto_banorte(), Decimal("1000000"), 240), Decimal("1500000"),
+        fecha_primer_pago=date(2026, 11, 3), fecha_disposicion=date(2026, 10, 24),
+    )
+    assert tabla.primer_renglon_irregular
+    assert tabla.dias_primer_periodo == 11
+    assert tabla.pago_regular_inicial == tabla.renglones[1].pago_total
+    assert tabla.pago_regular_inicial > tabla.primer_pago
+
+
+def test_pago_regular_salta_el_mes_solo_de_intereses():
+    tabla = _tabla_afirme(producto_afirme())
+    assert tabla.primer_renglon_irregular
+    assert tabla.dias_primer_periodo == 30
+    assert tabla.pago_regular_inicial == tabla.renglones[1].pago_total
+
+
+def test_pago_regular_final_no_es_el_de_cierre():
+    producto = producto_limpio(tasa_anual=Decimal("0.0905"), pago_por_millar_redondeado=True)
+    tabla = construir_tabla(LineaCredito(producto, Decimal("2400000"), 240), Decimal("3000000"))
+    assert tabla.ultimo_pago < tabla.renglones[-2].pago_total  # el cierre es menor
+    assert tabla.pago_regular_final == tabla.renglones[-2].pago_total
+
+
+def test_capacidad_de_pago_se_mide_con_el_pago_regular():
+    """Un primer mes corto no debe hacer parecer pagable un crédito que no lo es."""
+    escenario = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240,
+        ingreso_mensual=Decimal("50000"), factor_pago_ingreso=Decimal("0.30"),  # tope 15,000
+    )
+    resultado = evaluar_producto(escenario, producto_banorte(), momento=date(2026, 10, 24))
+    assert resultado.tabla.primer_pago < Decimal("15000") < resultado.pago_regular_inicial
+    assert not resultado.elegible

@@ -72,6 +72,14 @@ class ResultadoOpcion:
         return self.tabla.ultimo_pago
 
     @property
+    def pago_regular_inicial(self) -> Dinero:
+        return self.tabla.pago_regular_inicial
+
+    @property
+    def pago_regular_final(self) -> Dinero:
+        return self.tabla.pago_regular_final
+
+    @property
     def total_intereses(self) -> Dinero:
         return self.tabla.total_intereses
 
@@ -407,9 +415,10 @@ def evaluar_producto(
     # --- Capacidad de pago -------------------------------------------------
     if escenario.ingreso_mensual:
         tope = escenario.ingreso_mensual * escenario.factor_pago_ingreso
-        # Con crédito del instituto, la capacidad se mide con ambos pagos
-        pago_inicial = tabla.primer_pago + (
-            tabla_instituto.primer_pago if tabla_instituto is not None else 0
+        # Con el pago regular (no un primer mes irregular) y, con crédito del
+        # instituto, con ambos pagos.
+        pago_inicial = tabla.pago_regular_inicial + (
+            tabla_instituto.pago_regular_inicial if tabla_instituto is not None else 0
         )
         if pago_inicial > tope:
             motivos.append(

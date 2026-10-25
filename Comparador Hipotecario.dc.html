@@ -531,6 +531,9 @@
                         <td style="padding:15px 12px; text-align:right; vertical-align:top; font-size:14.5px;">
                           <div>{{ f.primerPago }}</div>
                           <div style="font-size:11.5px; color:#7A756C; margin-top:2px;">{{ f.rangoPago }}</div>
+                          <sc-if value="{{ f.hayNotaPrimerPago }}" hint-placeholder-val="{{ false }}">
+                            <div style="font-size:11px; color:#7A756C; margin-top:3px; line-height:1.35; max-width:150px; margin-left:auto;">{{ f.notaPrimerPago }}</div>
+                          </sc-if>
                         </td>
                         <td style="padding:15px 12px; text-align:right; vertical-align:top; font-size:12.5px; color:#4A463F;">{{ f.sensibilidad }}</td>
                         <td style="padding:15px 12px; text-align:right; vertical-align:top; font-size:16.5px; font-weight:600;">{{ f.costoTotal }}</td>
@@ -548,7 +551,7 @@
       </div>
 
       <div style="margin-top:14px; border:1px solid #E4E1DC; background:#FDFBF8; padding:14px 20px; display:flex; gap:28px; flex-wrap:wrap; font-size:12.5px; color:#7A756C; line-height:1.5;">
-        <div style="max-width:400px;"><span style="color:#1A1917; font-weight:500;">Primer pago ⓘ</span> El pago baja mes a mes porque el seguro de vida se calcula sobre saldo insoluto.</div>
+        <div style="max-width:400px;"><span style="color:#1A1917; font-weight:500;">Primer pago ⓘ</span> Primer y último pago regulares, sin el primer periodo irregular ni el pago de cierre. El pago baja mes a mes porque el seguro de vida se calcula sobre saldo insoluto.</div>
         <div style="max-width:430px;"><span style="color:#1A1917; font-weight:500;">CAT estimado ⓘ</span> Cálculo propio según metodología Banxico. Pendiente de validación contra el CAT publicado por la institución.</div>
         <div style="max-width:400px;"><span style="color:#1A1917; font-weight:500;">Sensibilidad ⓘ</span> Rango de costo total entre el escenario conservador y el de estrés. Solo aplica a productos de tasa variable.</div>
       </div>
@@ -3363,6 +3366,10 @@ class Component extends DCLogic {
         catPendiente: o.tasaVariable && (o.catEstimado === null || o.catEstimado === undefined),
         primerPago: mxn(o.pagoPrimerMes),
         rangoPago: mxn(o.pagoPrimerMes) + " → " + mxn(o.pagoUltimoMes),
+        hayNotaPrimerPago: !!o.primerPagoIrregular,
+        notaPrimerPago: o.primerPagoIrregular
+          ? "Primer pago " + mxn(o.pagoPrimerMesReal) + (o.diasPrimerPeriodo ? " (periodo de " + o.diasPrimerPeriodo + " días)" : "")
+          : "",
         sensibilidad: sens ? mxn(sens.min) + " – " + mxn(sens.max) : "—",
         costoTotal: mxn(o.costoTotal),
         menorCosto: o.costoTotal === minCosto,
@@ -3426,7 +3433,7 @@ class Component extends DCLogic {
 
     const INFO = {
       cat: "Cálculo propio según metodología Banxico. Pendiente de validación contra el CAT publicado por la institución.",
-      pago: "El pago baja mes a mes porque el seguro de vida se calcula sobre saldo insoluto.",
+      pago: "Primer y último pago regulares, sin el primer periodo irregular ni el pago de cierre. El pago baja mes a mes porque el seguro de vida se calcula sobre saldo insoluto.",
       sens: "Rango de costo total entre el escenario conservador y el de estrés. Solo aplica a productos de tasa variable.",
     };
     const columnas = [
