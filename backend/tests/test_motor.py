@@ -1658,3 +1658,111 @@ def test_iva_sobre_interes_real():
     i = Decimal("0.1085") / 12
     real = (1 + i) / (1 + Decimal("0.04") / 12) - 1
     assert r.iva_intereses == r.saldo_inicial * real * Decimal("0.16")
+
+
+# --------------------------------------------------------------------------
+# Gastos notariales financiados
+# --------------------------------------------------------------------------
+# Scotiabank Pago de pasivos (6 % del saldo, apertura sobre el saldo), Banamex
+# (5 % del saldo o 10 % del valor, apertura sobre el total) y BX+ Mejora (sin
+# tope): lo financiado se suma al capital y queda dentro del aforo máximo.
+
+from motor_hipotecario.modelos import (  # noqa: E402
+    BaseTopeGastos,
+    FinanciamientoGastos,
+)
+
+GASTOS = Decimal("120000")
+
+
+def _escenario_gastos(financiar=True, valor="2500000", enganche="1000000", gastos=GASTOS):
+    return Escenario(
+        valor_vivienda=Decimal(valor), enganche=Decimal(enganche), plazo_meses=240,
+        gastos_notariales=gastos, financiar_gastos_notariales=financiar,
+    )
+
+
+def producto_financia(tope="0.10", base=BaseTopeGastos.VALOR_INMUEBLE, sobre_total=True, **kwargs):
+    return producto_limpio(
+        comision_apertura=Decimal("0.01"),
+        avaluo=Decimal("5000"),
+        seguro_vida_mensual=Decimal("0.0005"),
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=None if tope is None else Decimal(tope), base_tope=base,
+            apertura_y_aforo_sobre_total=sobre_total,
+        ),
+        **kwargs,
+    )
+
+
+def test_gastos_financiados_se_suman_al_capital():
+    r = evaluar_producto(_escenario_gastos(), producto_financia(), momento=HOY)
+    contado = evaluar_producto(_escenario_gastos(financiar=False), producto_financia(), momento=HOY)
+    assert r.gastos_financiados == GASTOS
+    assert r.monto_credito == r.tabla.monto == Decimal("1620000")
+    # El cliente deja de pagar los gastos el día de la firma...
+    assert contado.desembolso_inicial - r.desembolso_inicial == GASTOS + (
+        contado.comision_apertura - r.comision_apertura
+    )
+    # ...pero los paga con intereses: el costo total sube
+    assert r.costo_total > contado.costo_total
+    # Sin contar los gastos dos veces: el capital financiado ya está en los pagos
+    assert r.costo_total == (
+        r.tabla.total_pagado + r.comision_apertura + r.avaluo + r.comision_investigacion
+    )
+    assert any("financia" in a for a in r.advertencias)
+
+
+def test_sin_la_opcion_o_sin_regla_los_gastos_se_pagan_de_contado():
+    sin_opcion = evaluar_producto(_escenario_gastos(financiar=False), producto_financia(), momento=HOY)
+    sin_regla = evaluar_producto(_escenario_gastos(), _producto_con_costos(), momento=HOY)
+    for r in (sin_opcion, sin_regla):
+        assert r.gastos_financiados == 0
+        assert r.monto_credito == Decimal("1500000")
+        assert r.gastos_notariales == GASTOS
+
+
+def test_gastos_financiados_topados_por_porcentaje_y_aforo():
+    # 2 % del valor = 50,000 de los 120,000: el resto, de contado
+    r = evaluar_producto(_escenario_gastos(), producto_financia(tope="0.02"), momento=HOY)
+    assert r.gastos_financiados == Decimal("50000")
+    assert any("contado" in a for a in r.advertencias)
+    # 6 % del crédito (90,000)
+    r = evaluar_producto(
+        _escenario_gastos(), producto_financia(tope="0.06", base=BaseTopeGastos.MONTO_CREDITO), momento=HOY
+    )
+    assert r.gastos_financiados == Decimal("90000")
+    # Sin tope porcentual, pero el aforo de 95 % solo deja 25,000 (2,375,000 − 2,350,000)
+    r = evaluar_producto(_escenario_gastos(enganche="150000"), producto_financia(tope=None), momento=HOY)
+    assert r.gastos_financiados == Decimal("25000")
+    assert r.elegible
+
+
+def test_apertura_y_aforo_sobre_el_credito_sin_gastos():
+    """Scotiabank: la comisión y la elegibilidad usan el saldo; el CAT, el crédito total."""
+    from motor_hipotecario.cat import flujos_cat
+
+    producto = producto_financia(tope="0.06", base=BaseTopeGastos.MONTO_CREDITO, sobre_total=False)
+    r = evaluar_producto(_escenario_gastos(), producto, momento=HOY)
+    assert r.comision_apertura == Decimal("15000")              # 1 % de 1,500,000
+    total = evaluar_producto(
+        _escenario_gastos(), producto_financia(tope="0.06", base=BaseTopeGastos.MONTO_CREDITO), momento=HOY
+    )
+    assert total.comision_apertura == Decimal("15900")          # 1 % de 1,590,000
+    neto, _ = flujos_cat(r.tabla, r.producto, monto_comision=Decimal("1500000"))
+    assert neto == Decimal("1590000") - Decimal("15000") - Decimal("5000")
+
+
+def test_la_tasa_por_aforo_usa_el_credito_con_gastos():
+    """Banamex y BX+: el tramo de tasa se decide con los gastos incluidos."""
+    tabla = (
+        (240, Decimal("0.60"), Decimal("0.10")),
+        (240, Decimal("0.95"), Decimal("0.11")),
+    )
+    # 1,500,000 / 2,500,000 = 60 %; con 120,000 de gastos pasa a 64.8 %
+    r = evaluar_producto(_escenario_gastos(), producto_financia(tabla_tasas=tabla), momento=HOY)
+    assert r.producto.tasa_anual == Decimal("0.11")
+    r = evaluar_producto(
+        _escenario_gastos(), producto_financia(tabla_tasas=tabla, sobre_total=False), momento=HOY
+    )
+    assert r.producto.tasa_anual == Decimal("0.10")

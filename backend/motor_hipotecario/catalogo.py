@@ -40,8 +40,10 @@ from dataclasses import replace
 
 from .modelos import (
     AportacionExcedente,
+    BaseTopeGastos,
     Destino,
     BaseSeguroDanos,
+    FinanciamientoGastos,
     ConceptoIVA,
     ConvencionDias,
     ProductoHipotecario,
@@ -429,12 +431,19 @@ CATALOGO: list[ProductoHipotecario] = [
         ),
         # TablaPerfiles!AQ127: avalúo ÷ 1.16; apertura y seguros completos
         cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO}),
+        # Gastos notariales financiados hasta 10 % del valor (Calculos!CL67,
+        # CJ67), dentro del aforo (CH97). La apertura (CH89) y el aforo de la
+        # tasa (CH71) usan el crédito con gastos.
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.10"), base_tope=BaseTopeGastos.VALOR_INMUEBLE
+        ),
         vigente_desde=date(2026, 8, 21),
         fuente="Cotizador BANAMEX.xlsm, hoja ADQUISICION, producto Hipoteca "
         "Perfiles (Calculos CF:DH, TablaPerfiles). Versión v.20260824, "
         "'Vigencia: Agosto 2026'. SIN escenario capturado: validado contra sus "
         "fórmulas y contra los factores al millar guardados (CR104:CR106).",
         notas="Tasa de Mercado abierto; con vinculación al banco baja hasta 9.05 %. "
+        "Financia gastos notariales hasta 10 % del valor (no en Cofinavit). "
         "Seguro de vida sin extraprima (edad 65+ 0.1804 %, médica 0.0884 %, "
         "ocupacional 0.0604 %). Valor mínimo de 1,000,000 en CDMX, GDL y MTY. El "
         "avalúo es reembolsable según el banco, pero el cotizador lo incluye en "
@@ -542,12 +551,17 @@ CATALOGO: list[ProductoHipotecario] = [
             (Decimal("15000000.01"), Decimal("4490"), Decimal("1.05")),
         ),
         cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO}),  # TablaATM!AS127
+        # Como Perfiles: gastos notariales hasta 10 % del valor (Calculos!CL67)
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.10"), base_tope=BaseTopeGastos.VALOR_INMUEBLE
+        ),
         vigente_desde=date(2026, 8, 21),
         fuente="Cotizador BANAMEX.xlsm, hoja ADQUISICION, producto La Hipoteca a "
         "tu Medida (Calculos CL, DH103:DK202, TablaATM). Versión v.20260824. SIN "
         "escenario capturado: validado contra sus fórmulas y contra los factores "
         "por año guardados.",
         notas="Pago creciente 2 % anual sobre el monto original, solo a 20 años. "
+        "Financia gastos notariales hasta 10 % del valor (no en Cofinavit). "
         "Tasa de Mercado abierto; con vinculación baja hasta 9.05 % (factor año 1 "
         "7.931667). Edad máxima del solicitante 59 años. Créditos de 8 millones o "
         "más requieren excepción.",
@@ -733,6 +747,11 @@ CATALOGO += [
         destino=Destino.SUSTITUCION,
         tasa_anual=Decimal("0.102"),                     # BG20, Mercado abierto
         comision_apertura=Decimal("0"),                  # AX77 = 0
+        # Derechos e impuestos financiados hasta 5 % del saldo (AY76, AX76),
+        # dentro del aforo (AX58); apertura sobre el total (AX64).
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.05"), base_tope=BaseTopeGastos.MONTO_CREDITO
+        ),
         # Avalúo gratis abajo de 15 millones; arriba, BP9 (IVA incluido)
         tarifa_avaluo=(
             (Decimal("0"), Decimal("0"), Decimal("0")),
@@ -742,8 +761,9 @@ CATALOGO += [
         "TablaCTH). Versión v.20260824. SIN escenario capturado: validado contra "
         "sus fórmulas.",
         notas="Tasa de Mercado abierto; con vinculación 8.95 %–9.50 %. Sin comisión "
-        "por apertura y avalúo gratis abajo de 15 millones. Banamex financia "
-        "derechos e impuestos hasta 5 % del saldo (no modelado). El modo "
+        "por apertura y avalúo gratis abajo de 15 millones. Financia derechos e "
+        "impuestos hasta 5 % del saldo; SUPUESTO: el tope se aplica a todos los "
+        "gastos notariales del escenario. El modo "
         "'Mantener mensualidad' (pagar lo mismo y acortar plazo) no se modela.",
     ),
     replace(
@@ -753,15 +773,18 @@ CATALOGO += [
         destino=Destino.SUSTITUCION,
         comision_apertura=Decimal("0"),                  # D14
         comision_apertura_tope=None,
-        monto_minimo=Decimal("400000"),                  # D22
+        monto_minimo=Decimal("400000"),                  # D22, sin los gastos (AI15)
+        # Gastos notariales financiados sin tope porcentual (D29, H25):
+        # VResPlus!F11 = D22 + H25; aforo y tramo de tasa con los gastos.
+        financiamiento_gastos=FinanciamientoGastos(tope=None),
         regla_aportaciones=None,
         requiere_cofinanciamiento=False,
         requiere_credito_instituto=False,
         fuente="Cotizador BX+ MEJORA TU HIPOTECA.xlsx (Simulador CH BX+, VResPlus), "
         "guardado 2026-01-15. SIN escenario capturado: validado contra sus fórmulas.",
         notas="Mismas tasas por aforo que Cofinavit (primera opción de cada tramo). "
-        "Sin comisión por apertura. Permite financiar gastos notariales (no "
-        "modelado). Daños de 'resto de la República'. Vida para un asegurado.",
+        "Sin comisión por apertura. Financia gastos notariales sin tope porcentual; "
+        "SUPUESTO: hasta el aforo máximo (el archivo solo avisa si lo rebasa). Daños de 'resto de la República'. Vida para un asegurado.",
     ),
 ]
 
@@ -790,6 +813,11 @@ CATALOGO += [
         nombre="Hipoteca 7x5 — Pasivo Hipotecario",
         destino=Destino.SUSTITUCION,
         comision_apertura=Decimal("0.015"),              # S33:AE38, programa 4
+        # Gastos notariales financiados hasta 6 % del crédito dentro del aforo
+        # (Simulador!I29); la comisión sigue sobre el crédito sin gastos (O32).
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.06"), apertura_y_aforo_sobre_total=False
+        ),
         monto_minimo=Decimal("125000"),
         valor_minimo_inmueble=None,
         tarifa_avaluo=(),                                # O31 = 0
@@ -799,7 +827,7 @@ CATALOGO += [
         "2024-03-22. SIN escenario capturado: validado contra sus fórmulas.",
         notas="TASAS DE MARZO DE 2024 y referencia TIIE 28 que ya no se permite en "
         "contratos nuevos: confirmar condiciones con Scotiabank. Apertura 1.5 %, "
-        "sin avalúo; financia gastos notariales hasta 6 % (no modelado).",
+        "sin avalúo; financia gastos notariales hasta 6 % del crédito.",
     ),
     ProductoHipotecario(
         id="afirme-terreno-90-2026-09",
@@ -923,6 +951,7 @@ CATALOGO += [
         id="banamex-liquidez-mercado-abierto-2026-08",
         nombre="Hipoteca de Liquidez (Mercado abierto)",
         destino=Destino.LIQUIDEZ,
+        financiamiento_gastos=None,                      # EK5 sin uso
         tasa_anual=Decimal("0.13"),                      # DX84:DY87, Mercado abierto
         aforo_max=Decimal("0.65"),                       # ED85:ED87
         monto_maximo=Decimal("8000000"),                 # DR16
@@ -1095,7 +1124,8 @@ CATALOGO += [
         "contra sus fórmulas.",
         notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. La tasa "
         "baja cada año suponiendo pagos puntuales, como en el cotizador. Sin "
-        "apertura ni avalúo. Financia gastos notariales hasta 6 % (no modelado).",
+        "apertura ni avalúo. Financia gastos notariales hasta 6 % del saldo dentro "
+        "del 95 % (Simulador!F22).",
     ),
     replace(
         _SCOTIA_PASIVOS,
@@ -1117,7 +1147,7 @@ CATALOGO += [
         notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. Tasa fija "
         "10.25 %; el pago sube 2.6 % cada aniversario y el crédito se liquida antes "
         "del plazo. Sin apertura ni avalúo. Financia gastos notariales hasta 6 % "
-        "(no modelado).",
+        "del saldo dentro del 95 % (Simulador!F22).",
     ),
     _po_liquidez(84, Decimal("19.43"), (
         Decimal("0.15"), Decimal("0.148"), Decimal("0.146"), Decimal("0.144"), Decimal("0.1425"),

@@ -17,6 +17,7 @@ from .cat import calcular_cat
 from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_instituto
 from .referencias import TIIE_BASE
 from .modelos import (
+    BaseTopeGastos,
     CreditoActual,
     Destino,
     Dinero,
@@ -57,14 +58,23 @@ class ResultadoOpcion:
         return self.producto.comision_investigacion
 
     @property
+    def gastos_de_contado(self) -> Dinero:
+        """Gastos notariales que el cliente paga el día de la firma."""
+        return self.gastos_notariales - self.gastos_financiados
+
+    @property
     def desembolso_inicial(self) -> Dinero:
         """Lo que el cliente saca de su bolsillo el día de la firma."""
         return (
-            self.enganche + self.comision_apertura + self.avaluo + self.gastos_notariales
+            self.enganche + self.comision_apertura + self.avaluo + self.gastos_de_contado
             + self.comision_investigacion
         )
 
     enganche: Dinero = Decimal("0")
+
+    # Parte de los gastos notariales que el banco sumó al crédito. Ya está en
+    # `monto_credito` y se paga con la tabla: no se vuelve a sumar al costo.
+    gastos_financiados: Dinero = Decimal("0")
 
     # True si el escenario traía cofinanciamiento que este producto no acepta
     # y se evaluó como la ruta sin instituto (mismo enganche propio, el banco
@@ -86,7 +96,7 @@ class ResultadoOpcion:
         if self.credito_actual is None:
             return None
         return (
-            self.comision_apertura + self.avaluo + self.gastos_notariales
+            self.comision_apertura + self.avaluo + self.gastos_de_contado
             + self.comision_investigacion + self.credito_actual.penalizacion_prepago
         )
 
@@ -173,7 +183,7 @@ class ResultadoOpcion:
             + self.total_aportaciones
             + self.comision_apertura
             + self.avaluo
-            + self.gastos_notariales
+            + self.gastos_de_contado
             + self.comision_investigacion
         )
 
@@ -265,6 +275,24 @@ def resolver_para_escenario(
     return replace(producto, **cambios) if cambios else producto
 
 
+def gastos_financiables(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
+    """
+    Gastos notariales que el producto suma al crédito: el mínimo entre los
+    gastos del escenario, su tope y lo que cabe en el aforo máximo. Cero si el
+    escenario no pide financiarlos o el producto no lo permite.
+    """
+    regla = producto.financiamiento_gastos
+    if regla is None or not escenario.financiar_gastos_notariales:
+        return Decimal("0")
+    base = escenario.monto_credito
+    financiado = escenario.gastos_notariales
+    if regla.tope is not None:
+        sobre = escenario.valor_vivienda if regla.base_tope is BaseTopeGastos.VALOR_INMUEBLE else base
+        financiado = min(financiado, regla.tope * sobre)
+    holgura = producto.aforo_max * escenario.valor_vivienda - base
+    return max(Decimal("0"), min(financiado, holgura))
+
+
 def evaluar_producto(
     escenario: Escenario,
     producto: ProductoHipotecario,
@@ -291,11 +319,29 @@ def evaluar_producto(
             alternativa_sin_cofinanciamiento=True,
         )
 
-    monto = escenario.monto_credito
+    monto_base = escenario.monto_credito
     plazo = escenario.plazo_meses
 
     motivos: list[str] = []
     advertencias: list[str] = []
+
+    # --- Gastos notariales financiados --------------------------------------
+    financiado = gastos_financiables(escenario, producto)
+    monto = monto_base + financiado
+    regla_gastos = producto.financiamiento_gastos
+    sobre_total = regla_gastos is not None and regla_gastos.apertura_y_aforo_sobre_total
+    if financiado:
+        advertencias.append(
+            f"El banco financia ${financiado:,.2f} de gastos notariales: se suman al "
+            "crédito y generan intereses y seguro de vida."
+        )
+    if escenario.financiar_gastos_notariales and financiado < escenario.gastos_notariales:
+        advertencias.append(
+            f"Se pagan de contado ${escenario.gastos_notariales - financiado:,.2f} de "
+            "gastos notariales: "
+            + ("el producto no los financia." if regla_gastos is None
+               else "es lo que excede su tope de financiamiento o su aforo máximo.")
+        )
 
     # --- Reglas de elegibilidad -------------------------------------------
     if escenario.aforo > producto.aforo_max:
@@ -312,7 +358,7 @@ def evaluar_producto(
             f"Plazos ofrecidos: {', '.join(str(p) for p in producto.plazos_meses)}."
         )
 
-    if producto.monto_minimo is not None and monto < producto.monto_minimo:
+    if producto.monto_minimo is not None and monto_base < producto.monto_minimo:
         motivos.append(
             f"El monto está por debajo del mínimo del producto "
             f"(${producto.monto_minimo:,.0f})."
@@ -341,7 +387,11 @@ def evaluar_producto(
         default=min(producto.plazos_meses),
     )
 
-    producto = resolver_para_escenario(producto, escenario, plazo_calculo)
+    # Banamex y BX+ eligen el tramo de tasa con el aforo que incluye los gastos
+    escenario_tasa = (
+        replace(escenario, enganche=escenario.enganche - financiado) if sobre_total else escenario
+    )
+    producto = resolver_para_escenario(producto, escenario_tasa, plazo_calculo)
 
     cofinanciamiento = escenario.cofinanciamiento
     if cofinanciamiento is not None:
@@ -474,8 +524,9 @@ def evaluar_producto(
             "(amortización negativa). Un plazo menor lo resolvería."
         )
 
-    comision = redondear(producto.comision_apertura_para(monto))
-    cat = calcular_cat(tabla_cat, producto)
+    monto_comision = monto if (sobre_total or not financiado) else monto_base
+    comision = redondear(producto.comision_apertura_para(monto_comision))
+    cat = calcular_cat(tabla_cat, producto, monto_comision=monto_comision)
 
     # --- Capacidad de pago -------------------------------------------------
     if escenario.ingreso_mensual:
@@ -515,6 +566,7 @@ def evaluar_producto(
         motivos_rechazo=tuple(motivos),
         advertencias=tuple(advertencias),
         enganche=escenario.enganche if escenario.destino in DESTINOS_CON_ENGANCHE else Decimal("0"),
+        gastos_financiados=financiado,
         tabla_instituto=tabla_instituto,
         credito_actual=escenario.credito_actual,
     )

@@ -26,6 +26,7 @@ campo debe rotularse como estimado.
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Optional
 
 from .amortizacion import TablaAmortizacion
 from .modelos import ConceptoIVA, Dinero, ProductoHipotecario
@@ -54,14 +55,23 @@ def _valor_presente_neto(
 
 
 def flujos_cat(
-    tabla: TablaAmortizacion, producto: ProductoHipotecario
+    tabla: TablaAmortizacion,
+    producto: ProductoHipotecario,
+    monto_comision: Optional[Dinero] = None,
 ) -> tuple[Decimal, list[Decimal]]:
     """
     (neto recibido, pagos mensuales) tal como entran al CAT.
 
     Cada concepto de `producto.cat_netos_de_iva` entra dividido entre 1.16.
     Capital, interés y seguro de vida entran siempre completos.
+
+    monto_comision: sobre qué monto se cobra la apertura si no es el de la
+    tabla (Scotiabank con gastos notariales financiados: sobre el saldo, sin
+    los gastos). Los gastos financiados nunca se restan del neto: el cliente
+    los recibe, como en los cotizadores.
     """
+    if monto_comision is None:
+        monto_comision = tabla.monto
     netos = producto.cat_netos_de_iva
 
     def flujo(concepto: ConceptoIVA, monto: Decimal) -> Decimal:
@@ -69,7 +79,7 @@ def flujos_cat(
 
     neto = (
         tabla.monto
-        - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(tabla.monto))
+        - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(monto_comision))
         - flujo(ConceptoIVA.AVALUO, producto.avaluo)
         - flujo(ConceptoIVA.INVESTIGACION, producto.comision_investigacion)
     )
@@ -90,6 +100,7 @@ def calcular_cat(
     tabla: TablaAmortizacion,
     producto: ProductoHipotecario,
     comision_financiada: bool = False,
+    monto_comision: Optional[Dinero] = None,
 ) -> Decimal:
     """
     Devuelve el CAT como fracción anual (0.1234 == 12.34 %).
@@ -101,7 +112,7 @@ def calcular_cat(
     """
     # En ambos casos el neto en manos del cliente es el monto menos lo que se
     # le retuvo; si la comisión está financiada, el monto ya la incluye.
-    neto, pagos = flujos_cat(tabla, producto)
+    neto, pagos = flujos_cat(tabla, producto, monto_comision)
 
     if neto <= 0:
         raise ValueError(

@@ -1011,3 +1011,103 @@ def test_scotiabank_pago_de_pasivos_sin_apertura_ni_avaluo():
     assert r.elegible  # aforo 93.75 % < 95 %
     assert r.comision_apertura == 0 and r.avaluo == 0
 
+
+
+# ---------------------------------------------------------------------------
+# Gastos notariales financiados
+# ---------------------------------------------------------------------------
+# Ningún cotizador trae un escenario con el financiamiento activo: se valida
+# contra sus fórmulas (Banamex Calculos!AX76/AX60 y CJ67/CH85, BX+
+# VResPlus!F11, Scotiabank Simulador!F22/F25 e I29/O25).
+
+def _con_gastos(escenario, gastos):
+    from dataclasses import replace
+
+    return replace(escenario, gastos_notariales=D(gastos), financiar_gastos_notariales=True)
+
+
+@pytest.mark.parametrize("pid, destino, valor, monto, gastos, financiado, apertura", [
+    # Banamex CTH: MIN(gastos, 5 % del saldo) y la línea topada al 90 %
+    ("banamex-cambia-tu-hipoteca-mercado-abierto-2026-08", "sustitucion",
+     "3000000", "1500000", "120000", "75000", "0"),
+    ("banamex-cambia-tu-hipoteca-mercado-abierto-2026-08", "sustitucion",
+     "3000000", "2650000", "120000", "50000", "0"),          # 2,700,000 − 2,650,000
+    # Banamex Perfiles: MIN(gastos, 10 % del valor); apertura 1 % sobre CH85
+    ("banamex-perfiles-mercado-abierto-2026-08", "adquisicion",
+     "3000000", "2000000", "350000", "300000", "23000"),
+    ("banamex-perfiles-mercado-abierto-2026-08", "adquisicion",
+     "3000000", "2600000", "150000", "100000", "27000"),     # aforo 90 %
+    # BX+ Mejora: F11 = D22 + H25, sin tope porcentual (hasta el 85 %)
+    ("bx-mejora-tu-hipoteca-2026-01", "sustitucion", "3000000", "2100000", "60000", "60000", "0"),
+    # Scotiabank Pago de pasivos: MIN(6 % del saldo, 95 % del valor − saldo)
+    ("scotiabank-pasivos-pagos-oportunos-2024-01", "sustitucion",
+     "3000000", "1500000", "120000", "90000", "0"),
+    ("scotiabank-pasivos-valora-2024-01", "sustitucion",
+     "3000000", "2800000", "120000", "50000", "0"),
+    # 7x5 Pasivo: 6 % dentro del 75 %; comisión 1.5 % sobre el crédito sin gastos (O32)
+    ("scotiabank-7x5-pasivo-hipotecario-2024-01", "sustitucion",
+     "3000000", "2000000", "150000", "120000", "30000"),
+])
+def test_gastos_notariales_financiados_segun_cada_cotizador(
+    pid, destino, valor, monto, gastos, financiado, apertura
+):
+    from datetime import date
+
+    from motor_hipotecario.cat import flujos_cat
+    from motor_hipotecario.comparador import evaluar_producto
+
+    base = (_escenario_sustitucion if destino == "sustitucion" else _escenario_adquisicion)(
+        D(valor), D(monto), 240
+    )
+    r = evaluar_producto(_con_gastos(base, gastos), POR_ID[pid], momento=date(2026, 10, 24))
+    assert r.elegible, r.motivos_rechazo
+    assert r.gastos_financiados == D(financiado)
+    assert r.monto_credito == r.tabla.monto == D(monto) + D(financiado)
+    assert r.comision_apertura == D(apertura)
+    assert r.gastos_de_contado == D(gastos) - D(financiado)
+    # CAT: el neto parte del crédito total; los gastos financiados no se restan
+    neto, _ = flujos_cat(
+        r.tabla, r.producto,
+        monto_comision=D(monto) if "scotiabank" in pid else None,
+    )
+    iva = D("1.16") if _avaluo_neto_de_iva(r.producto) else D(1)
+    assert neto == r.monto_credito - r.comision_apertura - r.avaluo / iva - r.comision_investigacion
+
+
+def _avaluo_neto_de_iva(producto):
+    from motor_hipotecario.modelos import ConceptoIVA
+
+    return ConceptoIVA.AVALUO in producto.cat_netos_de_iva
+
+
+def _escenario_adquisicion(valor, monto, plazo):
+    from motor_hipotecario.modelos import Escenario
+
+    return Escenario(valor_vivienda=valor, enganche=valor - monto, plazo_meses=plazo)
+
+
+def test_bx_mejora_elige_la_tasa_con_el_aforo_que_incluye_los_gastos():
+    """VResPlus!F12 = F11/F9 decide el tramo (CC12): 70 % pasa a 72 % con los gastos."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    base = _escenario_sustitucion(D("3000000"), D("2100000"), 240)
+    sin = evaluar_producto(base, POR_ID["bx-mejora-tu-hipoteca-2026-01"], momento=date(2026, 10, 24))
+    con = evaluar_producto(_con_gastos(base, "60000"), POR_ID["bx-mejora-tu-hipoteca-2026-01"],
+                           momento=date(2026, 10, 24))
+    assert sin.producto.tasa_anual == D("0.0965")
+    assert con.producto.tasa_anual == D("0.0985")
+
+
+def test_comparar_financia_solo_donde_el_producto_lo_permite():
+    from datetime import date
+
+    from motor_hipotecario.comparador import comparar
+
+    escenario = _con_gastos(_escenario_sustitucion(D("3000000"), D("1500000"), 240), "120000")
+    comparacion = comparar(escenario, CATALOGO, momento=date(2026, 10, 24))
+    por_id = {o.producto.id: o for o in comparacion.opciones}
+    assert por_id["banorte-mejora-hipoteca-2026-06"].gastos_financiados == 0
+    assert por_id["banorte-mejora-hipoteca-2026-06"].gastos_de_contado == D("120000")
+    assert por_id["scotiabank-pasivos-pagos-oportunos-2024-01"].gastos_financiados == D("90000")

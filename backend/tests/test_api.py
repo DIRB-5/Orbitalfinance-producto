@@ -145,3 +145,22 @@ def test_catalogo_expone_el_crecimiento_anual_del_pago():
     assert productos["scotiabank-pasivos-valora-2024-01"]["crecimientoPagoAnual"] == "0.026"
     assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["crecimientoPagoAnual"] is None
 
+
+
+def test_gastos_notariales_financiados_por_api():
+    cuerpo = {
+        "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 240,
+        "gastosNotariales": "120000", "financiarGastosNotariales": True, "destino": "sustitucion",
+        "creditoActual": {"saldoInsoluto": "1500000", "pagoMensual": "21000",
+                          "plazoRemanenteMeses": 240},
+    }
+    opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
+    scotia = opciones["scotiabank-pasivos-pagos-oportunos-2024-01"]
+    assert scotia["gastosFinanciados"] == "90000.00"
+    assert scotia["gastosDeContado"] == "30000.00"
+    assert scotia["montoCredito"] == "1590000.00"
+    productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
+    assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["financiamientoGastos"] == {
+        "tope": "0.06", "baseTope": "monto_credito", "aperturaYAforoSobreTotal": False,
+    }
+    assert productos["hsbc-cicb-2026-10"]["financiamientoGastos"] is None

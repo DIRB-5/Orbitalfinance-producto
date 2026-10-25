@@ -157,6 +157,30 @@ class Cofinanciamiento:
     saldo_subcuenta: Decimal = Decimal("0")
 
 
+class BaseTopeGastos(str, Enum):
+    """Sobre qué se mide el tope de gastos notariales financiables."""
+
+    VALOR_INMUEBLE = "valor_inmueble"   # Banamex Perfiles / A tu Medida: 10 %
+    MONTO_CREDITO = "monto_credito"     # Scotiabank 6 %, Banamex CTH 5 % del saldo
+
+
+@dataclass(frozen=True)
+class FinanciamientoGastos:
+    """
+    El producto permite sumar los gastos notariales al crédito. Lo financiado
+    es el mínimo entre los gastos del escenario, el tope (fracción de la base;
+    None = sin tope porcentual, BX+ Mejora) y lo que cabe en el aforo máximo.
+    Se suma al capital: genera intereses y seguro de vida sobre saldo.
+    """
+
+    tope: Optional[Decimal]
+    base_tope: BaseTopeGastos = BaseTopeGastos.MONTO_CREDITO
+    # True (Banamex, BX+): la comisión por apertura y el aforo que define la
+    # tasa usan el crédito con gastos. False (Scotiabank): usan el crédito sin
+    # gastos (Simulador!J18 = F15 × V12); el CAT sí parte del crédito total.
+    apertura_y_aforo_sobre_total: bool = True
+
+
 @dataclass(frozen=True)
 class TasaVariable:
     """
@@ -318,6 +342,10 @@ class ProductoHipotecario:
     # None = no acepta cofinanciamiento.
     regla_aportaciones: Optional[ReglaAportaciones] = None
 
+    # Gastos notariales que el banco suma al crédito si el escenario lo pide.
+    # None = no los financia: se pagan de contado.
+    financiamiento_gastos: Optional[FinanciamientoGastos] = None
+
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
 
@@ -448,6 +476,11 @@ class Escenario:
     # Gastos de escrituración y notariales estimados. No entran al CAT
     # (los cobra un tercero) pero sí al desembolso inicial del cliente.
     gastos_notariales: Dinero = Decimal("0")
+
+    # El cliente quiere financiar los gastos notariales. Cada producto que lo
+    # permite suma al crédito lo que su regla deja; en los demás se pagan de
+    # contado. Se pide el mismo monto a todos para que sean comparables.
+    financiar_gastos_notariales: bool = False
 
     # Ingreso mensual comprobable, para evaluar capacidad de pago
     ingreso_mensual: Optional[Dinero] = None

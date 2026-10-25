@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             281 pruebas. No deben bajar de ahí.
+  tests/             297 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -196,6 +196,17 @@ casa habitación). `iva_sobre_intereses` lo suma al pago; con
 Si va o no al CAT lo decide `iva_intereses_en_cat`, por producto, porque cada
 cotizador lo trata distinto. Ningún producto de liquidez tiene escenario
 capturado: están validados por fórmula, no al centavo.
+
+**Gastos notariales financiados.** `Escenario.financiar_gastos_notariales`
+pide a todos los bancos el mismo monto (`gastos_notariales`); cada producto
+con `financiamiento_gastos` suma al crédito el mínimo entre los gastos, su
+tope (Banamex 10 % del valor o 5 % del saldo, Scotiabank 6 % del saldo, BX+
+Mejora sin tope) y lo que cabe en su aforo máximo. Lo demás se paga de
+contado. Lo financiado genera intereses y seguro sobre saldo; el CAT parte del
+crédito total (no resta la notaría, como los cotizadores) y el costo total no
+lo cuenta dos veces. Scotiabank cobra la apertura y elige tasa sin los gastos
+(`apertura_y_aforo_sobre_total=False`). Ningún cotizador trae un escenario con
+gastos financiados: validado contra sus fórmulas.
 
 **Las opciones no elegibles se muestran con su motivo**, no se ocultan. El
 asesor necesita poder decirle al cliente qué enganche adicional le abriría esa
@@ -431,7 +442,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 281 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 297 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

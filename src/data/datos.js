@@ -171,11 +171,12 @@ export const escenarioBase = {
   gastosNotariales: 0,
   ingresoMensual: 0,
   factorPagoIngreso: 0.35,
+  financiarGastos: "no",
 };
 
 export const escenariosBase = {
   adquisicion: escenarioBase,
-  sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
+  sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0, financiarGastos: "no" },
   liquidez: { familia: "hipotecario", subtipo: "liquidez", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   terreno: { familia: "hipotecario", subtipo: "terreno", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   pyme: { familia: "pyme", subtipo: "pyme", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
@@ -258,6 +259,11 @@ function adaptarProducto(p) {
     valorMinimoInmueble: num(p.valorMinimoInmueble),
     requiereCofinanciamiento: !!p.requiereCofinanciamiento,
     institutoCofinanciamiento: p.reglaAportaciones ? p.reglaAportaciones.instituto.toUpperCase() : null,
+    financiamientoGastos: p.financiamientoGastos ? {
+      tope: num(p.financiamientoGastos.tope),
+      baseTope: p.financiamientoGastos.baseTope,
+      sobreTotal: p.financiamientoGastos.aperturaYAforoSobreTotal,
+    } : null,
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,
@@ -354,6 +360,15 @@ export function descripcionCrecimiento(producto) {
     + (f.length > 1 ? ". Al cambiar de fase el pago se recalcula sobre el saldo." : "");
 }
 
+export function descripcionFinanciamientoGastos(producto) {
+  const f = producto.financiamientoGastos;
+  if (!f) return "No los financia: se pagan de contado";
+  const tope = f.tope == null ? "Sin tope porcentual"
+    : "Hasta " + (f.tope * 100).toFixed(0) + "\u00A0% " + (f.baseTope === "valor_inmueble" ? "del valor" : "del crédito");
+  return tope + ", dentro del aforo máximo. Comisión por apertura sobre "
+    + (f.sobreTotal ? "el crédito con gastos." : "el crédito sin gastos.");
+}
+
 export function comportamientoMensualidad(producto) {
   if ((producto.crecimientoPago || []).length || (producto.factoresAnuales || []).length > 1 || producto.crecimientoAnual) return "Creciente";
   return producto.seguroVidaMensual > 0 ? "Decreciente" : "Fija";
@@ -410,6 +425,8 @@ function adaptarOpcion(o, escenario) {
     } : null,
     avaluo: num(o.avaluo),
     gastosNotariales: num(o.gastosNotariales),
+    gastosFinanciados: num(o.gastosFinanciados) || 0,
+    gastosDeContado: num(o.gastosDeContado),
     catEstimado: v(o.catEstimado),
     // Mensualidad = pago regular (sin periodo irregular ni pago de cierre)
     pagoPrimerMes: v(o.pagoRegularInicial),
@@ -475,6 +492,7 @@ function cuerpoComparacion(escenario, escenarioRefId) {
     enganche: String(enganche),
     plazoMeses: escenario.plazoMeses,
     gastosNotariales: String(escenario.gastosNotariales || 0),
+    financiarGastosNotariales: !!escenario.financiarGastosNotariales,
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
     escenarioTasa: escenarioRefId || "base",

@@ -35,6 +35,7 @@ from .esquemas import (
     EscalonSalida,
     EscenarioTasaSalida,
     FaseCrecimientoSalida,
+    FinanciamientoGastosSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
@@ -105,6 +106,15 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         ],
         recalcular_pago_al_cambiar_tasa=p.recalcular_pago_al_cambiar_tasa,
         regla_aportaciones=_regla(p),
+        financiamiento_gastos=(
+            FinanciamientoGastosSalida(
+                tope=_tasa(p.financiamiento_gastos.tope) if p.financiamiento_gastos.tope else None,
+                base_tope=p.financiamiento_gastos.base_tope.value,
+                apertura_y_aforo_sobre_total=p.financiamiento_gastos.apertura_y_aforo_sobre_total,
+            )
+            if p.financiamiento_gastos
+            else None
+        ),
         requiere_cofinanciamiento=p.requiere_cofinanciamiento,
         dia_de_pago=p.dia_de_pago,
         primer_periodo_dias_reales=p.primer_periodo_dias_reales,
@@ -182,6 +192,8 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         comision_investigacion=_dinero(o.comision_investigacion),
         avaluo=_dinero(o.avaluo),
         gastos_notariales=_dinero(o.gastos_notariales),
+        gastos_financiados=_dinero(o.gastos_financiados),
+        gastos_de_contado=_dinero(o.gastos_de_contado),
         cat_estimado=_tasa(o.cat_estimado),
         pago_primer_mes=_dinero(o.pago_primer_mes),
         pago_ultimo_mes=_dinero(o.pago_ultimo_mes),
@@ -249,6 +261,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         enganche=entrada.enganche,
         plazo_meses=entrada.plazo_meses,
         gastos_notariales=entrada.gastos_notariales,
+        financiar_gastos_notariales=entrada.financiar_gastos_notariales,
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,

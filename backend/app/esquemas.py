@@ -43,6 +43,8 @@ class EscenarioEntrada(ModeloBase):
     enganche: Decimal = Field(ge=0)
     plazo_meses: int = Field(gt=0, le=480)
     gastos_notariales: Decimal = Field(default=Decimal("0"), ge=0)
+    # Pedir a cada banco que lo permita sumar los gastos al crédito
+    financiar_gastos_notariales: bool = False
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
@@ -87,6 +89,12 @@ class TasaVariableSalida(ModeloBase):
     techo: Optional[str]
 
 
+class FinanciamientoGastosSalida(ModeloBase):
+    tope: Optional[str]
+    base_tope: str
+    apertura_y_aforo_sobre_total: bool
+
+
 class ProductoSalida(ModeloBase):
     id: str
     institucion: str
@@ -105,6 +113,7 @@ class ProductoSalida(ModeloBase):
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]
+    financiamiento_gastos: Optional[FinanciamientoGastosSalida]
     requiere_cofinanciamiento: bool
     dia_de_pago: Optional[int]
     primer_periodo_dias_reales: bool
@@ -190,6 +199,8 @@ class OpcionSalida(ModeloBase):
     comision_investigacion: str
     avaluo: str
     gastos_notariales: str
+    gastos_financiados: str
+    gastos_de_contado: str
     cat_estimado: str
     pago_primer_mes: str
     pago_ultimo_mes: str
