@@ -354,3 +354,53 @@ def test_bx_apoyo_infonavit_no_ofrece_aforo_de_85():
         ),
     )  # crédito 2.15M = 86 %
     assert not evaluar_producto(escenario, POR_ID["bx-apoyo-infonavit-2026-01"]).elegible
+
+
+# ---------------------------------------------------------------------------
+# Banamex Hipoteca Perfiles: sin escenario capturado; referencia con las
+# fórmulas de TablaPerfiles (pseudocódigo del análisis del archivo).
+# ---------------------------------------------------------------------------
+
+def _banamex_referencia(valor, credito, tasa, plazo, avaluo):
+    from decimal import ROUND_CEILING
+
+    i = tasa / 12
+    pmt = D(1000) * i / (1 - (1 + i) ** -plazo)
+    factor = (pmt * 100).to_integral_value(rounding=ROUND_CEILING) / 100
+    s = credito * factor / 1000
+    c, filas, flujos = credito, [], []
+    for mes in range(1, plazo + 1):
+        o = c * i
+        pago = c + o if (c + o < s or mes == plazo) else s
+        k = pago - o
+        vida = c * D("0.000474")
+        danos = max(D("0.8") * valor * D("0.0003"), D("0.0003") * c)
+        filas.append((c, o, k, vida, danos))
+        flujos.append(pago + vida + danos)
+        c -= k
+        if c == 0:
+            break
+    neto = credito - avaluo / D("1.16") - credito * D("0.01")
+    return filas, flujos, neto
+
+
+def test_banamex_reproduce_las_formulas_del_cotizador():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .test_cotizadores_reales import _cat
+
+    valor = D("3000000")
+    escenario = Escenario(valor_vivienda=valor, enganche=D("600000"), plazo_meses=240)
+    resultado = evaluar_producto(escenario, POR_ID["banamex-perfiles-mercado-abierto-2026-08"])
+    assert resultado.elegible
+    assert resultado.avaluo == D("5500")            # 1 a 3 millones, IVA incluido
+    assert resultado.comision_apertura == D("24000")
+
+    filas, flujos, neto = _banamex_referencia(valor, D("2400000"), D("0.105"), 240, D("5500"))
+    assert resultado.tabla.plazo_efectivo_meses == len(filas)
+    for r, (c, o, k, vida, danos) in zip(resultado.tabla.renglones, filas):
+        for calc, esp in ((r.saldo_inicial, c), (r.interes, o), (r.capital, k),
+                          (r.seguro_vida, vida), (r.seguro_danos, danos)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")

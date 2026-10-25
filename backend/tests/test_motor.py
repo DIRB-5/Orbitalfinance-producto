@@ -1215,3 +1215,39 @@ def test_producto_que_excluye_credito_del_instituto():
     con_credito = evaluar_producto(_escenario_cofi(), producto)
     assert not con_credito.elegible
     assert any("Cofinavit" in m for m in con_credito.motivos_rechazo)
+
+
+# --------------------------------------------------------------------------
+# Pago por millar redondeado hacia arriba y daños sobre máximo(valor, saldo)
+# --------------------------------------------------------------------------
+# Banamex (TablaPerfiles!S128): pago = monto × ROUNDUP(PMT(tasa/12, n, −1000), 2)
+# / 1000; daños = 0.0003 × MAX(80 % del valor, saldo).
+
+from motor_hipotecario.amortizacion import factor_al_millar  # noqa: E402
+
+
+@pytest.mark.parametrize("plazo, factor", [(240, "9.03"), (180, "10.18"), (120, "12.70")])
+def test_factor_al_millar_reproduce_los_de_banamex(plazo, factor):
+    """Calculos!CR104:CR106, cacheados en el archivo a 9.05 %."""
+    assert factor_al_millar(Decimal("0.0905"), plazo) == Decimal(factor)
+
+
+def test_pago_por_millar_redondeado():
+    producto = producto_limpio(tasa_anual=Decimal("0.0905"), pago_por_millar_redondeado=True)
+    tabla = construir_tabla(LineaCredito(producto, Decimal("2400000"), 240), Decimal("3000000"))
+    pago = Decimal("2400000") * Decimal("9.03") / 1000
+    assert tabla.renglones[0].capital + tabla.renglones[0].interes == pago
+    ultimo = tabla.renglones[-1]
+    assert ultimo.saldo_final == 0
+    assert ultimo.capital + ultimo.interes < pago  # el redondeo hacia arriba adelanta capital
+
+
+def test_danos_sobre_el_mayor_entre_valor_y_saldo():
+    producto = producto_limpio(
+        seguro_danos_anual=Decimal("0.0036"),
+        base_seguro_danos=BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO,
+        factor_construccion=Decimal("0.80"),
+    )
+    tabla = construir_tabla(LineaCredito(producto, Decimal("2700000"), 240), Decimal("3000000"))
+    assert tabla.renglones[0].seguro_danos == Decimal("2700000") * Decimal("0.0003")  # saldo > 80 %
+    assert tabla.renglones[-1].seguro_danos == Decimal("2400000") * Decimal("0.0003")  # 80 % del valor

@@ -392,4 +392,47 @@ CATALOGO: list[ProductoHipotecario] = [
         "cada tramo de aforo. Daños de 'resto de la República'. Vida para un "
         "asegurado. El archivo no trae vigencia.",
     ),
+    ProductoHipotecario(
+        id="banamex-perfiles-mercado-abierto-2026-08",
+        institucion="Banamex",
+        nombre="Hipoteca Perfiles (Mercado abierto)",
+        # Tasa por vinculación (Calculos!CO136:CO141): Mercado abierto 10.50 %
+        # es la que aplica a cualquier cliente. Con relación con el banco:
+        # Nómina/Portabilidad 9.25 %, Patrimonial/Privada 9.05 %, Oferta
+        # preferente 10.25 %, Desarrollos o Tarjeta y depósitos 9.80 %.
+        tasa_anual=Decimal("0.105"),
+        convencion_interes=ConvencionDias.TASA_ENTRE_12,
+        pago_por_millar_redondeado=True,                 # TablaPerfiles!S128
+        plazos_meses=(120, 180, 240),                    # CN104:CQ106
+        aforo_max=Decimal("0.90"),                       # CP116, perfil de riesgo muy bajo
+        monto_minimo=Decimal("300000"),                  # CJ15
+        monto_maximo=Decimal("20000000"),                # CJ16
+        valor_minimo_inmueble=Decimal("750000"),         # CJ18; MacroPlaza 1,000,000
+        comision_apertura=Decimal("0.01"),               # CH79, sin IVA
+        seguro_vida_mensual=Decimal("0.000474"),         # AX16, sin extraprima
+        seguro_danos_anual=Decimal("0.0036"),            # AX17: 0.0003 mensual
+        base_seguro_danos=BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO,
+        factor_construccion=Decimal("0.80"),
+        tarifa_avaluo=(                                  # DB69:DD74, IVA incluido
+            (Decimal("0"), Decimal("3500"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("5500"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("7500"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("10500"), Decimal("0")),
+            (Decimal("8000000.01"), Decimal("15500"), Decimal("0")),
+            # DD74: (valor − 10,000,000) × 1.05 / 1000 + 14,990
+            (Decimal("15000000.01"), Decimal("4490"), Decimal("1.05")),
+        ),
+        # TablaPerfiles!AQ127: avalúo ÷ 1.16; apertura y seguros completos
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO}),
+        vigente_desde=date(2026, 8, 21),
+        fuente="Cotizador BANAMEX.xlsm, hoja ADQUISICION, producto Hipoteca "
+        "Perfiles (Calculos CF:DH, TablaPerfiles). Versión v.20260824, "
+        "'Vigencia: Agosto 2026'. SIN escenario capturado: validado contra sus "
+        "fórmulas y contra los factores al millar guardados (CR104:CR106).",
+        notas="Tasa de Mercado abierto; con vinculación al banco baja hasta 9.05 %. "
+        "Seguro de vida sin extraprima (edad 65+ 0.1804 %, médica 0.0884 %, "
+        "ocupacional 0.0604 %). Valor mínimo de 1,000,000 en CDMX, GDL y MTY. El "
+        "avalúo es reembolsable según el banco, pero el cotizador lo incluye en "
+        "el CAT.",
+    ),
 ]

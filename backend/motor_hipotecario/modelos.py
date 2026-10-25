@@ -35,6 +35,9 @@ class BaseSeguroDanos(str, Enum):
 
     VALOR_TOTAL = "valor_total"
     VALOR_CONSTRUCCION = "valor_construccion"
+    # El mayor entre valor × factor_construccion y el saldo insoluto del mes
+    # (Banamex: 0.0003 × MAX(80 % del valor, saldo)).
+    MAXIMO_CONSTRUCCION_SALDO = "maximo_construccion_saldo"
 
 
 class ConvencionDias(str, Enum):
@@ -162,6 +165,11 @@ class ProductoHipotecario:
     # tasa del seguro de vida sumada a la del periodo, más el seguro de daños,
     # y el capital es lo que queda después de seguros e interés (Banregio).
     seguros_en_pago_fijo: bool = False
+
+    # Pago = monto × factor al millar / 1000, con el factor redondeado hacia
+    # arriba a centavos (Banamex: ROUNDUP(PMT(tasa/12, n, −1000), 2)). El
+    # último pago sale menor.
+    pago_por_millar_redondeado: bool = False
 
     # Primer periodo irregular (Banorte): el mes 1 cobra interés por los días
     # reales desde la disposición hasta el primer pago, inclusive, y prorratea

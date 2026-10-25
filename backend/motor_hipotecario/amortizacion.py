@@ -11,7 +11,7 @@ from __future__ import annotations
 import calendar
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from typing import Optional
 
 from .modelos import (
@@ -224,6 +224,12 @@ def _validar_crecimiento(producto: ProductoHipotecario) -> None:
         )
 
 
+def factor_al_millar(tasa_anual: Decimal, plazo_meses: int) -> Decimal:
+    """Pago por cada $1,000 a tasa/12, redondeado hacia arriba a centavos."""
+    pmt = _anualidad(Decimal(1000), tasa_anual / Decimal(12), plazo_meses)
+    return (pmt * 100).to_integral_value(rounding=ROUND_CEILING) / Decimal(100)
+
+
 def _sumar_meses(fecha: date, meses: int) -> date:
     total = fecha.month - 1 + meses
     anio, mes = fecha.year + total // 12, total % 12 + 1
@@ -239,7 +245,10 @@ def _seguro_danos_mensual(
         return Decimal("0")
 
     base = valor_vivienda
-    if producto.base_seguro_danos is BaseSeguroDanos.VALOR_CONSTRUCCION:
+    if producto.base_seguro_danos in (
+        BaseSeguroDanos.VALOR_CONSTRUCCION,
+        BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO,
+    ):
         base = valor_vivienda * producto.factor_construccion
 
     return base * producto.seguro_danos_anual / Decimal(12)
@@ -358,6 +367,10 @@ def construir_tabla(
         i_pago += producto.seguro_vida_mensual
         seguros_en_pago = danos
     anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
+    if producto.pago_por_millar_redondeado and not crece:
+        pmt = _anualidad(Decimal(1000), i_pago, plazo)
+        factor = (pmt * 100).to_integral_value(rounding=ROUND_CEILING) / Decimal(100)
+        anualidad = monto * factor / Decimal(1000)
     pago_fijo = anualidad + seguros_en_pago
     pago_fijo_inicial = pago_fijo
 
@@ -381,6 +394,9 @@ def construir_tabla(
         interes_regular = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
         interes = interes_regular
         vida = saldo_inicial * producto.seguro_vida_mensual
+        if producto.base_seguro_danos is BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO and danos:
+            base_danos = max(valor_vivienda * producto.factor_construccion, saldo_inicial)
+            danos = base_danos * producto.seguro_danos_anual / Decimal(12)
 
         if mes == 1 and producto.primer_periodo_dias_reales and fecha_disposicion is not None:
             if fecha is None:
