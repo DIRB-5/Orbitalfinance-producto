@@ -142,6 +142,7 @@ class RenglonSalida(ModeloBase):
     seguro_danos: str
     comision_mensual: str
     aportacion: str
+    seguro_desempleo: str
     pago_total: str
     saldo_final: str
 

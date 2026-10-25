@@ -218,6 +218,7 @@ export const ETIQUETA_CONVENCION = {
   "tasa*30.4/360": "Tasa × 30.4 / 360",
   "(tasa/360)*(365/12)": "(Tasa / 360) × (365 / 12)",
   "tasa*dias_reales/360": "Tasa × días del mes / 360",
+  "tasa*dias_entre_pagos/360": "Tasa × días entre pagos / 360",
 };
 
 // Producto de la API → forma que usa la interfaz.
@@ -307,6 +308,7 @@ const ETIQUETA_CONCEPTO_IVA = {
   avaluo: "avalúo",
   seguro_danos: "seguro de daños",
   comision_mensual: "comisión mensual",
+  seguro_desempleo: "seguro de desempleo",
 };
 
 export function conceptosNetosDeIva(producto) {
@@ -411,6 +413,7 @@ function adaptarOpcion(o, escenario) {
           seguroDanos: num(r.seguroDanos),
           comisionMensual: num(r.comisionMensual),
           aportacion: num(r.aportacion),
+          seguroDesempleo: num(r.seguroDesempleo),
           pagoTotal: num(r.pagoTotal),
           saldoFinal: num(r.saldoFinal),
         }))

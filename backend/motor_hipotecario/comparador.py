@@ -292,7 +292,11 @@ def evaluar_producto(
         fecha_primer_pago
         or escenario.fecha_primer_pago
         or primer_pago_por_defecto(
-            momento, producto.dia_de_pago, producto.dia_corte_primer_pago, producto.cortes_de_pago
+            momento,
+            producto.dia_de_pago,
+            producto.dia_corte_primer_pago,
+            producto.cortes_de_pago,
+            producto.recorrer_primer_pago_un_mes,
         )
     )
     disposicion = escenario.fecha_disposicion or momento
@@ -347,7 +351,12 @@ def evaluar_producto(
     # periodo regular: se calcula sobre esa tabla.
     tabla_cat = tabla
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
-        tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
+        tabla_cat = construir_tabla(
+            linea,
+            escenario.valor_vivienda,
+            fecha,
+            fecha_disposicion=None if producto.primer_periodo_dias_reales else disposicion,
+        )
 
     if producto.tasa_variable is not None:
         tv = producto.tasa_variable
@@ -441,6 +450,7 @@ def primer_pago_por_defecto(
     dia_de_pago: Optional[int] = None,
     dia_corte: Optional[int] = None,
     cortes: tuple = (),
+    recorrer_un_mes: bool = False,
 ) -> date:
     """
     Día 1 del mes siguiente. Con `dia_de_pago`: ese día del mes siguiente
@@ -460,6 +470,8 @@ def primer_pago_por_defecto(
     siguiente = date(momento.year + (momento.month == 12), momento.month % 12 + 1, 1)
     fecha = siguiente - timedelta(days=1) + timedelta(days=dia_de_pago)
     if dia_corte is not None and momento.day >= dia_corte:
+        if recorrer_un_mes:
+            return date(fecha.year + (fecha.month == 12), fecha.month % 12 + 1, fecha.day)
         fecha += timedelta(days=30)
     return fecha
 

@@ -646,4 +646,60 @@ CATALOGO: list[ProductoHipotecario] = [
         "8.80 % / 9.75 % / 10.80 %; aquí la de referencia 9.75 %. Seguro de vida "
         "Básico (Amplio 0.0858 %). Primer mes irregular desde la cotización.",
     ),
+    ProductoHipotecario(
+        id="afirme-adquisicion-2026-07",
+        institucion="Afirme",
+        nombre="Multiproductos — Adquisición (pagos fijos)",
+        # 'Parametro Destino'!B32:F43, calificación A-BB sin nómina Afirme:
+        # 10.05 % con aforo ≤ 80 %, 10.60 % arriba (15 y 20 años). Con nómina y
+        # hasta 5 millones a 15 años: 9.80 % / 9.80 %; calificación AA desde 9.60 %.
+        tasa_anual=Decimal("0.106"),
+        tabla_tasas=(
+            (240, Decimal("0.80"), Decimal("0.1005")),
+            (240, Decimal("0.90"), Decimal("0.106")),
+        ),
+        # Interés y cuota con días entre fechas de pago (día 4); el mes 1 solo
+        # paga intereses y la vida va dentro de la cuota (TAF!F:O).
+        convencion_interes=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        convencion_pago=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        primer_pago_solo_intereses=True,
+        vida_en_pago_fijo=True,
+        dia_de_pago=4,
+        dia_corte_primer_pago=20,                        # TAF!C10: apertura > 19
+        recorrer_primer_pago_un_mes=True,
+        plazos_meses=tuple(range(60, 241, 12)),          # 5 a 20 años
+        aforo_max=Decimal("0.90"),                       # E10, tasas ≥ 9.5 %
+        monto_minimo=Decimal("200000"),                  # C9 (informativo en el archivo)
+        comision_apertura=Decimal("0.01"),               # D14: 0 % con nómina ≤ 15 años
+        # Comisión 399 + IVA más seguro de interiores 98 (IVA incluido): ambos
+        # entran al CAT sin IVA (399 + 84.48).
+        comision_mensual=Decimal("560.84"),
+        seguro_vida_mensual=Decimal("0.0008"),           # FACTOR_SEG_DEUD
+        # Daños: 0.7·valor·1.1·1.0802/12000, más IVA
+        seguro_danos_anual=Decimal("0.0013783352"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        seguro_desempleo_pct=Decimal("0.0098"),          # C35, más IVA
+        seguro_desempleo_con_iva=True,
+        # Avalúo al millar sin mínimo, como lo usa el CAT (TAF!K7)
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("0"), Decimal("3")),
+            (Decimal("1000000.01"), Decimal("0"), Decimal("2.5")),
+            (Decimal("5000000.01"), Decimal("0"), Decimal("2")),
+            (Decimal("10000000.01"), Decimal("0"), Decimal("1.75")),
+            (Decimal("20000000.01"), Decimal("0"), Decimal("1.5")),
+        ),
+        cat_netos_de_iva=frozenset({
+            ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.SEGURO_DESEMPLEO,
+        }),
+        vigente_desde=date(2026, 7, 6),
+        fuente="Cotizador AFIRME_MULTIPRODUCTOS.xlsm (Simulación, Parametro Destino, "
+        "Parametros Fijo, Tabla Amortización Fijo), versión BAF-040-2607-06, "
+        "guardado 2026-07-06; validado con su escenario capturado (tabla y CAT).",
+        notas="Tasa por calificación del banco (AA / A-BB / B-CC-C): aquí A-BB sin "
+        "nómina Afirme. Con nómina Afirme baja la tasa y la apertura es 0 % a 15 "
+        "años o menos. El primer mes paga solo intereses. Incluye seguro de "
+        "desempleo (0.98 % del pago) e interiores ($98). El avalúo mostrado al "
+        "cliente tiene mínimo (p. ej. $2,000); el CAT usa el factor sin mínimo.",
+    ),
 ]

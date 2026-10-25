@@ -56,6 +56,10 @@ class ConvencionDias(str, Enum):
     # fechas de pago y solo aplica al interés cobrado: el pago fijo requiere
     # una tasa por periodo única.
     DIAS_REALES_360 = "tasa*dias_reales/360"
+    # Días entre fechas de pago consecutivas / 360; el primer periodo cuenta
+    # desde la disposición, inclusive (Afirme). Sirve también para el pago:
+    # la cuota se calcula con los factores de cada periodo.
+    DIAS_ENTRE_PAGOS_360 = "tasa*dias_entre_pagos/360"
 
 
 class ConceptoIVA(str, Enum):
@@ -70,6 +74,7 @@ class ConceptoIVA(str, Enum):
     AVALUO = "avaluo"
     SEGURO_DANOS = "seguro_danos"
     COMISION_MENSUAL = "comision_mensual"
+    SEGURO_DESEMPLEO = "seguro_desempleo"
 
 
 class TipoLinea(str, Enum):
@@ -186,6 +191,19 @@ class ProductoHipotecario:
     # último pago sale menor.
     pago_por_millar_redondeado: bool = False
 
+    # Primer pago solo de intereses (y seguros/comisiones); el capital se
+    # amortiza en los meses restantes (Afirme, pago 0).
+    primer_pago_solo_intereses: bool = False
+
+    # El seguro de vida va dentro de la cuota fija (el de daños, no): capital
+    # = cuota − interés − vida (Afirme).
+    vida_en_pago_fijo: bool = False
+
+    # Seguro de desempleo como porcentaje del pago del mes (capital, interés,
+    # seguros y comisiones), con IVA si aplica (Afirme: 0.98 %).
+    seguro_desempleo_pct: Decimal = Decimal("0")
+    seguro_desempleo_con_iva: bool = False
+
     # Factores de pago al millar fijos por plazo ((plazo, factor), ...): el
     # pago es monto × factor / 1000 (Scotiabank los trae escritos a mano).
     factores_al_millar: Tuple[Tuple[int, Decimal], ...] = ()
@@ -222,6 +240,9 @@ class ProductoHipotecario:
     # se recorre 30 días (Banorte: día 3, corte 30; Fecha Pago!K4).
     dia_de_pago: Optional[int] = None
     dia_corte_primer_pago: Optional[int] = None
+    # Con corte, recorre el primer pago un mes completo en vez de 30 días
+    # (Afirme: si la apertura es el día 20 o después).
+    recorrer_primer_pago_un_mes: bool = False
 
     # Producto exclusivo de cofinanciamiento (p. ej. FOVISSSTE para todos):
     # sin cofinanciamiento del instituto de su regla, no es elegible.

@@ -53,6 +53,8 @@ class Renglon:
     fecha_pago: Optional[date] = None
     # Aportación patronal abonada a capital. No la paga el cliente.
     aportacion: Dinero = Decimal("0")
+    # Seguro de desempleo (porcentaje del pago), incluido en pago_total.
+    seguro_desempleo: Dinero = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -71,7 +73,8 @@ class TablaAmortizacion:
     @property
     def total_seguros(self) -> Dinero:
         return sum(
-            (r.seguro_vida + r.seguro_danos for r in self.renglones), Decimal("0")
+            (r.seguro_vida + r.seguro_danos + r.seguro_desempleo for r in self.renglones),
+            Decimal("0"),
         )
 
     @property
@@ -122,7 +125,7 @@ def tasa_periodica(
     Tasa del periodo mensual según la convención de conteo de días. `dias` es
     obligatorio con días reales: los días del mes del pago.
     """
-    if convencion is ConvencionDias.DIAS_REALES_360:
+    if convencion in (ConvencionDias.DIAS_REALES_360, ConvencionDias.DIAS_ENTRE_PAGOS_360):
         if dias is None:
             raise ValueError("La convención de días reales necesita los días del periodo.")
         return tasa_anual * Decimal(dias) / Decimal(360)
@@ -146,7 +149,9 @@ def tasa_normalizada(producto: ProductoHipotecario) -> Decimal:
 
     Días reales se normaliza con un año de 365 días.
     """
-    if producto.convencion_interes is ConvencionDias.DIAS_REALES_360:
+    if producto.convencion_interes in (
+        ConvencionDias.DIAS_REALES_360, ConvencionDias.DIAS_ENTRE_PAGOS_360
+    ):
         return producto.tasa_anual * Decimal(365) / Decimal(360)
     return tasa_periodica(producto.tasa_anual, producto.convencion_interes) * 12
 
@@ -351,6 +356,18 @@ def construir_tabla(
         )
     if convencion_amortizacion is ConvencionDias.DIAS_REALES_360:
         raise ValueError("La base de amortización no puede ser días reales.")
+    entre_pagos = convencion_interes is ConvencionDias.DIAS_ENTRE_PAGOS_360
+    dias_periodo: list = []
+    if entre_pagos:
+        if fecha_primer_pago is None or fecha_disposicion is None:
+            raise ValueError(
+                "La convención de días entre pagos necesita la fecha del primer "
+                "pago y la de disposición."
+            )
+        fechas = [_sumar_meses(fecha_primer_pago, k) for k in range(plazo)]
+        dias_periodo = [(fechas[0] - fecha_disposicion).days + 1] + [
+            (b - a).days for a, b in zip(fechas, fechas[1:])
+        ]
     _validar_escalones(producto)
     _validar_crecimiento(producto)
     inicios_de_escalon = {desde for desde, _ in producto.tasas_escalonadas}
@@ -370,14 +387,28 @@ def construir_tabla(
     fases_crecimiento = dict(producto.crecimiento_pago_mensual)
     crece = bool(fases_crecimiento)
     crecimiento = fases_crecimiento.get(1, Decimal(0))
-    i_pago = tasa_periodica(tasa, convencion_pago)
+    vida_en_pago = producto.vida_en_pago_fijo or producto.seguros_en_pago_fijo
     seguros_en_pago = Decimal(0)
     if producto.seguros_en_pago_fijo:
         # Los seguros van dentro del pago: anualidad con la tasa del seguro de
         # vida sumada a la del periodo, más el seguro de daños.
-        i_pago += producto.seguro_vida_mensual
         seguros_en_pago = danos
-    anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
+    meses_amortizacion = plazo - (1 if producto.primer_pago_solo_intereses else 0)
+    if convencion_pago is ConvencionDias.DIAS_ENTRE_PAGOS_360:
+        # Cuota con los factores reales de cada periodo amortizable:
+        # monto / Σ 1/Π(1 + días·tasa/360 + vida)  (Afirme TAF!F:L)
+        vida_tasa = producto.seguro_vida_mensual if vida_en_pago else Decimal(0)
+        suma, acumulado = Decimal(0), Decimal(1)
+        for dias_k in dias_periodo[plazo - meses_amortizacion:]:
+            acumulado *= Decimal(1) + Decimal(dias_k) * tasa / Decimal(360) + vida_tasa
+            suma += Decimal(1) / acumulado
+        i_pago = None
+        anualidad = monto / suma
+    else:
+        i_pago = tasa_periodica(tasa, convencion_pago)
+        if vida_en_pago:
+            i_pago += producto.seguro_vida_mensual
+        anualidad = _anualidad_creciente(monto, i_pago, meses_amortizacion, crecimiento)
     factores = dict(producto.factores_al_millar)
     factores_anuales = producto.factores_al_millar_anuales
     if factores_anuales and (crece or producto.tasas_escalonadas or producto.reamortizar_mensual_desde):
@@ -405,6 +436,8 @@ def construir_tabla(
         saldo_inicial = saldo
         fecha = _sumar_meses(fecha_primer_pago, mes - 1) if fecha_primer_pago else None
         dias = calendar.monthrange(fecha.year, fecha.month)[1] if dias_reales else None
+        if entre_pagos:
+            dias = dias_periodo[mes - 1]
         tasa = _tasa_del_mes(producto, mes)
 
         if mes in inicios_de_escalon and producto.recalcular_pago_al_cambiar_tasa:
@@ -461,11 +494,17 @@ def construir_tabla(
                 anualidad *= Decimal(1) + crecimiento
             pago_del_mes = anualidad + seguros_en_pago
 
-        if mes == plazo:
+        if mes == 1 and producto.primer_pago_solo_intereses:
+            capital = Decimal(0)
+        elif mes == plazo:
             # Pago final: liquida todo el saldo remanente
             capital = saldo_inicial
         else:
-            disponible = pago_del_mes - (vida + danos if producto.seguros_en_pago_fijo else 0)
+            disponible = (
+                pago_del_mes
+                - (vida if vida_en_pago else 0)
+                - (danos if producto.seguros_en_pago_fijo else 0)
+            )
             capital = disponible - interes_amortizacion
             # Blindaje: con pago fijo, un pago que no cubre el interés nunca
             # amortizaría; se detecta en vez de producir una tabla
@@ -491,6 +530,12 @@ def construir_tabla(
         saldo_final = saldo_inicial - capital - aportacion
         danos_renglon = danos if danos_mes is None else danos_mes
         pago_total = capital + interes + vida + danos_renglon + comision_mensual
+        desempleo = Decimal(0)
+        if producto.seguro_desempleo_pct:
+            desempleo = pago_total * producto.seguro_desempleo_pct
+            if producto.seguro_desempleo_con_iva:
+                desempleo *= Decimal("1.16")
+            pago_total += desempleo
 
         renglones.append(
             Renglon(
@@ -505,6 +550,7 @@ def construir_tabla(
                 saldo_final=saldo_final,
                 fecha_pago=fecha,
                 aportacion=aportacion,
+                seguro_desempleo=desempleo,
             )
         )
         saldo = saldo_final

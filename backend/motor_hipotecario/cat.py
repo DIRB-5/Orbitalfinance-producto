@@ -78,6 +78,7 @@ def flujos_cat(
         + r.seguro_vida
         + flujo(ConceptoIVA.SEGURO_DANOS, r.seguro_danos)
         + flujo(ConceptoIVA.COMISION_MENSUAL, r.comision_mensual)
+        + flujo(ConceptoIVA.SEGURO_DESEMPLEO, r.seguro_desempleo)
         for r in tabla.renglones
     ]
     return neto, pagos

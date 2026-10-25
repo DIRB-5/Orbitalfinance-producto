@@ -195,6 +195,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
                 seguro_danos=_dinero(r.seguro_danos),
                 comision_mensual=_dinero(r.comision_mensual),
                 aportacion=_dinero(r.aportacion),
+                seguro_desempleo=_dinero(r.seguro_desempleo),
                 pago_total=_dinero(r.pago_total),
                 saldo_final=_dinero(r.saldo_final),
             )

@@ -311,7 +311,54 @@ BANORTE_HIPOTECA_FUERTE = {
     },
 }
 
-TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE, BANORTE_FOVISSSTE, BANORTE_HIPOTECA_FUERTE]
+# ---------------------------------------------------------------------------
+# Afirme — Multiproductos, pagos fijos (Tabla Amortización Fijo)
+# ---------------------------------------------------------------------------
+# AFIRME_MULTIPRODUCTOS.xlsm. Escenario con destino APOYO INFONAVIT y nómina
+# Afirme (tasa 10.40 %, apertura 0 %); la tabla de pagos fijos es idéntica a
+# la de ADQUISICION. Mecánica:
+#   - Pago 0 (mes 1): solo intereses, seguros y comisiones; días desde la
+#     apertura hasta el primer pago, inclusive.
+#   - Interés: saldo × días entre fechas de pago × tasa / 360 (día 4).
+#   - Cuota: monto / Σ 1/Π(1 + días·tasa/360 + 0.0008) en los meses 2..n;
+#     el seguro de vida (0.0008 × saldo) va dentro de la cuota.
+#   - Daños 0.7·valor·1.1·1.0802/12000 + IVA; interiores 98 (IVA incluido);
+#     comisión 399 + IVA; desempleo 0.98 % del pago + IVA.
+#   - CAT sin IVA en daños, interiores, comisión y desempleo.
+AFIRME = {
+    "institucion": "Afirme",
+    "archivo": "AFIRME_MULTIPRODUCTOS.xlsm",
+    "hoja": "Tabla Amortización Fijo",
+    "parametros": {
+        "monto": D("4500000"),
+        "valor_inmueble": D("5000000"),
+        "tasa_anual": D("0.104"),
+        "plazo_meses": 180,
+        "fecha_apertura": "2026-07-06",
+        "fecha_primer_pago": "2026-08-04",
+        "avaluo": D("12500"),
+        "cuota": D("52715.873162706295"),        # TAF!L10
+    },
+    "cat_esperado": D("0.12718371801296424"),    # TAF!M4
+    # mes: (fecha, saldo_inicial, capital, interes, vida, desempleo con IVA, pago_total)
+    "renglones": {
+        1: ("2026-08-04", D("4500000"), D("0"), D("39000"), D("3600"),
+            D("495.222529198133271"), D("44058.076962531457")),
+        2: ("2026-09-04", D("4500000"), D("8815.8731627062953"), D("40300"), D("3600"),
+            D("610.219775311778459"), D("54288.947371351402")),
+        12: ("2027-07-04", D("4399843.0667158756"), D("11064.025464462677"), D("38131.973244870918"),
+             D("3519.8744533727008"), D("610.21977531177840"), D("54288.947371351402")),
+        60: ("2031-07-04", D("3763625.5768195228"), D("17086.884368814815"), D("32618.088332435862"),
+             D("3010.9004614556184"), D("610.21977531177840"), D("54288.947371351402")),
+        120: ("2036-07-04", D("2425841.9014487918"), D("29751.236495657733"), D("21023.963145889527"),
+              D("1940.6735211590335"), D("610.21977531177840"), D("54288.947371351402")),
+        180: ("2041-07-04", D("52221.509539189734"), D("52221.509539068633"), D("452.58641600631097"),
+              D("41.777207631351786"), D("610.21977531177840"), D("54288.947371351402")),
+    },
+}
+
+TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE, BANORTE_FOVISSSTE,
+         BANORTE_HIPOTECA_FUERTE, AFIRME]
 
 # ---------------------------------------------------------------------------
 # Instituciones sin escenario capturado — no validables hoy

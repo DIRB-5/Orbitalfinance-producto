@@ -544,3 +544,39 @@ def test_banorte_hipoteca_fuerte_reproduce_su_cotizador(mes):
                               (r.pago_total, pago, "pago"), (r.saldo_final, final, "saldo final")):
         assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
     assert abs(resultado.cat_estimado - B["cat_esperado"]) < D("0.0000001")
+
+
+@pytest.mark.parametrize("mes", [1, 2, 12, 60, 120, 180])
+def test_afirme_reproduce_su_cotizador(mes):
+    """Escenario capturado (nómina Afirme: 10.40 %, sin apertura), abierto el
+    2026-07-06: el producto del catálogo con esas condiciones debe reproducir
+    tabla y CAT pasando por el comparador."""
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .fixtures.cotizadores_reales import AFIRME as A
+
+    p = A["parametros"]
+    producto = replace(
+        POR_ID["afirme-adquisicion-2026-07"],
+        tasa_anual=p["tasa_anual"], tabla_tasas=(), comision_apertura=D("0"),
+    )
+    escenario = Escenario(
+        valor_vivienda=p["valor_inmueble"], enganche=p["valor_inmueble"] - p["monto"],
+        plazo_meses=p["plazo_meses"],
+    )
+    resultado = evaluar_producto(escenario, producto, momento=date.fromisoformat(p["fecha_apertura"]))
+    assert resultado.elegible
+    assert resultado.avaluo == p["avaluo"]
+    assert abs(resultado.tabla.pago_capital_interes - p["cuota"]) < D("0.000001")
+    r = resultado.tabla.renglones[mes - 1]
+    fecha, saldo, capital, interes, vida, desempleo, pago = A["renglones"][mes]
+    assert r.fecha_pago.isoformat() == fecha
+    for calc, esp, nombre in ((r.saldo_inicial, saldo, "saldo"), (r.capital, capital, "capital"),
+                              (r.interes, interes, "interés"), (r.seguro_vida, vida, "vida"),
+                              (r.seguro_desempleo, desempleo, "desempleo"), (r.pago_total, pago, "pago")):
+        assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - A["cat_esperado"]) < D("0.0000001")

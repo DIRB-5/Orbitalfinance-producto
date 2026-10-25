@@ -598,6 +598,8 @@ def _producto_con_costos(**kwargs):
         comision_mensual=Decimal("300"),
         seguro_danos_monto_mensual=Decimal("700"),
         seguro_vida_mensual=Decimal("0.0005"),
+        seguro_desempleo_pct=Decimal("0.0098"),
+        seguro_desempleo_con_iva=True,
         **kwargs,
     )
 
@@ -1380,3 +1382,72 @@ def test_pago_por_factor_anual_sobre_el_monto_original():
     assert pago[12] == Decimal("2000000") * Decimal("9.0576") / 1000
     assert tabla.plazo_efectivo_meses < 240  # el factor del año 1 liquida antes
     assert tabla.renglones[-1].saldo_final == 0
+
+
+# --------------------------------------------------------------------------
+# Afirme: días entre pagos, primer pago solo intereses, vida en la cuota,
+# desempleo sobre el pago
+# --------------------------------------------------------------------------
+
+
+def producto_afirme(**kwargs) -> ProductoHipotecario:
+    base = dict(
+        tasa_anual=Decimal("0.104"),
+        convencion_interes=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        convencion_pago=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        primer_pago_solo_intereses=True,
+        vida_en_pago_fijo=True,
+        seguro_vida_mensual=Decimal("0.0008"),
+        dia_de_pago=4,
+        dia_corte_primer_pago=20,
+        recorrer_primer_pago_un_mes=True,
+    )
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+def _tabla_afirme(producto, plazo=180):
+    return construir_tabla(
+        LineaCredito(producto, Decimal("1000000"), plazo), Decimal("1500000"),
+        fecha_primer_pago=date(2026, 8, 4), fecha_disposicion=date(2026, 7, 6),
+    )
+
+
+def test_dias_entre_pagos_y_primer_pago_solo_intereses():
+    tabla = _tabla_afirme(producto_afirme())
+    uno, dos, tres = tabla.renglones[:3]
+    assert uno.capital == 0
+    assert uno.interes == Decimal("1000000") * 30 * Decimal("0.104") / 360   # 6/jul → 4/ago, +1
+    assert dos.interes == Decimal("1000000") * 31 * Decimal("0.104") / 360   # 4/ago → 4/sep
+    assert tres.fecha_pago == date(2026, 10, 4)
+    assert tabla.renglones[-1].saldo_final == 0
+    assert len(tabla.renglones) == 180
+
+
+def test_vida_dentro_de_la_cuota():
+    tabla = _tabla_afirme(producto_afirme())
+    r = tabla.renglones[5]
+    assert r.capital + r.interes + r.seguro_vida == tabla.pago_capital_interes
+
+
+def test_dias_entre_pagos_requiere_fecha_de_disposicion():
+    with pytest.raises(ValueError, match="disposición"):
+        construir_tabla(
+            LineaCredito(producto_afirme(), Decimal("1000000"), 180), Decimal("1500000"),
+            fecha_primer_pago=date(2026, 8, 4),
+        )
+
+
+def test_desempleo_es_porcentaje_del_pago_con_iva():
+    producto = producto_afirme(seguro_desempleo_pct=Decimal("0.0098"), seguro_desempleo_con_iva=True)
+    r = _tabla_afirme(producto).renglones[1]
+    base = r.capital + r.interes + r.seguro_vida + r.seguro_danos + r.comision_mensual
+    assert r.seguro_desempleo == base * Decimal("0.0098") * Decimal("1.16")
+    assert r.pago_total == base + r.seguro_desempleo
+
+
+def test_primer_pago_recorrido_un_mes():
+    assert primer_pago_por_defecto(date(2026, 7, 6), 4, 20, recorrer_un_mes=True) == date(2026, 8, 4)
+    assert primer_pago_por_defecto(date(2026, 7, 19), 4, 20, recorrer_un_mes=True) == date(2026, 8, 4)
+    assert primer_pago_por_defecto(date(2026, 7, 20), 4, 20, recorrer_un_mes=True) == date(2026, 9, 4)
+    assert primer_pago_por_defecto(date(2026, 12, 25), 4, 20, recorrer_un_mes=True) == date(2027, 2, 4)
