@@ -212,7 +212,7 @@ class ProductoHipotecario:
 
     # Primer periodo irregular (Banorte): el mes 1 cobra interés por los días
     # reales desde la disposición hasta el primer pago, inclusive, y prorratea
-    # el seguro de vida a días/30. El capital del mes 1 sigue siendo el del
+    # los seguros de vida y daños a días/30. El capital del mes 1 sigue siendo el del
     # pago regular. El CAT se calcula sobre la tabla regular.
     primer_periodo_dias_reales: bool = False
 

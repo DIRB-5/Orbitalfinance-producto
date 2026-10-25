@@ -69,7 +69,7 @@ def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
     })
     opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
     for o in opciones:
-        if o["productoId"].startswith("banorte"):
+        if o["productoId"].startswith("banorte-fovissste"):
             assert not o["elegible"]
         elif o["productoId"].startswith("bx-apoyo"):
             assert not o["elegible"]  # con crédito Infonavit aplica Cofinavit

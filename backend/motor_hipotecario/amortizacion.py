@@ -415,6 +415,7 @@ def construir_tabla(
             anualidad = _anualidad(saldo_inicial, i_pago, plazo - mes + 1)
             pago_fijo = anualidad + seguros_en_pago
 
+        danos_mes = None
         interes_regular = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
         interes = interes_regular
         vida = saldo_inicial * producto.seguro_vida_mensual
@@ -428,6 +429,7 @@ def construir_tabla(
             dias_primer_periodo = (fecha - fecha_disposicion).days + 1
             interes = saldo_inicial * tasa * Decimal(dias_primer_periodo) / Decimal(360)
             vida = saldo_inicial * producto.seguro_vida_mensual / Decimal(30) * dias_primer_periodo
+            danos_mes = danos / Decimal(30) * dias_primer_periodo
 
         # Interés que se descuenta del pago para obtener el capital. Si la base
         # de amortización difiere de la de cobro, no es el interés cobrado; en
@@ -487,7 +489,8 @@ def construir_tabla(
                     aportacion = pendiente
 
         saldo_final = saldo_inicial - capital - aportacion
-        pago_total = capital + interes + vida + danos + comision_mensual
+        danos_renglon = danos if danos_mes is None else danos_mes
+        pago_total = capital + interes + vida + danos_renglon + comision_mensual
 
         renglones.append(
             Renglon(
@@ -496,7 +499,7 @@ def construir_tabla(
                 interes=interes,
                 capital=capital,
                 seguro_vida=vida,
-                seguro_danos=danos,
+                seguro_danos=danos_renglon,
                 comision_mensual=comision_mensual,
                 pago_total=pago_total,
                 saldo_final=saldo_final,

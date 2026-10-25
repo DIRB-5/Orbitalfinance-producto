@@ -549,4 +549,101 @@ CATALOGO: list[ProductoHipotecario] = [
         "7.931667). Edad máxima del solicitante 59 años. Créditos de 8 millones o "
         "más requieren excepción.",
     ),
+    ProductoHipotecario(
+        id="bx-tradicional-2023-03",
+        institucion="BX+",
+        nombre="Crédito Hipotecario Tradicional",
+        # Tasa por aforo del crédito BX+ solo (Simulador!CC12): la primera
+        # opción de cada tramo de VResPlus!H36:K50. El archivo ofrece otras
+        # (p. ej. 9.35 % al 70 %) para "excelente historial crediticio".
+        tasa_anual=Decimal("0.11"),
+        tabla_tasas=(
+            (240, Decimal("0.70"), Decimal("0.102")),
+            (240, Decimal("0.80"), Decimal("0.105")),
+            (240, Decimal("0.85"), Decimal("0.11")),
+        ),
+        convencion_interes=ConvencionDias.TASA_ENTRE_12,
+        plazos_meses=tuple(range(12, 241, 12)),        # 1 a 20 años (D12)
+        aforo_max=Decimal("0.85"),
+        monto_minimo=Decimal("600000"),                  # AI15
+        comision_apertura=Decimal("0.01"),               # D14, sin IVA
+        comision_apertura_tope=Decimal("150000"),        # F32
+        comision_mensual=Decimal("346.84"),              # 299 × 1.16 (F22)
+        seguro_vida_mensual=Decimal("0.00065"),          # un asegurado (C53)
+        # Daños 0.301‰ mensual × 1.16 sobre 70 % del valor (resto de la
+        # República; Quintana Roo 0.52‰, Yucatán 0.34‰)
+        seguro_danos_anual=Decimal("0.00418992"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        tarifa_avaluo=(                                  # H20:J29, sin IVA
+            (Decimal("0"), Decimal("1300"), Decimal("0")),
+            (Decimal("600000.01"), Decimal("2000"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("2700"), Decimal("0")),
+            (Decimal("1500000.01"), Decimal("3400"), Decimal("0")),
+            (Decimal("2000000.01"), Decimal("4600"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("6000"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("8750"), Decimal("0")),
+            (Decimal("7000000.01"), Decimal("12500"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("18000"), Decimal("0")),
+            (Decimal("15000000.01"), Decimal("25000"), Decimal("0")),
+        ),
+        avaluo_factor_iva=Decimal("1.16"),
+        # CAT (AJ): apertura completa; avalúo, daños y comisión sin IVA
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL}
+        ),
+        vigente_desde=date(2023, 3, 28),
+        fuente="Cotizador BX+ TRADICIONAL.xlsx (Simulador CH BX+, VResPlus), "
+        "guardado 2023-03-28. SIN escenario capturado: validado contra sus "
+        "fórmulas, no contra cifras del banco.",
+        notas="TASAS DE MARZO DE 2023: confirmar vigencia con BX+. Tasa: primera "
+        "opción de cada tramo de aforo (10.20 % / 10.50 % / 11.00 %); el archivo "
+        "ofrece también 10.80 % y 11.50 %. Aforo mayor a 80 % sujeto a "
+        "autorización. Daños de 'resto de la República'. Vida para un asegurado.",
+    ),
+    ProductoHipotecario(
+        id="banorte-hipoteca-fuerte-2026-06",
+        institucion="Banorte",
+        nombre="Hipoteca Fuerte",
+        # Tasa por perfil según la evaluación del crédito ('Tabla Parámetros'
+        # D3:D5): Premium 8.80 %, Mínima 9.75 %, Baja 10.80 %. Se usa Mínima,
+        # la de referencia del producto (Sheet1!AB2).
+        tasa_anual=Decimal("0.0975"),
+        convencion_interes=ConvencionDias.DIAS_30_4_360,
+        primer_periodo_dias_reales=True,
+        dia_de_pago=3,
+        dia_corte_primer_pago=30,
+        plazos_meses=tuple(range(60, 241, 12)),          # W3:W18
+        aforo_max=Decimal("0.90"),                       # I47
+        monto_minimo=Decimal("75000"),                   # C92 (no lo valida el archivo)
+        valor_minimo_inmueble=Decimal("350000"),         # C91 (idem)
+        comision_apertura=Decimal("0.01"),               # J30, sin IVA
+        comision_mensual=Decimal("299"),                 # comisión diferida, sin IVA
+        seguro_vida_mensual=Decimal("0.0006"),           # Básico (R5)
+        seguro_danos_anual=Decimal("0.00336"),           # S5: 0.00028 mensual
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),             # valor destructible N13
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("3000"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("5000"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("8000"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("15000"), Decimal("0")),
+            (Decimal("7000000.01"), Decimal("17000"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("25000"), Decimal("0")),
+            (Decimal("20000000.01"), Decimal("30000"), Decimal("0")),
+            (Decimal("30000000.01"), Decimal("0"), Decimal("1")),
+        ),
+        avaluo_factor_iva=Decimal("1.16"),
+        # Tabla Fijos CAT!AC: avalúo sin IVA, daños ÷ 1.16; vida y comisión
+        # diferida completas; apertura completa.
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS}),
+        vigente_desde=date(2026, 6, 15),
+        fuente="Cotizador BANORTE_SIMULADOR_UNIVERSAL.xlsm, Hipoteca Fuerte, "
+        "programa Tradicional (Simulador, Tabla Fijos, Tabla Fijos CAT). Guardado "
+        "2026-06-15; validado con su escenario capturado (perfil Premium 8.80 %, "
+        "tabla y CAT).",
+        notas="La tasa depende del perfil que asigne Banorte tras evaluar el crédito: "
+        "8.80 % / 9.75 % / 10.80 %; aquí la de referencia 9.75 %. Seguro de vida "
+        "Básico (Amplio 0.0858 %). Primer mes irregular desde la cotización.",
+    ),
 ]

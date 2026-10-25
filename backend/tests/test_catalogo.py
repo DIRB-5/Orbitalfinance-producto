@@ -479,3 +479,68 @@ def test_banamex_a_tu_medida_reproduce_las_formulas_del_cotizador():
             assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
     neto = credito - D("5500") / D("1.16") - credito * D("0.01")
     assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")
+
+
+@pytest.mark.parametrize("enganche, tasa", [("750000", "0.102"), ("500000", "0.105"), ("400000", "0.11")])
+def test_bx_tradicional_tasa_por_aforo(enganche, tasa):
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    escenario = Escenario(valor_vivienda=D("2500000"), enganche=D(enganche), plazo_meses=240)
+    resultado = evaluar_producto(escenario, POR_ID["bx-tradicional-2023-03"])
+    assert resultado.elegible
+    assert resultado.producto.tasa_anual == D(tasa)
+
+
+def test_bx_tradicional_reproduce_las_formulas_del_cotizador():
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .test_cotizadores_reales import _cat
+
+    valor, credito = D("2500000"), D("1750000")
+    escenario = Escenario(valor_vivienda=valor, enganche=valor - credito, plazo_meses=240)
+    resultado = evaluar_producto(escenario, POR_ID["bx-tradicional-2023-03"])
+    assert resultado.comision_apertura == D("17500")
+    filas, apertura, flujos = _bx_referencia(valor, credito, D("0.102"), 240)
+    for mes in (1, 2, 12, 120, 239, 240):
+        r = resultado.tabla.renglones[mes - 1]
+        saldo, interes, capital, vida, danos, total = filas[mes - 1]
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida, vida), (r.seguro_danos, danos), (r.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - _cat(flujos, credito - apertura - D("4600"))) < D("0.0000001")
+
+
+@pytest.mark.parametrize("mes", [1, 2, 12, 60, 120, 240])
+def test_banorte_hipoteca_fuerte_reproduce_su_cotizador(mes):
+    """Escenario capturado del Simulador Universal (perfil Premium 8.80 %,
+    cotizado el 2026-06-15): el producto del catálogo, con esa tasa, debe
+    reproducir tabla y CAT pasando por el comparador."""
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .fixtures.cotizadores_reales import BANORTE_HIPOTECA_FUERTE as B
+
+    p = B["parametros"]
+    producto = replace(POR_ID["banorte-hipoteca-fuerte-2026-06"], tasa_anual=p["tasa_anual"])
+    escenario = Escenario(
+        valor_vivienda=p["valor_inmueble"], enganche=p["valor_inmueble"] - p["monto"],
+        plazo_meses=p["plazo_meses"],
+    )
+    resultado = evaluar_producto(escenario, producto, momento=date.fromisoformat(p["fecha_cotizacion"]))
+    assert resultado.elegible
+    assert resultado.avaluo == p["avaluo"]
+    assert resultado.comision_apertura == p["monto"] * p["comision_apertura_pct"]
+    r = resultado.tabla.renglones[mes - 1]
+    fecha, saldo, capital, interes, vida, danos, comision, pago, final = B["renglones"][mes]
+    assert r.fecha_pago.isoformat() == fecha
+    for calc, esp, nombre in ((r.saldo_inicial, saldo, "saldo"), (r.capital, capital, "capital"),
+                              (r.interes, interes, "interés"), (r.seguro_vida, vida, "vida"),
+                              (r.seguro_danos, danos, "daños"), (r.comision_mensual, comision, "comisión"),
+                              (r.pago_total, pago, "pago"), (r.saldo_final, final, "saldo final")):
+        assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
+    assert abs(resultado.cat_estimado - B["cat_esperado"]) < D("0.0000001")
