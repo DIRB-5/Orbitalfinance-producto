@@ -889,3 +889,128 @@ CATALOGO += [
     ),
 ]
 
+
+# ---------------------------------------------------------------------------
+# Liquidez: efectivo con la vivienda en garantía. Ningún cotizador trae un
+# escenario de liquidez capturado: mecánica validada de cada banco con los
+# parámetros de liquidez de su archivo.
+# ---------------------------------------------------------------------------
+CATALOGO += [
+    replace(
+        _POR_ID["banorte-hipoteca-fuerte-2026-06"],
+        id="banorte-liquidez-2026-06",
+        nombre="Liquidez",
+        destino=Destino.LIQUIDEZ,
+        tasa_anual=Decimal("0.1299"),                    # 'Tabla Parámetros'!C14
+        plazos_meses=tuple(range(60, 181, 12)),
+        aforo_max=Decimal("0.70"),                       # I63
+        comision_apertura=Decimal("0.0174"),             # 1.5 % + IVA (L46)
+        comision_mensual=Decimal("360"),
+        comision_investigacion=Decimal("500"),
+        iva_sobre_intereses=True,                        # Tabla Fijos!I: siempre en liquidez
+        cat_netos_de_iva=frozenset({
+            ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.INVESTIGACION,
+            ConceptoIVA.COMISION_APERTURA,
+        }),
+        fuente="Cotizador BANORTE_SIMULADOR_UNIVERSAL.xlsm, destino Liquidez. Guardado "
+        "2026-06-15. Sin escenario capturado: mecánica validada de Hipoteca Fuerte "
+        "con los parámetros de liquidez.",
+        notas="IVA sobre intereses en el pago (no en el CAT). Apertura 1.5 % + IVA, "
+        "comisión diferida $360, gastos de aprobación $500.",
+    ),
+    replace(
+        _POR_ID["banamex-perfiles-mercado-abierto-2026-08"],
+        id="banamex-liquidez-mercado-abierto-2026-08",
+        nombre="Hipoteca de Liquidez (Mercado abierto)",
+        destino=Destino.LIQUIDEZ,
+        tasa_anual=Decimal("0.13"),                      # DX84:DY87, Mercado abierto
+        aforo_max=Decimal("0.65"),                       # ED85:ED87
+        monto_maximo=Decimal("8000000"),                 # DR16
+        comision_apertura=Decimal("0.0116"),             # 1 % + IVA (DR67)
+        iva_sobre_intereses=True,
+        iva_intereses_inflacion=Decimal("0.04"),         # TablaLiquidez!AE
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO, ConceptoIVA.COMISION_APERTURA}),
+        fuente="Cotizador BANAMEX.xlsm, hoja Liquidez (Calculos DQ:EQ, TablaLiquidez). "
+        "Versión v.20260824. SIN escenario capturado: mecánica validada de Perfiles "
+        "con los parámetros de liquidez.",
+        notas="Tasa de Mercado abierto; con vinculación 11.75 %–12.25 %. IVA solo sobre "
+        "el interés real (inflación de 4 %), en el pago y no en el CAT. Ingreso "
+        "mínimo $35,000 (no modelado).",
+    ),
+    replace(
+        _POR_ID["bx-tradicional-2023-03"],
+        id="bx-liquidez-2022-10",
+        nombre="Liquidez",
+        destino=Destino.LIQUIDEZ,
+        tasa_anual=Decimal("0.147"),                     # VResPlus!I44 (o 14.90 %)
+        tabla_tasas=(),
+        plazos_meses=tuple(range(12, 121, 12)),          # 1 a 10 años
+        aforo_max=Decimal("0.50"),                       # D14
+        monto_minimo=Decimal("500000"),
+        monto_maximo=Decimal("4000000"),
+        valor_minimo_inmueble=Decimal("2500000"),        # D19
+        comision_apertura=Decimal("0.0232"),             # 2 % + IVA, sin tope (F31, F33)
+        comision_apertura_tope=None,
+        cat_netos_de_iva=frozenset({
+            ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL,
+            ConceptoIVA.COMISION_APERTURA,
+        }),
+        vigente_desde=date(2022, 10, 25),
+        fuente="Cotizador BX+ LIQUIDEZ.xlsx (Simulador M_A, VResPlus), guardado "
+        "2022-10-25. SIN escenario capturado: validado contra sus fórmulas.",
+        notas="TASAS DE OCTUBRE DE 2022: confirmar vigencia con BX+. Sin IVA de "
+        "intereses en el pago. Valor mínimo del inmueble $2.5 millones.",
+    ),
+    replace(
+        _POR_ID["banregio-adquisicion-2023-12"],
+        id="banregio-liquidez-2023-12",
+        nombre="Liquidez",
+        destino=Destino.LIQUIDEZ,
+        tasa_anual=Decimal("0.13"),
+        tabla_tasas=(                                    # TablaTasas D31 / D46 / D61
+            (120, Decimal("0.50"), Decimal("0.1225")),
+            (180, Decimal("0.50"), Decimal("0.125")),
+            (240, Decimal("0.50"), Decimal("0.13")),
+        ),
+        aforo_max=Decimal("0.50"),
+        iva_sobre_intereses=True,                        # G = interés × 1.16 (A2 = 15)
+        iva_intereses_en_cat=True,                       # AA usa G
+        fuente="Cotizador BANREGIO MULTIPRODUCTO.xlsm, producto 15 Liquidez. Archivo "
+        "guardado 2023-12-01. Sin escenario capturado de liquidez: misma mecánica "
+        "validada que adquisición, con IVA de intereses.",
+        notas="TASAS DE DICIEMBRE DE 2023: confirmar vigencia con Banregio. El IVA de "
+        "intereses entra al pago y al CAT. El archivo divide todos los seguros entre "
+        "1.16 en el CAT de liquidez (probable error); aquí solo el de daños.",
+    ),
+    replace(
+        _POR_ID["scotiabank-7x5-adquisicion-2024-01"],
+        id="scotiabank-liquidez-libre-7x5-2024-01",
+        nombre="Liquidez Libre 7x5",
+        destino=Destino.LIQUIDEZ,
+        tasa_anual=Decimal("0.14"),                      # AA59
+        tabla_tasas=(),
+        tasa_variable=None,
+        reamortizar_mensual_desde=None,
+        factores_al_millar=((60, Decimal("23.4")),),
+        plazos_meses=(60,),
+        aforo_max=Decimal("0.75"),
+        monto_minimo=Decimal("100000"),
+        monto_maximo=Decimal("2500000"),
+        valor_minimo_inmueble=Decimal("1000000"),
+        comision_apertura=Decimal("0"),
+        iva_sobre_intereses=True,
+        tarifa_avaluo=(                                  # tarifa TopUp / LiqLibre
+            (Decimal("0"), Decimal("1253"), Decimal("0")),
+            (Decimal("500000.01"), Decimal("1740"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("2784"), Decimal("0")),
+            (Decimal("2000000.01"), Decimal("4663"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("5000"), Decimal("0")),
+        ),
+        fuente="Cotizador SCOTIABANK Liquidez Libre 7x5.xlsm (motor 7x5). v2024.01, "
+        "guardado 2024-03-22. SIN escenario capturado: validado contra sus fórmulas.",
+        notas="TASAS DE MARZO DE 2024: confirmar vigencia con Scotiabank. Solo 5 años, "
+        "tasa fija. IVA de intereses en el pago, no en el CAT. Los esquemas Valora y "
+        "Pagos Oportunos de liquidez no se modelan.",
+    ),
+]
+

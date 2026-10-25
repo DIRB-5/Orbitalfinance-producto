@@ -21,7 +21,12 @@ from motor_hipotecario.comparador import (
     comparar,
     primer_pago_por_defecto,
 )
-from motor_hipotecario.modelos import Cofinanciamiento, Escenario, ProductoHipotecario
+from motor_hipotecario.modelos import (
+    Cofinanciamiento,
+    CreditoActual,
+    Escenario,
+    ProductoHipotecario,
+)
 
 from .esquemas import (
     CatalogoSalida,
@@ -79,6 +84,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         institucion=p.institucion,
         nombre=p.nombre,
         tipo=p.tipo.value,
+        destino=p.destino.value,
         tasa_anual=_tasa(p.tasa_anual),
         tasa_normalizada=_tasa(tasa_normalizada(p)),
         convencion_interes=p.convencion_interes.value,
@@ -185,6 +191,11 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         total_comision_mensual=_dinero(t.total_comision_mensual),
         total_aportaciones=_dinero(o.total_aportaciones),
         credito_instituto=_credito_instituto(o),
+        costo_de_cambiarse=_dinero_opcional(o.costo_de_cambiarse),
+        ahorro_mensual=_dinero_opcional(o.ahorro_mensual),
+        punto_equilibrio_mes=o.punto_equilibrio_mes,
+        ahorro_neto=_dinero_opcional(o.ahorro_neto),
+        serie_ahorro=[_dinero(a) for a in o.serie_ahorro],
         suma_mensualidades=_dinero(t.total_pagado),
         costo_total=_dinero(o.costo_total),
         costo_financiero=_dinero(o.costo_financiero),
@@ -201,6 +212,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
                 comision_mensual=_dinero(r.comision_mensual),
                 aportacion=_dinero(r.aportacion),
                 seguro_desempleo=_dinero(r.seguro_desempleo),
+                iva_intereses=_dinero(r.iva_intereses),
                 pago_total=_dinero(r.pago_total),
                 saldo_final=_dinero(r.saldo_final),
             )
@@ -239,6 +251,10 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         fecha_primer_pago=entrada.fecha_primer_pago,
         fecha_disposicion=entrada.fecha_disposicion,
         tiie=ESCENARIOS_TIIE[entrada.escenario_tasa],
+        destino=entrada.destino,
+        credito_actual=(
+            CreditoActual(**entrada.credito_actual.model_dump()) if entrada.credito_actual else None
+        ),
         cofinanciamiento=(
             Cofinanciamiento(**entrada.cofinanciamiento.model_dump())
             if entrada.cofinanciamiento

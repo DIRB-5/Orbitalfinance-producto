@@ -1572,3 +1572,42 @@ def test_sustitucion_sin_ahorro_no_tiene_punto_de_equilibrio():
 def test_sustitucion_requiere_el_credito_actual():
     escenario = _escenario_sustitucion(credito_actual=None)
     assert any("crédito actual" in e for e in escenario.validar())
+
+
+# --------------------------------------------------------------------------
+# IVA sobre intereses (créditos de liquidez)
+# --------------------------------------------------------------------------
+
+
+def _tabla_iva(**kwargs):
+    producto = producto_limpio(iva_sobre_intereses=True, **kwargs)
+    return producto, construir_tabla(LineaCredito(producto, Decimal("1000000"), 120), Decimal("2500000"))
+
+
+def test_iva_sobre_intereses_se_cobra_en_el_pago():
+    producto, tabla = _tabla_iva()
+    r = tabla.renglones[0]
+    assert r.iva_intereses == r.interes * Decimal("0.16")
+    assert r.pago_total == r.capital + r.interes + r.iva_intereses
+    # el IVA no amortiza: el capital es el del pago fijo
+    sin_iva = construir_tabla(LineaCredito(producto_limpio(), Decimal("1000000"), 120), Decimal("2500000"))
+    assert r.capital == sin_iva.renglones[0].capital
+
+
+def test_iva_de_intereses_fuera_o_dentro_del_cat():
+    producto, tabla = _tabla_iva()
+    _, flujos = flujos_cat(tabla, producto)
+    r = tabla.renglones[0]
+    assert flujos[0] == r.capital + r.interes                 # fuera (Banorte, Scotiabank)
+    producto_cat, tabla_cat = _tabla_iva(iva_intereses_en_cat=True)
+    _, flujos = flujos_cat(tabla_cat, producto_cat)
+    assert flujos[0] == r.capital + r.interes + r.iva_intereses   # dentro (Banregio)
+
+
+def test_iva_sobre_interes_real():
+    """Banamex: IVA solo sobre el interés real, descontando 4 % de inflación."""
+    _, tabla = _tabla_iva(iva_intereses_inflacion=Decimal("0.04"))
+    r = tabla.renglones[0]
+    i = Decimal("0.1085") / 12
+    real = (1 + i) / (1 + Decimal("0.04") / 12) - 1
+    assert r.iva_intereses == r.saldo_inicial * real * Decimal("0.16")

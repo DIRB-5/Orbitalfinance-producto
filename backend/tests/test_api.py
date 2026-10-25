@@ -109,3 +109,33 @@ def test_opcion_trae_el_pago_regular():
     assert not santander["primerPagoIrregular"]
     assert santander["pagoRegularInicial"] == santander["pagoPrimerMes"]
 
+
+def test_sustitucion_por_api():
+    cuerpo = {
+        "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 180,
+        "gastosNotariales": "60000", "destino": "sustitucion",
+        "creditoActual": {"saldoInsoluto": "1500000", "pagoMensual": "21000",
+                          "plazoRemanenteMeses": 180, "penalizacionPrepago": "0"},
+    }
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    assert opciones and all(o["productoId"] for o in opciones)
+    elegibles = [o for o in opciones if o["elegible"]]
+    assert elegibles
+    for o in elegibles:
+        assert o["ahorroMensual"] is not None and o["costoDeCambiarse"] is not None
+        assert len(o["serieAhorro"]) >= 180
+
+
+def test_liquidez_por_api_trae_iva_de_intereses():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
+              "destino": "liquidez"}
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    banorte = next(o for o in opciones if o["productoId"] == "banorte-liquidez-2026-06")
+    assert Decimal(banorte["tabla"][1]["ivaIntereses"]) > 0
+
+
+def test_sustitucion_sin_credito_actual_es_invalida():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 180,
+              "destino": "sustitucion"}
+    assert cliente.post("/api/comparar", json=cuerpo).status_code == 422
+

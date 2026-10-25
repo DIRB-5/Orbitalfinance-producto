@@ -55,6 +55,8 @@ class Renglon:
     aportacion: Dinero = Decimal("0")
     # Seguro de desempleo (porcentaje del pago), incluido en pago_total.
     seguro_desempleo: Dinero = Decimal("0")
+    # IVA sobre intereses (liquidez), incluido en pago_total.
+    iva_intereses: Dinero = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -474,7 +476,8 @@ def construir_tabla(
             pago_fijo = anualidad + seguros_en_pago
 
         danos_mes = None
-        interes_regular = saldo_inicial * tasa_periodica(tasa, convencion_interes, dias)
+        i_periodo = tasa_periodica(tasa, convencion_interes, dias)
+        interes_regular = saldo_inicial * i_periodo
         interes = interes_regular
         vida = saldo_inicial * producto.seguro_vida_mensual
         if producto.base_seguro_danos is BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO and danos:
@@ -485,7 +488,8 @@ def construir_tabla(
             if fecha is None:
                 raise ValueError("El primer periodo irregular necesita la fecha del primer pago.")
             dias_primer_periodo = (fecha - fecha_disposicion).days + 1
-            interes = saldo_inicial * tasa * Decimal(dias_primer_periodo) / Decimal(360)
+            i_periodo = tasa * Decimal(dias_primer_periodo) / Decimal(360)
+            interes = saldo_inicial * i_periodo
             vida = saldo_inicial * producto.seguro_vida_mensual / Decimal(30) * dias_primer_periodo
             danos_mes = danos / Decimal(30) * dias_primer_periodo
 
@@ -561,6 +565,16 @@ def construir_tabla(
             if producto.seguro_desempleo_con_iva:
                 desempleo *= Decimal("1.16")
             pago_total += desempleo
+        iva_intereses = Decimal(0)
+        if producto.iva_sobre_intereses:
+            if producto.iva_intereses_inflacion is not None:
+                real = (Decimal(1) + i_periodo) / (
+                    Decimal(1) + producto.iva_intereses_inflacion / Decimal(12)
+                ) - Decimal(1)
+                iva_intereses = saldo_inicial * real * Decimal("0.16")
+            else:
+                iva_intereses = interes * Decimal("0.16")
+            pago_total += iva_intereses
 
         renglones.append(
             Renglon(
@@ -576,6 +590,7 @@ def construir_tabla(
                 fecha_pago=fecha,
                 aportacion=aportacion,
                 seguro_desempleo=desempleo,
+                iva_intereses=iva_intereses,
             )
         )
         saldo = saldo_final

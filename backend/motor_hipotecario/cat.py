@@ -76,6 +76,7 @@ def flujos_cat(
     pagos = [
         r.capital
         + r.interes
+        + (r.iva_intereses if producto.iva_intereses_en_cat else 0)
         + r.seguro_vida
         + flujo(ConceptoIVA.SEGURO_DANOS, r.seguro_danos)
         + flujo(ConceptoIVA.COMISION_MENSUAL, r.comision_mensual)

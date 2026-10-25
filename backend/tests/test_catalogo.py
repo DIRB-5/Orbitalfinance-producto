@@ -805,3 +805,54 @@ def test_banorte_terreno_urbanizado(plazo, tasa):
     assert all(x.seguro_danos == 0 and x.comision_mensual == 250 for x in r.tabla.renglones)
     neto, _ = flujos_cat(r.tabla, r.producto)
     assert neto == D("1000000") - r.avaluo / D("1.16") - D("500") / D("1.16")
+
+
+# ---------------------------------------------------------------------------
+# Liquidez
+# ---------------------------------------------------------------------------
+
+def _escenario_liquidez(valor, monto, plazo):
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    return Escenario(valor_vivienda=valor, enganche=valor - monto, plazo_meses=plazo,
+                     destino=Destino.LIQUIDEZ)
+
+
+def test_productos_de_liquidez_en_el_catalogo():
+    from motor_hipotecario.modelos import Destino
+
+    ids = {p.id for p in CATALOGO if p.destino is Destino.LIQUIDEZ}
+    assert ids == {"banorte-liquidez-2026-06", "banamex-liquidez-mercado-abierto-2026-08",
+                   "bx-liquidez-2022-10", "banregio-liquidez-2023-12",
+                   "scotiabank-liquidez-libre-7x5-2024-01"}
+
+
+@pytest.mark.parametrize("producto_id, valor, monto, plazo, tasa, iva_en_pago", [
+    ("banorte-liquidez-2026-06", "3000000", "1500000", 120, "0.1299", True),
+    ("banamex-liquidez-mercado-abierto-2026-08", "3000000", "1500000", 120, "0.13", True),
+    ("bx-liquidez-2022-10", "3000000", "1500000", 120, "0.147", False),
+    ("banregio-liquidez-2023-12", "3000000", "1500000", 120, "0.1225", True),
+    ("scotiabank-liquidez-libre-7x5-2024-01", "3000000", "1500000", 60, "0.14", True),
+])
+def test_liquidez_elegible_con_su_tasa_e_iva(producto_id, valor, monto, plazo, tasa, iva_en_pago):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_escenario_liquidez(D(valor), D(monto), plazo), POR_ID[producto_id],
+                         date(2026, 11, 1), momento=date(2026, 10, 24))
+    assert r.elegible, r.motivos_rechazo
+    assert r.producto.tasa_anual == D(tasa)
+    assert (r.tabla.renglones[1].iva_intereses > 0) is iva_en_pago
+    assert r.tabla.renglones[-1].saldo_final == 0
+
+
+def test_liquidez_respeta_su_aforo():
+    from motor_hipotecario.comparador import evaluar_producto
+
+    # 60 % de aforo: Banregio y BX+ (50 %) no; Banamex (65 %) sí
+    escenario = _escenario_liquidez(D("3000000"), D("1800000"), 120)
+    from datetime import date
+    assert not evaluar_producto(escenario, POR_ID["banregio-liquidez-2023-12"], date(2026, 11, 1)).elegible
+    assert not evaluar_producto(escenario, POR_ID["bx-liquidez-2022-10"]).elegible
+    assert evaluar_producto(escenario, POR_ID["banamex-liquidez-mercado-abierto-2026-08"]).elegible

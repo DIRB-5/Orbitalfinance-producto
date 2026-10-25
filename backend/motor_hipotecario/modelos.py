@@ -229,6 +229,14 @@ class ProductoHipotecario:
     seguro_desempleo_pct: Decimal = Decimal("0")
     seguro_desempleo_con_iva: bool = False
 
+    # IVA sobre intereses (créditos de liquidez): se cobra en el pago, aparte
+    # del pago fijo (no amortiza). Con `iva_intereses_inflacion` se cobra solo
+    # sobre el interés real: (1 + i) / (1 + inflación/12) − 1 (Banamex, 4 %).
+    # Entra al CAT solo si `iva_intereses_en_cat` (Banregio sí; los demás no).
+    iva_sobre_intereses: bool = False
+    iva_intereses_inflacion: Optional[Decimal] = None
+    iva_intereses_en_cat: bool = False
+
     # Factores de pago al millar fijos por plazo ((plazo, factor), ...): el
     # pago es monto × factor / 1000 (Scotiabank los trae escritos a mano).
     factores_al_millar: Tuple[Tuple[int, Decimal], ...] = ()

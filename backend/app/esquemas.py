@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from motor_hipotecario.modelos import TipoLinea
+from motor_hipotecario.modelos import Destino, TipoLinea
 from pydantic.alias_generators import to_camel
 
 
@@ -29,6 +29,15 @@ class CofinanciamientoEntrada(ModeloBase):
     saldo_subcuenta: Decimal = Field(default=Decimal("0"), ge=0)
 
 
+class CreditoActualEntrada(ModeloBase):
+    saldo_insoluto: Decimal = Field(gt=0)
+    pago_mensual: Decimal = Field(gt=0)
+    plazo_remanente_meses: int = Field(gt=0, le=480)
+    tasa_anual: Optional[Decimal] = Field(default=None, ge=0)
+    penalizacion_prepago: Decimal = Field(default=Decimal("0"), ge=0)
+    institucion: str = ""
+
+
 class EscenarioEntrada(ModeloBase):
     valor_vivienda: Decimal = Field(gt=0)
     enganche: Decimal = Field(ge=0)
@@ -39,6 +48,8 @@ class EscenarioEntrada(ModeloBase):
     fecha_primer_pago: Optional[date] = None
     fecha_disposicion: Optional[date] = None
     cofinanciamiento: Optional[CofinanciamientoEntrada] = None
+    destino: Destino = Destino.ADQUISICION
+    credito_actual: Optional[CreditoActualEntrada] = None
     # Escenario de TIIE para productos de tasa variable
     escenario_tasa: str = Field(default="base", pattern="^(conservador|base|estres)$")
 
@@ -81,6 +92,7 @@ class ProductoSalida(ModeloBase):
     institucion: str
     nombre: str
     tipo: str
+    destino: str
     tasa_anual: str
     tasa_normalizada: str
     convencion_interes: str
@@ -143,6 +155,7 @@ class RenglonSalida(ModeloBase):
     comision_mensual: str
     aportacion: str
     seguro_desempleo: str
+    iva_intereses: str
     pago_total: str
     saldo_final: str
 
@@ -190,6 +203,12 @@ class OpcionSalida(ModeloBase):
     total_comision_mensual: str
     total_aportaciones: str
     credito_instituto: Optional[CreditoInstitutoSalida]
+    # Sustitución: contra quedarse con el crédito actual
+    costo_de_cambiarse: Optional[str]
+    ahorro_mensual: Optional[str]
+    punto_equilibrio_mes: Optional[int]
+    ahorro_neto: Optional[str]
+    serie_ahorro: List[str]
     suma_mensualidades: str
     costo_total: str
     costo_financiero: str
