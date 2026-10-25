@@ -101,6 +101,7 @@ class ProductoSalida(ModeloBase):
     seguros_en_pago_fijo: bool
     crecimiento_pago_mensual: List[FaseCrecimientoSalida]
     factores_al_millar_anuales: List[str]
+    crecimiento_pago_anual: Optional[str]
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]

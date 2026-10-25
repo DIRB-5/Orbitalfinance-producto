@@ -139,3 +139,9 @@ def test_sustitucion_sin_credito_actual_es_invalida():
               "destino": "sustitucion"}
     assert cliente.post("/api/comparar", json=cuerpo).status_code == 422
 
+
+def test_catalogo_expone_el_crecimiento_anual_del_pago():
+    productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
+    assert productos["scotiabank-pasivos-valora-2024-01"]["crecimientoPagoAnual"] == "0.026"
+    assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["crecimientoPagoAnual"] is None
+
