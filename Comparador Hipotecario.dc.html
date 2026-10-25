@@ -3275,6 +3275,7 @@ class Component extends DCLogic {
         Object.assign(campoNumero("institucionActual", "Institución actual"), {
           esNumero: false, esTexto: true, valor: s.form.institucionActual || "",
           onChange: setSel("institucionActual"),
+          hayNota: true, nota: "Algunos bancos tienen un producto para mejorar su propia hipoteca y otro para traerla de otro banco (Santander).",
         }),
         campoNumero("saldoInsoluto", "Saldo insoluto"),
         campoTasaPct("tasaActual", "Tasa actual"),

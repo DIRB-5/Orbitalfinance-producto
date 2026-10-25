@@ -7,6 +7,7 @@ imprime, no formatea, no sabe qué es un PDF: devuelve datos.
 
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from decimal import Decimal
@@ -263,6 +264,23 @@ def _acepta(producto: ProductoHipotecario, cofinanciamiento) -> bool:
     return regla is not None and regla.instituto is cofinanciamiento.instituto
 
 
+def _normalizado(texto: str) -> str:
+    sin_acentos = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return " ".join(sin_acentos.lower().split())
+
+
+def credito_actual_es_propio(escenario: Escenario, producto: ProductoHipotecario) -> Optional[bool]:
+    """
+    ¿La hipoteca actual ya es del banco del producto? None si no se capturó la
+    institución. Compara sin mayúsculas ni acentos y acepta nombres largos
+    ("Banco Santander México" es Santander).
+    """
+    actual = escenario.credito_actual
+    if actual is None or not actual.institucion.strip():
+        return None
+    return _normalizado(producto.institucion) in _normalizado(actual.institucion)
+
+
 def valor_garantia(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
     """Valor sobre el que se mide el aforo: la vivienda, más el inmueble
     adicional en garantía si el producto lo acepta (Afirme Tu Casa 2)."""
@@ -446,6 +464,19 @@ def evaluar_producto(
         motivos.append(
             "El producto sirve para dejar un inmueble adicional en garantía o financiar "
             "los gastos; sin eso aplica el crédito de adquisición del mismo banco."
+        )
+
+    propio = credito_actual_es_propio(escenario, producto)
+    if producto.solo_credito_actual_propio and not propio:
+        motivos.append(
+            f"Solo mejora hipotecas que ya son de {producto.institucion}"
+            + (": captura la institución del crédito actual." if propio is None
+               else "; para traer una de otro banco aplica su producto de sustitución.")
+        )
+    if producto.excluye_credito_actual_propio and propio:
+        motivos.append(
+            f"La hipoteca actual ya es de {producto.institucion}: aplica su Mejora de "
+            "Condiciones, no la sustitución."
         )
 
     if plazo not in producto.plazos_meses:

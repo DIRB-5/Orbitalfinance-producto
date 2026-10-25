@@ -364,6 +364,12 @@ class ProductoHipotecario:
     # ninguno es igual a otro producto del banco (Tu Casa 2 = Adquisición).
     requiere_garantia_o_gastos_financiados: bool = False
 
+    # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
+    # solo para hipotecas que ya son del mismo banco (Santander Mejora de
+    # Condiciones) o solo para traerlas de otro (Santander Sustitución).
+    solo_credito_actual_propio: bool = False
+    excluye_credito_actual_propio: bool = False
+
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
 

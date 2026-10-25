@@ -1327,6 +1327,9 @@ CATALOGO += [
         financiamiento_gastos=FinanciamientoGastos(
             tope=Decimal("0.07"), linea_separada=True, excede_aforo_cancela=True
         ),
+        # "Para cambiar tu hipoteca de otro Banco a Santander" (santander.com.mx,
+        # Hipoteca Plus); la propia se mejora con Mejora de Condiciones.
+        excluye_credito_actual_propio=True,
         vigente_desde=date(2025, 12, 15),
         fuente="Cotizador Santander.xlsm, destino Sustitución (Adm, Cal, Liquidez, "
         "CAT), versión 2025-6 Ro (15 diciembre 2025). SIN escenario capturado: "
@@ -1337,8 +1340,33 @@ CATALOGO += [
         "90 % para asalariados perfil 4–5 (75 % a 85 % en los demás). Seguro de vida "
         "para dos intervinientes. Los gastos se financian en un segundo crédito: "
         "SUPUESTO, el mínimo entre los gastos del escenario y el 7 % (el cotizador "
-        "financia el 7 % fijo). Mejora de Condiciones no se incluye: falta confirmar "
-        "con Santander a quién aplica.",
+        "financia el 7 % fijo). No aplica a hipotecas que ya son de Santander: para "
+        "esas está Mejora de Condiciones.",
     ),
 ]
+CATALOGO.append(
+    replace(
+        next(p for p in CATALOGO if p.id == "santander-sustitucion-2025-12"),
+        id="santander-mejora-condiciones-2025-12",
+        nombre="Mejora de Condiciones",
+        # Misma mecánica que Sustitución (Cal, Liquidez, CAT) con las tasas de
+        # Adquisición: oferta Ninguno, perfiles 4–5 (Adm!CD8:CD9)
+        tasa_anual=Decimal("0.1025"),
+        monto_minimo=Decimal("200000"),                  # Adm!Z9
+        excluye_credito_actual_propio=False,
+        # "Para mejorar las condiciones de tu hipoteca actual con Santander"
+        solo_credito_actual_propio=True,
+        fuente="Cotizador Santander.xlsm, destino Mejora de Condiciones (Adm, Cal, "
+        "Liquidez, CAT), versión 2025-6 Ro (15 diciembre 2025). A quién aplica: "
+        "santander.com.mx, Hipoteca Plus, consultado 2026-10-25. SIN escenario "
+        "capturado: validado contra sus fórmulas.",
+        notas="Solo para quien ya tiene su hipoteca con Santander. Tasa de mercado "
+        "abierto para perfiles 4 y 5 (perfil 3 10.95 %, 2 12.25 %, 1 13.25 %); con "
+        "Hipoteca Plus baja hasta 9.25 %. Sin apertura y avalúo de $2,586.21 + IVA, "
+        "como en el cotizador; un comparador externo sin fecha reporta apertura de "
+        "1 % + IVA: confirmar con Santander. Financia gastos en un segundo crédito "
+        "como Sustitución. No se modela la opción de refinanciar también el crédito "
+        "INFONAVIT/FOVISSSTE (Mejoras Cofis).",
+    )
+)
 

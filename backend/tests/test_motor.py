@@ -1877,3 +1877,42 @@ def test_linea_de_gastos_todo_o_nada_por_aforo():
     # 2,300,000 + 7 % = 2,461,000 > 95 % de 2,500,000: no se financia nada
     r = evaluar_producto(_escenario_gastos(enganche="200000"), producto_linea_gastos(), momento=HOY)
     assert r.gastos_financiados == 0 and r.tabla_gastos is None
+
+
+# --------------------------------------------------------------------------
+# Productos que dependen del banco del crédito actual (Santander)
+# --------------------------------------------------------------------------
+# "Mejora de Condiciones: para mejorar las condiciones de tu hipoteca actual
+# con Santander"; "Sustitución: para cambiar tu hipoteca de otro banco".
+
+from motor_hipotecario.modelos import CreditoActual, Destino  # noqa: E402
+
+
+def _sustitucion_desde(institucion):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal("1500000"), plazo_meses=240,
+        destino=Destino.SUSTITUCION,
+        credito_actual=CreditoActual(
+            saldo_insoluto=Decimal("1500000"), pago_mensual=Decimal("21000"),
+            plazo_remanente_meses=240, institucion=institucion,
+        ),
+    )
+
+
+def test_producto_solo_para_creditos_propios():
+    mejora = producto_limpio(institucion="Santander", destino=Destino.SUSTITUCION,
+                             solo_credito_actual_propio=True)
+    for inst in ("Santander", "banco santander méxico", " SANTANDER "):
+        assert evaluar_producto(_sustitucion_desde(inst), mejora, momento=HOY).elegible
+    for inst in ("BBVA", ""):
+        r = evaluar_producto(_sustitucion_desde(inst), mejora, momento=HOY)
+        assert not r.elegible and "Santander" in r.motivos_rechazo[0]
+
+
+def test_producto_que_excluye_creditos_propios():
+    sustitucion = producto_limpio(institucion="Santander", destino=Destino.SUSTITUCION,
+                                  excluye_credito_actual_propio=True)
+    assert evaluar_producto(_sustitucion_desde("BBVA"), sustitucion, momento=HOY).elegible
+    assert evaluar_producto(_sustitucion_desde(""), sustitucion, momento=HOY).elegible
+    r = evaluar_producto(_sustitucion_desde("Santander"), sustitucion, momento=HOY)
+    assert not r.elegible and "Mejora" in r.motivos_rechazo[0]

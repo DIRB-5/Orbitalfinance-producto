@@ -611,6 +611,7 @@ def test_productos_de_sustitucion_en_el_catalogo():
         "scotiabank-pasivos-pagos-oportunos-2024-01",
         "scotiabank-pasivos-valora-2024-01",
         "santander-sustitucion-2025-12",
+        "santander-mejora-condiciones-2025-12",
     }
 
 
@@ -1272,3 +1273,53 @@ def test_santander_adquisicion_reemplaza_a_la_version_anterior():
     })
     # La sustitución hereda la versión corregida
     assert POR_ID["santander-sustitucion-2025-12"].vigente_hasta is None
+
+
+# ---------------------------------------------------------------------------
+# Santander Mejora de Condiciones
+# ---------------------------------------------------------------------------
+
+def _sustitucion_desde(institucion, plazo=180):
+    from dataclasses import replace
+
+    escenario = _con_gastos(_escenario_sustitucion(D("3000000"), D("1500000"), plazo), "120000")
+    return replace(escenario, credito_actual=replace(escenario.credito_actual, institucion=institucion))
+
+
+def test_santander_mejora_de_condiciones_reproduce_sus_formulas():
+    """Réplica de Cal, Liquidez y CAT con la tasa de Mejora (10.25 %), 180 meses."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_sustitucion_desde("Santander"), POR_ID["santander-mejora-condiciones-2025-12"],
+                         momento=date(2026, 10, 25))
+    assert r.elegible, r.motivos_rechazo
+    assert r.gastos_financiados == D("105000") and r.avaluo == D("3000.0036")
+    principal = {1: "18755.128649058914129109049777", 60: "18534.484562097303106231871991",
+                 180: "17521.431171721039942412443576"}
+    gastos = {1: "1385.831742100790655704300151", 60: "1344.458126782104996080470974",
+              180: "1155.564163869978391278053913"}
+    for mes, esp in principal.items():
+        assert abs(r.tabla.renglones[mes - 1].pago_total - D(esp)) < D("0.000001")
+    for mes, esp in gastos.items():
+        assert abs(r.tabla_gastos.renglones[mes - 1].pago_total - D(esp)) < D("0.000001")
+    assert abs(r.cat_estimado - D("0.13079993873644")) < D("0.0000001")
+    assert abs(r.cat_gastos_estimado - D("0.11995858200797")) < D("0.0000001")
+
+
+def test_santander_mejora_o_sustitucion_segun_el_banco_actual():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    mejora, sustitucion = (POR_ID["santander-mejora-condiciones-2025-12"],
+                           POR_ID["santander-sustitucion-2025-12"])
+    momento = date(2026, 10, 25)
+    de_santander = _sustitucion_desde("Banco Santander México")
+    assert evaluar_producto(de_santander, mejora, momento=momento).elegible
+    assert not evaluar_producto(de_santander, sustitucion, momento=momento).elegible
+    de_otro = _sustitucion_desde("BBVA")
+    assert not evaluar_producto(de_otro, mejora, momento=momento).elegible
+    assert evaluar_producto(de_otro, sustitucion, momento=momento).elegible
+
