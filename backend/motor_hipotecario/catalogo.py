@@ -36,8 +36,11 @@ from datetime import date
 from decimal import Decimal
 
 from .amortizacion import factores_crecientes
+from dataclasses import replace
+
 from .modelos import (
     AportacionExcedente,
+    Destino,
     BaseSeguroDanos,
     ConceptoIVA,
     ConvencionDias,
@@ -703,3 +706,186 @@ CATALOGO: list[ProductoHipotecario] = [
         "cliente tiene mínimo (p. ej. $2,000); el CAT usa el factor sin mínimo.",
     ),
 ]
+
+
+# ---------------------------------------------------------------------------
+# Sustitución de hipoteca: variantes de los productos de adquisición
+# ---------------------------------------------------------------------------
+_POR_ID = {p.id: p for p in CATALOGO}
+
+CATALOGO += [
+    replace(
+        _POR_ID["banregio-adquisicion-2023-12"],
+        id="banregio-mejora-hipoteca-2023-12",
+        nombre="Mejora de Hipoteca (pagos fijos)",
+        destino=Destino.SUSTITUCION,
+        # Mismas tasas (TablaTasas, filas de Mejora) y mecánica que adquisición
+        fuente="Cotizador BANREGIO MULTIPRODUCTO.xlsm, producto 4 Mejora de "
+        "Hipoteca (TablaTasas, Param, TablAmoPagosFijos). Archivo guardado "
+        "2023-12-01; validado con su escenario capturado, que es de este producto.",
+        notas="TASAS DE DICIEMBRE DE 2023: confirmar vigencia con Banregio. Solo "
+        "pagos fijos. Seguro de vida con desempleo (titular asalariado).",
+    ),
+    replace(
+        _POR_ID["banamex-perfiles-mercado-abierto-2026-08"],
+        id="banamex-cambia-tu-hipoteca-mercado-abierto-2026-08",
+        nombre="Cambia tu Hipoteca (Mercado abierto)",
+        destino=Destino.SUSTITUCION,
+        tasa_anual=Decimal("0.102"),                     # BG20, Mercado abierto
+        comision_apertura=Decimal("0"),                  # AX77 = 0
+        # Avalúo gratis abajo de 15 millones; arriba, BP9 (IVA incluido)
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("0"), Decimal("0")),
+            (Decimal("15000000.01"), Decimal("-11010"), Decimal("1.05")),
+        ),
+        fuente="Cotizador BANAMEX.xlsm, hoja Cambia Tu Hipoteca (Calculos AW:CA, "
+        "TablaCTH). Versión v.20260824. SIN escenario capturado: validado contra "
+        "sus fórmulas.",
+        notas="Tasa de Mercado abierto; con vinculación 8.95 %–9.50 %. Sin comisión "
+        "por apertura y avalúo gratis abajo de 15 millones. Banamex financia "
+        "derechos e impuestos hasta 5 % del saldo (no modelado). El modo "
+        "'Mantener mensualidad' (pagar lo mismo y acortar plazo) no se modela.",
+    ),
+    replace(
+        _POR_ID["bx-cofinavit-2026-01"],
+        id="bx-mejora-tu-hipoteca-2026-01",
+        nombre="Mejora tu Hipoteca",
+        destino=Destino.SUSTITUCION,
+        comision_apertura=Decimal("0"),                  # D14
+        comision_apertura_tope=None,
+        monto_minimo=Decimal("400000"),                  # D22
+        regla_aportaciones=None,
+        requiere_cofinanciamiento=False,
+        requiere_credito_instituto=False,
+        fuente="Cotizador BX+ MEJORA TU HIPOTECA.xlsx (Simulador CH BX+, VResPlus), "
+        "guardado 2026-01-15. SIN escenario capturado: validado contra sus fórmulas.",
+        notas="Mismas tasas por aforo que Cofinavit (primera opción de cada tramo). "
+        "Sin comisión por apertura. Permite financiar gastos notariales (no "
+        "modelado). Daños de 'resto de la República'. Vida para un asegurado.",
+    ),
+]
+
+CATALOGO += [
+    replace(
+        _POR_ID["banorte-hipoteca-fuerte-2026-06"],
+        id="banorte-mejora-hipoteca-2026-06",
+        nombre="Mejora de Hipoteca",
+        destino=Destino.SUSTITUCION,
+        comision_apertura=Decimal("0"),                  # Carátula!L26
+        comision_investigacion=Decimal("750"),           # gastos de aprobación (L30)
+        aforo_max=Decimal("0.85"),                       # Catálogos!K16
+        cat_netos_de_iva=frozenset(
+            {ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.INVESTIGACION}
+        ),
+        fuente="Cotizador BANORTE_MEJORA_MAS_LIQUIDEZ.xlsx, tabla de Mejora de "
+        "Hipoteca (Carátula, CAT). Guardado 2026-06-09; validado con su escenario "
+        "capturado (perfil 8.80 %, tabla y CAT).",
+        notas="Tasa por perfil 8.80 % / 9.75 % / 10.80 %; aquí la de referencia "
+        "9.75 %. Sin comisión por apertura; gastos de aprobación $750. Primer mes "
+        "irregular desde la cotización.",
+    ),
+    replace(
+        _POR_ID["scotiabank-7x5-adquisicion-2024-01"],
+        id="scotiabank-7x5-pasivo-hipotecario-2024-01",
+        nombre="Hipoteca 7x5 — Pasivo Hipotecario",
+        destino=Destino.SUSTITUCION,
+        comision_apertura=Decimal("0.015"),              # S33:AE38, programa 4
+        monto_minimo=Decimal("125000"),
+        valor_minimo_inmueble=None,
+        tarifa_avaluo=(),                                # O31 = 0
+        avaluo=Decimal("0"),
+        fuente="Cotizador SCOTIABANK Pago de pasivos 7x5.xlsm, programa 4 Pasivo "
+        "Hipotecario (mismo motor que Multiproducto 7x5). v2024.01, guardado "
+        "2024-03-22. SIN escenario capturado: validado contra sus fórmulas.",
+        notas="TASAS DE MARZO DE 2024 y referencia TIIE 28 que ya no se permite en "
+        "contratos nuevos: confirmar condiciones con Scotiabank. Apertura 1.5 %, "
+        "sin avalúo; financia gastos notariales hasta 6 % (no modelado).",
+    ),
+    ProductoHipotecario(
+        id="afirme-terreno-90-2026-09",
+        institucion="Afirme",
+        nombre="Terreno 90",
+        destino=Destino.TERRENO,
+        tasa_anual=Decimal("0.108"),                     # 'Parametro Destino'!M38
+        convencion_interes=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        convencion_pago=ConvencionDias.DIAS_ENTRE_PAGOS_360,
+        primer_pago_solo_intereses=True,
+        vida_en_pago_fijo=True,
+        dia_de_pago=4,
+        dia_corte_primer_pago=20,
+        recorrer_primer_pago_un_mes=True,
+        plazos_meses=tuple(range(60, 181, 12)),          # 5 a 15 años
+        aforo_max=Decimal("0.90"),
+        monto_minimo=Decimal("200000"),
+        comision_apertura=Decimal("0.01"),
+        comision_mensual=Decimal("462.84"),              # 399 + IVA, sin interiores
+        seguro_vida_mensual=Decimal("0.0008"),
+        seguro_desempleo_pct=Decimal("0.0098"),
+        seguro_desempleo_con_iva=True,
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("0"), Decimal("3")),
+            (Decimal("1000000.01"), Decimal("0"), Decimal("2.5")),
+            (Decimal("5000000.01"), Decimal("0"), Decimal("2")),
+            (Decimal("10000000.01"), Decimal("0"), Decimal("1.75")),
+            (Decimal("20000000.01"), Decimal("0"), Decimal("1.5")),
+        ),
+        cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_MENSUAL, ConceptoIVA.SEGURO_DESEMPLEO}),
+        vigente_desde=date(2026, 9, 23),
+        fuente="Cotizador AFIRME_TERRENO_90.xlsm (Tabla Amortización Fijo, Tabla "
+        "Fijo), versión BAF-040-2607-06, guardado 2026-09-23; validado con su "
+        "escenario capturado (tabla y CAT de los pagos cobrados).",
+        notas="El CAT que publica el archivo (15.85 % en su ejemplo) incluye seguro "
+        "de daños e interiores que el pago no cobra; aquí el CAT es el de lo "
+        "cobrado (15.04 %). Primer mes solo intereses. Desempleo 0.98 % del pago.",
+    ),
+    replace(
+        _POR_ID["banregio-adquisicion-2023-12"],
+        id="banregio-terreno-2023-12",
+        nombre="Terreno (pagos fijos)",
+        destino=Destino.TERRENO,
+        # TablaTasas productos 6 / 8 por plazo y aforo
+        tasa_anual=Decimal("0.115"),
+        tabla_tasas=(
+            (120, Decimal("0.70"), Decimal("0.1005")),
+            (120, Decimal("0.90"), Decimal("0.1065")),
+            (180, Decimal("0.70"), Decimal("0.1065")),
+            (180, Decimal("0.90"), Decimal("0.1135")),
+            (240, Decimal("0.70"), Decimal("0.11")),
+            (240, Decimal("0.90"), Decimal("0.115")),
+        ),
+        seguro_danos_anual=Decimal("0"),                 # X8 = "No" para 6 / 8
+        valor_minimo_inmueble=Decimal("500000"),         # CM13 (Terreno Plus 700,000)
+        fuente="Cotizador BANREGIO MULTIPRODUCTO.xlsm, producto 6 Terreno (TablaTasas, "
+        "Param, TablAmoPagosFijos). Archivo guardado 2023-12-01. Sin escenario "
+        "capturado de terreno: misma mecánica validada que adquisición, sin daños.",
+        notas="TASAS DE DICIEMBRE DE 2023: confirmar vigencia con Banregio. Sin seguro "
+        "de daños. Seguro de vida con desempleo (titular asalariado).",
+    ),
+    replace(
+        _POR_ID["banorte-hipoteca-fuerte-2026-06"],
+        id="banorte-terreno-urbanizado-2026-06",
+        nombre="Terreno Urbanizado",
+        destino=Destino.TERRENO,
+        tasa_anual=Decimal("0.1068"),                    # 'Tabla Parámetros'!C15
+        tabla_tasas=(
+            (120, Decimal("0.70"), Decimal("0.1018")),
+            (180, Decimal("0.70"), Decimal("0.1068")),
+        ),
+        plazos_meses=tuple(range(60, 181, 12)),
+        aforo_max=Decimal("0.70"),                       # I64
+        comision_apertura=Decimal("0"),                  # H38 (la documentación dice 1.5 %)
+        comision_mensual=Decimal("250"),
+        comision_investigacion=Decimal("500"),           # Y23, IVA incluido
+        seguro_danos_anual=Decimal("0"),
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO, ConceptoIVA.INVESTIGACION}),
+        valor_minimo_inmueble=None,
+        monto_minimo=None,
+        fuente="Cotizador BANORTE_SIMULADOR_UNIVERSAL.xlsm, destino Terreno Urbanizado. "
+        "Guardado 2026-06-15. Sin escenario capturado de terreno: mecánica de "
+        "Hipoteca Fuerte (validada) con los parámetros de terreno.",
+        notas="Apertura 0 % según la fórmula; las tablas de documentación del archivo "
+        "dicen 1.5 %. El resumen del archivo suma IVA de intereses a la mensualidad "
+        "pero la tabla y el CAT no; aquí sin IVA. Sin seguro de daños.",
+    ),
+]
+

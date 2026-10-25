@@ -71,6 +71,7 @@ def flujos_cat(
         tabla.monto
         - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(tabla.monto))
         - flujo(ConceptoIVA.AVALUO, producto.avaluo)
+        - flujo(ConceptoIVA.INVESTIGACION, producto.comision_investigacion)
     )
     pagos = [
         r.capital

@@ -580,3 +580,228 @@ def test_afirme_reproduce_su_cotizador(mes):
                               (r.seguro_desempleo, desempleo, "desempleo"), (r.pago_total, pago, "pago")):
         assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
     assert abs(resultado.cat_estimado - A["cat_esperado"]) < D("0.0000001")
+
+
+# ---------------------------------------------------------------------------
+# Sustitución de hipoteca
+# ---------------------------------------------------------------------------
+
+def _escenario_sustitucion(valor, monto, plazo):
+    from motor_hipotecario.modelos import CreditoActual, Destino, Escenario
+
+    return Escenario(
+        valor_vivienda=valor, enganche=valor - monto, plazo_meses=plazo,
+        destino=Destino.SUSTITUCION,
+        credito_actual=CreditoActual(
+            saldo_insoluto=monto, pago_mensual=D("25000"), plazo_remanente_meses=plazo,
+        ),
+    )
+
+
+def test_productos_de_sustitucion_en_el_catalogo():
+    from motor_hipotecario.modelos import Destino
+
+    ids = {p.id for p in CATALOGO if p.destino is Destino.SUSTITUCION}
+    assert ids == {
+        "banregio-mejora-hipoteca-2023-12",
+        "banamex-cambia-tu-hipoteca-mercado-abierto-2026-08",
+        "bx-mejora-tu-hipoteca-2026-01",
+        "banorte-mejora-hipoteca-2026-06",
+        "scotiabank-7x5-pasivo-hipotecario-2024-01",
+    }
+
+
+def test_banregio_mejora_reproduce_su_cotizador():
+    """El escenario capturado de Banregio ES de Mejora de Hipoteca (código 4)."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .fixtures.cotizadores_reales import BANREGIO
+
+    p = BANREGIO["parametros"]
+    escenario = _escenario_sustitucion(p["valor_inmueble"], p["monto"], p["plazo_meses"])
+    r = evaluar_producto(
+        escenario, POR_ID["banregio-mejora-hipoteca-2023-12"], date.fromisoformat(p["fecha_primer_pago"])
+    )
+    assert r.elegible
+    assert r.producto.tasa_anual == p["tasa_anual"]
+    for mes, (_, saldo, interes, capital, seguros, total) in BANREGIO["renglones"].items():
+        x = r.tabla.renglones[mes - 1]
+        for calc, esp in ((x.saldo_inicial, saldo), (x.interes, interes), (x.capital, capital),
+                          (x.seguro_vida + x.seguro_danos, seguros), (x.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(r.cat_estimado - BANREGIO["cat_esperado"]) < D("0.0000001")
+    assert r.ahorro_mensual == D("25000") - r.pago_regular_inicial
+
+
+def test_banamex_cambia_tu_hipoteca_reproduce_las_formulas():
+    """Perfiles con apertura 0 % y avalúo gratis abajo de 15 millones (TablaCTH)."""
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .test_cotizadores_reales import _cat
+
+    valor, credito = D("3000000"), D("1800000")
+    r = evaluar_producto(
+        _escenario_sustitucion(valor, credito, 240),
+        POR_ID["banamex-cambia-tu-hipoteca-mercado-abierto-2026-08"],
+    )
+    assert r.elegible
+    assert r.comision_apertura == 0 and r.avaluo == 0
+    filas, flujos, _ = _banamex_referencia(valor, credito, D("0.102"), 240, D("0"))
+    for x, (c, o, k, vida, danos) in zip(r.tabla.renglones, filas):
+        for calc, esp in ((x.saldo_inicial, c), (x.interes, o), (x.capital, k),
+                          (x.seguro_vida, vida), (x.seguro_danos, danos)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {x.mes}: {calc} != {esp}"
+    assert abs(r.cat_estimado - _cat(flujos, credito)) < D("0.0000001")
+
+
+def test_bx_mejora_tu_hipoteca_reproduce_las_formulas():
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .test_cotizadores_reales import _cat
+
+    valor, credito = D("2500000"), D("1750000")
+    r = evaluar_producto(_escenario_sustitucion(valor, credito, 240), POR_ID["bx-mejora-tu-hipoteca-2026-01"])
+    assert r.elegible
+    assert r.comision_apertura == 0
+    assert r.producto.tasa_anual == D("0.0965")
+    filas, _, flujos = _bx_referencia(valor, credito, D("0.0965"), 240)
+    for mes in (1, 2, 12, 120, 240):
+        x = r.tabla.renglones[mes - 1]
+        saldo, interes, capital, vida, danos, total = filas[mes - 1]
+        for calc, esp in ((x.saldo_inicial, saldo), (x.capital, capital), (x.pago_total, total)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {mes}: {calc} != {esp}"
+    assert abs(r.cat_estimado - _cat(flujos, credito - D("4600"))) < D("0.0000001")
+
+
+@pytest.mark.parametrize("mes", [1, 2, 12, 60, 120, 180])
+def test_banorte_mejora_reproduce_su_cotizador(mes):
+    """Escenario capturado de Mejora de Hipoteca (8.80 %, cotizado el 2026-04-04)."""
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .fixtures.cotizadores_reales import BANORTE_MEJORA as B
+
+    p = B["parametros"]
+    producto = replace(POR_ID["banorte-mejora-hipoteca-2026-06"], tasa_anual=p["tasa_anual"])
+    escenario = _escenario_sustitucion(p["valor_inmueble"], p["monto"], p["plazo_meses"])
+    r = evaluar_producto(escenario, producto, momento=date.fromisoformat(p["fecha_cotizacion"]))
+    assert r.elegible
+    assert r.avaluo == p["avaluo"] and r.comision_apertura == 0
+    assert r.comision_investigacion == p["gastos_aprobacion"]
+    x = r.tabla.renglones[mes - 1]
+    saldo, capital, interes, vida, danos, com, pago, final = B["renglones"][mes]
+    for calc, esp, nombre in ((x.saldo_inicial, saldo, "saldo"), (x.capital, capital, "capital"),
+                              (x.interes, interes, "interés"), (x.seguro_vida, vida, "vida"),
+                              (x.seguro_danos, danos, "daños"), (x.comision_mensual, com, "comisión"),
+                              (x.pago_total, pago, "pago"), (x.saldo_final, final, "saldo final")):
+        assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
+    assert abs(r.cat_estimado - B["cat_esperado"]) < D("0.0000001")
+
+
+def test_scotiabank_pasivo_hipotecario():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    valor, credito = D("1500000"), D("1125000")
+    escenario = _escenario_sustitucion(valor, credito, 240)
+    r = evaluar_producto(escenario, POR_ID["scotiabank-7x5-pasivo-hipotecario-2024-01"],
+                         momento=date(2026, 10, 24))
+    adq = evaluar_producto(
+        replace_escenario_adquisicion(escenario), POR_ID["scotiabank-7x5-adquisicion-2024-01"],
+        momento=date(2026, 10, 24),
+    )
+    assert r.elegible
+    assert r.comision_apertura == credito * D("0.015") and r.avaluo == 0
+    # Misma tabla que el 7x5 de adquisición
+    assert [x.pago_total for x in r.tabla.renglones] == [x.pago_total for x in adq.tabla.renglones]
+
+
+def replace_escenario_adquisicion(escenario):
+    from dataclasses import replace
+
+    from motor_hipotecario.modelos import Destino
+
+    return replace(escenario, destino=Destino.ADQUISICION, credito_actual=None)
+
+
+# ---------------------------------------------------------------------------
+# Terreno
+# ---------------------------------------------------------------------------
+
+def _escenario_terreno(valor, monto, plazo):
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    return Escenario(valor_vivienda=valor, enganche=valor - monto, plazo_meses=plazo,
+                     destino=Destino.TERRENO)
+
+
+def test_productos_de_terreno_en_el_catalogo():
+    from motor_hipotecario.modelos import Destino
+
+    ids = {p.id for p in CATALOGO if p.destino is Destino.TERRENO}
+    assert ids == {"afirme-terreno-90-2026-09", "banregio-terreno-2023-12",
+                   "banorte-terreno-urbanizado-2026-06"}
+    for p in CATALOGO:
+        if p.destino is Destino.TERRENO:
+            assert p.seguro_danos_anual == 0 and p.seguro_danos_monto_mensual is None
+
+
+@pytest.mark.parametrize("mes", [1, 2, 12, 60, 120, 180])
+def test_afirme_terreno_reproduce_su_cotizador(mes):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    from .fixtures.cotizadores_reales import AFIRME_TERRENO as A
+
+    p = A["parametros"]
+    r = evaluar_producto(
+        _escenario_terreno(p["valor_inmueble"], p["monto"], p["plazo_meses"]),
+        POR_ID["afirme-terreno-90-2026-09"], momento=date.fromisoformat(p["fecha_apertura"]),
+    )
+    assert r.elegible
+    assert r.avaluo == p["avaluo"]
+    assert abs(r.tabla.pago_capital_interes - p["cuota"]) < D("0.000001")
+    x = r.tabla.renglones[mes - 1]
+    fecha, saldo, capital, interes, vida, desempleo = A["renglones"][mes]
+    assert x.fecha_pago.isoformat() == fecha
+    for calc, esp, nombre in ((x.saldo_inicial, saldo, "saldo"), (x.capital, capital, "capital"),
+                              (x.interes, interes, "interés"), (x.seguro_vida, vida, "vida"),
+                              (x.seguro_desempleo, desempleo, "desempleo")):
+        assert abs(calc - esp) < D("0.000001"), f"mes {mes} {nombre}: {calc} != {esp}"
+    assert abs(r.cat_estimado - A["cat_de_lo_cobrado"]) < D("0.0000001")
+
+
+@pytest.mark.parametrize("plazo, enganche, tasa", [(120, "800000", "0.1005"), (180, "300000", "0.1135"),
+                                                   (240, "800000", "0.11")])
+def test_banregio_terreno_tasa_y_sin_danos(plazo, enganche, tasa):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_escenario_terreno(D("1500000"), D("1500000") - D(enganche), plazo),
+                         POR_ID["banregio-terreno-2023-12"], date(2026, 12, 1))
+    assert r.elegible and r.producto.tasa_anual == D(tasa)
+    assert all(x.seguro_danos == 0 for x in r.tabla.renglones)
+
+
+@pytest.mark.parametrize("plazo, tasa", [(120, "0.1018"), (180, "0.1068")])
+def test_banorte_terreno_urbanizado(plazo, tasa):
+    from datetime import date
+
+    from motor_hipotecario.cat import flujos_cat
+    from motor_hipotecario.comparador import evaluar_producto
+
+    producto = POR_ID["banorte-terreno-urbanizado-2026-06"]
+    r = evaluar_producto(_escenario_terreno(D("1500000"), D("1000000"), plazo), producto,
+                         momento=date(2026, 6, 15))
+    assert r.elegible and r.producto.tasa_anual == D(tasa)
+    assert r.comision_apertura == 0 and r.comision_investigacion == D("500")
+    assert all(x.seguro_danos == 0 and x.comision_mensual == 250 for x in r.tabla.renglones)
+    neto, _ = flujos_cat(r.tabla, r.producto)
+    assert neto == D("1000000") - r.avaluo / D("1.16") - D("500") / D("1.16")

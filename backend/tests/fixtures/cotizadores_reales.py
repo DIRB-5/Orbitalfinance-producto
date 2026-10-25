@@ -357,8 +357,92 @@ AFIRME = {
     },
 }
 
+# ---------------------------------------------------------------------------
+# Banorte — Mejora de Hipoteca (sustitución)
+# ---------------------------------------------------------------------------
+# BANORTE_MEJORA_MAS_LIQUIDEZ.xlsx, tabla de Mejora. Mecánica de Hipoteca
+# Fuerte: sin comisión por apertura, gastos de aprobación 750 (÷ 1.16 en el
+# CAT), avalúo 5,000 + IVA, comisión diferida 299. Cotización 2026-04-04
+# (fija en el archivo), tasa 8.80 %, 180 meses.
+BANORTE_MEJORA = {
+    "institucion": "Banorte",
+    "archivo": "BANORTE_MEJORA_MAS_LIQUIDEZ.xlsx",
+    "hoja": "Carátula / CAT",
+    "parametros": {
+        "monto": D("1000000"),
+        "valor_inmueble": D("1176470.5882352942"),    # F15 = monto / 0.85
+        "tasa_anual": D("0.088"),
+        "plazo_meses": 180,
+        "fecha_cotizacion": "2026-04-04",
+        "fecha_primer_pago": "2026-05-03",
+        "avaluo": D("5800"),
+        "gastos_aprobacion": D("750"),
+    },
+    "cat_esperado": D("0.1108645525005989"),           # CAT!K8
+    # mes: (saldo_inicial, capital, interes, vida, danos, comision, pago, saldo_final)
+    "renglones": {
+        1: (D("1000000"), D("2662.4369717912605"), D("7333.333333333333"), D("600"),
+            D("230.58823529411762"), D("299"), D("11125.358540418711"), D("997337.5630282088")),
+        2: (D("997337.5630282088"), D("2682.2218367549713"), D("7411.3262461473996"),
+            D("598.40253781692525"), D("230.58823529411762"), D("299"),
+            D("11221.538856013412"), D("994655.34119145386")),
+        12: (D("969600.40253503388"), D("2888.3397582864759"), D("7205.2083246158954"),
+             D("581.76024152102025"), D("230.58823529411762"), D("299"),
+             D("11204.896559717508"), D("966712.06277674739")),
+        60: (D("803743.95454167109"), D("4120.8374518193777"), D("5972.710631082995"),
+             D("482.24637272500263"), D("230.58823529411762"), D("299"),
+             D("11105.382690921493"), D("799623.11708985176")),
+        120: (D("493606.8236636286"), D("6425.5009310553223"), D("3668.0471518470531"),
+              D("296.16409419817711"), D("230.58823529411762"), D("299"),
+              D("10919.30041239467"), D("487181.32273257326")),
+        180: (D("10019.095074173831"), D("10019.095074173403"), D("74.453008728971753"),
+              D("6.0114570445042981"), D("230.58823529411762"), D("299"),
+              D("10629.147775240996"), D("0")),
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Afirme — Terreno 90
+# ---------------------------------------------------------------------------
+# AFIRME_TERRENO_90.xlsm: mecánica de Multiproductos (días entre pagos, pago 0
+# solo intereses, vida en la cuota, comisión 399 + IVA, desempleo 0.98 % + IVA)
+# sin daños ni interiores en el pago. OJO: el CAT publicado (TAF!M4 =
+# 0.15849320662222621) SÍ incluye daños e interiores que el pago no cobra; el
+# IRR de los pagos mostrados (Tabla Fijo!Q5) da el CAT de lo que se cobra.
+AFIRME_TERRENO = {
+    "institucion": "Afirme",
+    "archivo": "AFIRME_TERRENO_90.xlsm",
+    "hoja": "Tabla Amortización Fijo / Tabla Fijo",
+    "parametros": {
+        "monto": D("400000"),
+        "valor_inmueble": D("1500000"),
+        "tasa_anual": D("0.108"),
+        "plazo_meses": 180,
+        "fecha_apertura": "2026-09-23",
+        "fecha_primer_pago": "2026-11-04",
+        "avaluo": D("3750"),
+        "cuota": D("4788.4610679051593"),               # TAF!L10
+    },
+    "cat_publicado": D("0.15849320662222621"),
+    "cat_de_lo_cobrado": D("0.15039348925609697"),    # (1 + Tabla Fijo!Q5)^12 − 1
+    # mes: (fecha, saldo_inicial, capital, interes, vida, desempleo con IVA)
+    "renglones": {
+        1: ("2026-11-04", D("400000"), D("0"), D("5160"), D("320"), D("67.55820512")),
+        2: ("2026-12-04", D("400000"), D("868.46106790515933"), D("3600"), D("320"),
+            D("59.69679053994585308")),
+        12: ("2027-10-04", D("391410.26746782963"), D("952.64044672042905"),
+             D("3522.6924072104666"), D("313.1282139742637"), D("59.69679053994585308")),
+        60: ("2031-10-04", D("336322.72419671767"), D("1492.4983707773263"),
+             D("3026.9045177704588"), D("269.05817935737417"), D("59.69679053994585308")),
+        120: ("2036-10-04", D("218339.99095691397"), D("2648.7291565274027"),
+              D("1965.0599186122256"), D("174.67199276553117"), D("59.69679053994585308")),
+        180: ("2041-10-04", D("4741.9895701306732"), D("4741.9895701178784"),
+              D("42.677906131176059"), D("3.7935916561045389"), D("59.69679053994585308")),
+    },
+}
+
 TODOS = [HSBC, SANTANDER, BANREGIO, BANREGIO_CRECIENTE, BANORTE_FOVISSSTE,
-         BANORTE_HIPOTECA_FUERTE, AFIRME]
+         BANORTE_HIPOTECA_FUERTE, AFIRME, BANORTE_MEJORA, AFIRME_TERRENO]
 
 # ---------------------------------------------------------------------------
 # Instituciones sin escenario capturado — no validables hoy

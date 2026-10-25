@@ -17,6 +17,7 @@ from .cat import calcular_cat
 from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_instituto
 from .referencias import TIIE_BASE
 from .modelos import (
+    CreditoActual,
     Dinero,
     Escenario,
     LineaCredito,
@@ -46,10 +47,15 @@ class ResultadoOpcion:
     advertencias: tuple[str, ...]
 
     @property
+    def comision_investigacion(self) -> Dinero:
+        return self.producto.comision_investigacion
+
+    @property
     def desembolso_inicial(self) -> Dinero:
         """Lo que el cliente saca de su bolsillo el día de la firma."""
         return (
             self.enganche + self.comision_apertura + self.avaluo + self.gastos_notariales
+            + self.comision_investigacion
         )
 
     enganche: Dinero = Decimal("0")
@@ -62,6 +68,56 @@ class ResultadoOpcion:
     # Crédito del instituto en cofinanciamiento (Cofinavit), si lo hay. Las
     # aportaciones lo pagan primero; después van al crédito bancario.
     tabla_instituto: Optional[TablaAmortizacion] = None
+
+    # Hipoteca actual del cliente, en una sustitución.
+    credito_actual: Optional[CreditoActual] = None
+
+    # --- Sustitución: contra quedarse con el crédito actual -----------------
+
+    @property
+    def costo_de_cambiarse(self) -> Optional[Dinero]:
+        """Lo que cuesta cambiarse hoy: apertura, avalúo, notaría y penalización."""
+        if self.credito_actual is None:
+            return None
+        return (
+            self.comision_apertura + self.avaluo + self.gastos_notariales
+            + self.comision_investigacion + self.credito_actual.penalizacion_prepago
+        )
+
+    @property
+    def ahorro_mensual(self) -> Optional[Dinero]:
+        if self.credito_actual is None:
+            return None
+        return self.credito_actual.pago_mensual - self.pago_regular_inicial
+
+    @property
+    def serie_ahorro(self) -> tuple:
+        """Ahorro acumulado mes a mes contra quedarse, partiendo del costo de cambiarse."""
+        if self.credito_actual is None:
+            return ()
+        actual = self.credito_actual
+        renglones = self.tabla.renglones
+        acumulado = -self.costo_de_cambiarse
+        serie = []
+        for mes in range(1, max(actual.plazo_remanente_meses, len(renglones)) + 1):
+            pago_actual = actual.pago_mensual if mes <= actual.plazo_remanente_meses else 0
+            pago_nuevo = renglones[mes - 1].pago_total if mes <= len(renglones) else 0
+            acumulado += pago_actual - pago_nuevo
+            serie.append(acumulado)
+        return tuple(serie)
+
+    @property
+    def punto_equilibrio_mes(self) -> Optional[int]:
+        """Mes en que el ahorro acumulado cubre el costo de cambiarse."""
+        for mes, acumulado in enumerate(self.serie_ahorro, start=1):
+            if acumulado >= 0:
+                return mes
+        return None
+
+    @property
+    def ahorro_neto(self) -> Optional[Dinero]:
+        serie = self.serie_ahorro
+        return serie[-1] if serie else None
 
     @property
     def pago_primer_mes(self) -> Dinero:
@@ -112,6 +168,7 @@ class ResultadoOpcion:
             + self.comision_apertura
             + self.avaluo
             + self.gastos_notariales
+            + self.comision_investigacion
         )
 
     @property
@@ -451,6 +508,7 @@ def evaluar_producto(
         advertencias=tuple(advertencias),
         enganche=escenario.enganche,
         tabla_instituto=tabla_instituto,
+        credito_actual=escenario.credito_actual,
     )
 
 
@@ -511,7 +569,9 @@ def comparar(
     # Sin fecha capturada, el primer pago y la disposición se derivan de la
     # fecha de la comparación; el snapshot guarda `generado_en`, así que el
     # cálculo es reproducible.
-    opciones = tuple(evaluar_producto(escenario, p, momento=momento) for p in vigentes)
+    # Solo productos del destino del escenario (adquisición, sustitución, ...)
+    del_destino = [p for p in vigentes if p.destino is escenario.destino]
+    opciones = tuple(evaluar_producto(escenario, p, momento=momento) for p in del_destino)
 
     snapshot = Snapshot(
         generado_en=momento,

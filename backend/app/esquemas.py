@@ -173,6 +173,7 @@ class OpcionSalida(ModeloBase):
     plazo_calculado_meses: int
     plazo_efectivo_meses: int
     comision_apertura: str
+    comision_investigacion: str
     avaluo: str
     gastos_notariales: str
     cat_estimado: str

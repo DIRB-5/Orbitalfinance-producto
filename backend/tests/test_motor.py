@@ -600,6 +600,7 @@ def _producto_con_costos(**kwargs):
         seguro_vida_mensual=Decimal("0.0005"),
         seguro_desempleo_pct=Decimal("0.0098"),
         seguro_desempleo_con_iva=True,
+        comision_investigacion=Decimal("750"),
         **kwargs,
     )
 
@@ -610,7 +611,7 @@ def test_sin_configurar_el_cat_lleva_todo_con_iva():
     assert producto.cat_netos_de_iva == frozenset()
     tabla = construir_tabla(LineaCredito(producto, Decimal("1850000"), 240), Decimal("2500000"))
     neto, flujos = flujos_cat(tabla, producto)
-    assert neto == Decimal("1850000") - Decimal("18500") - Decimal("12000")
+    assert neto == Decimal("1850000") - Decimal("18500") - Decimal("12000") - Decimal("750")
     assert flujos[0] == tabla.renglones[0].pago_total
 
 
@@ -1499,3 +1500,75 @@ def test_capacidad_de_pago_se_mide_con_el_pago_regular():
     resultado = evaluar_producto(escenario, producto_banorte(), momento=date(2026, 10, 24))
     assert resultado.tabla.primer_pago < Decimal("15000") < resultado.pago_regular_inicial
     assert not resultado.elegible
+
+
+# --------------------------------------------------------------------------
+# Destino del crédito y sustitución de hipoteca
+# --------------------------------------------------------------------------
+
+from motor_hipotecario.modelos import CreditoActual, Destino  # noqa: E402
+
+
+def test_comparar_solo_usa_productos_del_destino_del_escenario():
+    adquisicion = producto_limpio(id="adq")
+    sustitucion = producto_limpio(id="sus", destino=Destino.SUSTITUCION)
+    escenario = Escenario(valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240)
+    ids = {o.producto.id for o in comparar(escenario, [adquisicion, sustitucion], momento=HOY).opciones}
+    assert ids == {"adq"}
+    escenario_sus = Escenario(
+        valor_vivienda=Decimal("2500000"), enganche=Decimal("650000"), plazo_meses=240,
+        destino=Destino.SUSTITUCION, credito_actual=CREDITO_ACTUAL,
+    )
+    ids = {o.producto.id for o in comparar(escenario_sus, [adquisicion, sustitucion], momento=HOY).opciones}
+    assert ids == {"sus"}
+
+
+CREDITO_ACTUAL = CreditoActual(
+    saldo_insoluto=Decimal("1500000"),
+    pago_mensual=Decimal("19000"),
+    plazo_remanente_meses=180,
+    tasa_anual=Decimal("0.13"),
+    penalizacion_prepago=Decimal("10000"),
+)
+
+
+def _escenario_sustitucion(**kwargs):
+    base = dict(
+        valor_vivienda=Decimal("3000000"),
+        enganche=Decimal("1500000"),            # crédito nuevo = saldo a liquidar
+        plazo_meses=180,
+        gastos_notariales=Decimal("60000"),
+        destino=Destino.SUSTITUCION,
+        credito_actual=CREDITO_ACTUAL,
+    )
+    base.update(kwargs)
+    return Escenario(**base)
+
+
+def test_sustitucion_calcula_ahorro_y_punto_de_equilibrio():
+    producto = producto_limpio(
+        destino=Destino.SUSTITUCION, plazos_meses=(180,), comision_apertura=Decimal("0.01"),
+        avaluo=Decimal("5000"),
+    )
+    r = evaluar_producto(_escenario_sustitucion(), producto)
+    assert r.elegible
+    assert r.costo_de_cambiarse == Decimal("15000") + Decimal("5000") + Decimal("60000") + Decimal("10000")
+    assert r.ahorro_mensual == Decimal("19000") - r.pago_regular_inicial
+    serie = r.serie_ahorro
+    assert serie[0] == -r.costo_de_cambiarse + (Decimal("19000") - r.tabla.renglones[0].pago_total)
+    assert r.punto_equilibrio_mes == next(i + 1 for i, a in enumerate(serie) if a >= 0)
+    assert r.ahorro_neto == serie[-1]
+    esperado = Decimal("19000") * 180 - r.tabla.total_pagado - r.costo_de_cambiarse
+    assert abs(r.ahorro_neto - esperado) < Decimal("1E-15")
+
+
+def test_sustitucion_sin_ahorro_no_tiene_punto_de_equilibrio():
+    caro = producto_limpio(destino=Destino.SUSTITUCION, plazos_meses=(180,), tasa_anual=Decimal("0.20"))
+    r = evaluar_producto(_escenario_sustitucion(), caro)
+    assert r.ahorro_mensual < 0
+    assert r.punto_equilibrio_mes is None
+
+
+def test_sustitucion_requiere_el_credito_actual():
+    escenario = _escenario_sustitucion(credito_actual=None)
+    assert any("crédito actual" in e for e in escenario.validar())

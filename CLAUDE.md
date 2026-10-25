@@ -19,11 +19,11 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-    catalogo.py      Catálogo real: 13 productos de 8 instituciones (HSBC, Santander,
-                     Banregio, Banorte, BX+, Banamex, Scotiabank, Afirme).
+    catalogo.py      Catálogo real por destino (adquisición, sustitución, terreno,
+                     liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             218 pruebas. No deben bajar de ahí.
+  tests/             246 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -182,6 +182,12 @@ el pago de cierre (Banamex). El primer pago real se muestra aparte, con sus
 días. La capacidad de pago se mide con el pago regular.
 
 **El orden por defecto es costo total**, no tasa ni mensualidad.
+
+**Cada producto tiene un destino** (`Destino`: adquisición, sustitución,
+liquidez, terreno) y el comparador solo compara productos del destino del
+escenario. En sustitución el escenario trae `CreditoActual` y cada opción
+calcula ahorro mensual, costo de cambiarse, punto de equilibrio y ahorro neto
+contra quedarse.
 
 **Las opciones no elegibles se muestran con su motivo**, no se ocultan. El
 asesor necesita poder decirle al cliente qué enganche adicional le abriría esa
@@ -413,7 +419,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 218 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 246 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

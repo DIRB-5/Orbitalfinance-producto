@@ -170,6 +170,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         plazo_calculado_meses=t.plazo_meses,
         plazo_efectivo_meses=t.plazo_efectivo_meses,
         comision_apertura=_dinero(o.comision_apertura),
+        comision_investigacion=_dinero(o.comision_investigacion),
         avaluo=_dinero(o.avaluo),
         gastos_notariales=_dinero(o.gastos_notariales),
         cat_estimado=_tasa(o.cat_estimado),

@@ -75,6 +75,31 @@ class ConceptoIVA(str, Enum):
     SEGURO_DANOS = "seguro_danos"
     COMISION_MENSUAL = "comision_mensual"
     SEGURO_DESEMPLEO = "seguro_desempleo"
+    INVESTIGACION = "investigacion"
+
+
+class Destino(str, Enum):
+    """Para qué es el crédito. El comparador solo compara productos del mismo destino."""
+
+    ADQUISICION = "adquisicion"
+    SUSTITUCION = "sustitucion"   # liquidar una hipoteca con otro banco
+    LIQUIDEZ = "liquidez"         # efectivo con la vivienda en garantía
+    TERRENO = "terreno"
+
+
+@dataclass(frozen=True)
+class CreditoActual:
+    """
+    La hipoteca que el cliente ya tiene, para evaluar una sustitución. El pago
+    mensual es el que hoy paga (con seguros y comisiones).
+    """
+
+    saldo_insoluto: Decimal
+    pago_mensual: Decimal
+    plazo_remanente_meses: int
+    tasa_anual: Optional[Decimal] = None
+    penalizacion_prepago: Decimal = Decimal("0")
+    institucion: str = ""
 
 
 class TipoLinea(str, Enum):
@@ -288,6 +313,11 @@ class ProductoHipotecario:
     # Tope de la comisión por apertura cuando es fracción (BX+: $150,000).
     comision_apertura_tope: Optional[Dinero] = None
 
+    # Comisión de investigación o "gastos de aprobación": cargo único al
+    # contratar, como lo paga el cliente (Banorte: 750 en Mejora, 500 en
+    # Terreno y Liquidez). Entra al desembolso, al costo total y al CAT.
+    comision_investigacion: Dinero = Decimal("0")
+
     # Comisión mensual fija: cargo recurrente que no es interés ni seguro.
     # Entra al pago, al costo total y al CAT.
     comision_mensual: Dinero = Decimal("0")
@@ -334,6 +364,7 @@ class ProductoHipotecario:
     avaluo_factor_iva: Decimal = Decimal("1")
 
     tipo: TipoLinea = TipoLinea.BANCARIO
+    destino: "Destino" = None  # se fija en __post_init__ (ADQUISICION)
 
     # Versionado
     vigente_desde: date = date(2000, 1, 1)
@@ -352,6 +383,10 @@ class ProductoHipotecario:
         if self.vigente_hasta is not None and momento > self.vigente_hasta:
             return False
         return True
+
+    def __post_init__(self):
+        if self.destino is None:
+            object.__setattr__(self, "destino", Destino.ADQUISICION)
 
     def comision_apertura_para(self, monto: Dinero) -> Dinero:
         if self.comision_apertura_monto is not None:
@@ -417,6 +452,10 @@ class Escenario:
     # comparación). None = escenario base de motor_hipotecario.referencias.
     tiie: Optional[Decimal] = None
 
+    # Para qué es el crédito, y la hipoteca actual si es sustitución.
+    destino: Destino = Destino.ADQUISICION
+    credito_actual: Optional[CreditoActual] = None
+
     # Cofinanciamiento INFONAVIT / FOVISSSTE, si aplica.
     cofinanciamiento: Optional[Cofinanciamiento] = None
 
@@ -451,6 +490,8 @@ class Escenario:
             errores.append("El enganche no puede cubrir el valor total del inmueble.")
         if self.plazo_meses <= 0:
             errores.append("El plazo debe ser mayor a cero meses.")
+        if self.destino is Destino.SUSTITUCION and self.credito_actual is None:
+            errores.append("La sustitución requiere los datos del crédito actual.")
         if (
             self.cofinanciamiento
             and self.cofinanciamiento.instituto is TipoLinea.FOVISSSTE
