@@ -36,6 +36,7 @@ from .esquemas import (
     EscenarioTasaSalida,
     FaseCrecimientoSalida,
     FinanciamientoGastosSalida,
+    LineaGastosSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
@@ -111,10 +112,13 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
                 tope=_tasa(p.financiamiento_gastos.tope) if p.financiamiento_gastos.tope else None,
                 base_tope=p.financiamiento_gastos.base_tope.value,
                 apertura_y_aforo_sobre_total=p.financiamiento_gastos.apertura_y_aforo_sobre_total,
+                incluye_apertura_y_avaluo=p.financiamiento_gastos.incluye_apertura_y_avaluo,
+                linea_separada=p.financiamiento_gastos.linea_separada,
             )
             if p.financiamiento_gastos
             else None
         ),
+        acepta_garantia_adicional=p.acepta_garantia_adicional,
         requiere_cofinanciamiento=p.requiere_cofinanciamiento,
         dia_de_pago=p.dia_de_pago,
         primer_periodo_dias_reales=p.primer_periodo_dias_reales,
@@ -156,6 +160,21 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
     )
 
 
+def _linea_gastos(o: ResultadoOpcion) -> Optional[LineaGastosSalida]:
+    t = o.tabla_gastos
+    if t is None:
+        return None
+    return LineaGastosSalida(
+        monto=_dinero(t.monto),
+        tasa_anual=_tasa(t.tasa_anual),
+        pago_mensual=_dinero(t.pago_regular_inicial),
+        total_pagado=_dinero(t.total_pagado),
+        total_intereses=_dinero(t.total_intereses),
+        total_iva_intereses=_dinero(sum((r.iva_intereses for r in t.renglones), Decimal("0"))),
+        cat_estimado=_tasa(o.cat_gastos_estimado),
+    )
+
+
 def _credito_instituto(o: ResultadoOpcion) -> Optional[CreditoInstitutoSalida]:
     t = o.tabla_instituto
     if t is None:
@@ -194,6 +213,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         gastos_notariales=_dinero(o.gastos_notariales),
         gastos_financiados=_dinero(o.gastos_financiados),
         gastos_de_contado=_dinero(o.gastos_de_contado),
+        linea_gastos=_linea_gastos(o),
         cat_estimado=_tasa(o.cat_estimado),
         pago_primer_mes=_dinero(o.pago_primer_mes),
         pago_ultimo_mes=_dinero(o.pago_ultimo_mes),
@@ -262,6 +282,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         plazo_meses=entrada.plazo_meses,
         gastos_notariales=entrada.gastos_notariales,
         financiar_gastos_notariales=entrada.financiar_gastos_notariales,
+        valor_garantia_adicional=entrada.valor_garantia_adicional,
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,

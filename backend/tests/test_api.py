@@ -73,6 +73,8 @@ def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
             assert not o["elegible"]
         elif o["productoId"].startswith("bx-apoyo"):
             assert not o["elegible"]  # con crédito Infonavit aplica Cofinavit
+        elif o["productoId"].startswith("afirme-tu-casa-2"):
+            assert not o["elegible"]  # sin garantía adicional ni gastos financiados
         elif o["productoId"].startswith("bx-cofinavit"):
             assert o["elegible"] and not o["alternativaSinCofinanciamiento"]
             assert o["montoCredito"] == "1400000.00"
@@ -162,5 +164,21 @@ def test_gastos_notariales_financiados_por_api():
     productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
     assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["financiamientoGastos"] == {
         "tope": "0.06", "baseTope": "monto_credito", "aperturaYAforoSobreTotal": False,
+        "incluyeAperturaYAvaluo": False, "lineaSeparada": False,
     }
+    santander = opciones["santander-sustitucion-2025-12"]
+    assert santander["montoCredito"] == "1500000.00"
+    assert santander["lineaGastos"]["monto"] == "105000.00"
+    assert santander["lineaGastos"]["catEstimado"].startswith("0.129557")
     assert productos["hsbc-cicb-2026-10"]["financiamientoGastos"] is None
+
+
+def test_garantia_adicional_por_api():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "0", "plazoMeses": 180,
+              "gastosNotariales": "150000", "financiarGastosNotariales": True,
+              "valorGarantiaAdicional": "1500000"}
+    opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
+    tu_casa = opciones["afirme-tu-casa-2-2026-07"]
+    assert tu_casa["elegible"], tu_casa["motivosRechazo"]
+    assert not opciones["afirme-adquisicion-2026-07"]["elegible"]   # 100 % del valor
+

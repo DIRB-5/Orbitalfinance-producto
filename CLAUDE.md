@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             297 pruebas. No deben bajar de ahí.
+  tests/             308 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -206,7 +206,18 @@ contado. Lo financiado genera intereses y seguro sobre saldo; el CAT parte del
 crédito total (no resta la notaría, como los cotizadores) y el costo total no
 lo cuenta dos veces. Scotiabank cobra la apertura y elige tasa sin los gastos
 (`apertura_y_aforo_sobre_total=False`). Ningún cotizador trae un escenario con
-gastos financiados: validado contra sus fórmulas.
+gastos financiados: validado contra sus fórmulas. Dos variantes más:
+- Santander Sustitución (`linea_separada`): los gastos van en un segundo
+  crédito con la misma tasa, plazo y pago, solo vida e IVA sobre intereses,
+  y CAT propio (`tabla_gastos`, `cat_gastos_estimado`); todo o nada si el 7 %
+  no cabe en el aforo (`excede_aforo_cancela`). La mensualidad, la capacidad
+  de pago, el costo total y el ahorro de sustitución suman ambas líneas; el
+  CAT principal no incluye la línea de gastos.
+- Afirme Tu Casa 2 (`incluye_apertura_y_avaluo`, `acepta_garantia_adicional`):
+  el aforo de 80 % se mide sobre la vivienda más un inmueble adicional en
+  garantía (`Escenario.valor_garantia_adicional`, solo el valor) y el crédito
+  cubre notariales, avalúos y la propia apertura: total = (base + notariales +
+  avalúo) / (1 − apertura).
 
 **Las opciones no elegibles se muestran con su motivo**, no se ocultan. El
 asesor necesita poder decirle al cliente qué enganche adicional le abriría esa
@@ -442,7 +453,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 297 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 308 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

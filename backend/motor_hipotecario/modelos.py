@@ -179,6 +179,16 @@ class FinanciamientoGastos:
     # tasa usan el crédito con gastos. False (Scotiabank): usan el crédito sin
     # gastos (Simulador!J18 = F15 × V12); el CAT sí parte del crédito total.
     apertura_y_aforo_sobre_total: bool = True
+    # True (Afirme Tu Casa 2): además de los notariales financia el avalúo y la
+    # propia comisión por apertura, que se cobra sobre el total.
+    incluye_apertura_y_avaluo: bool = False
+    # True (Santander Sustitución): los gastos van en un segundo crédito con la
+    # misma tasa, plazo y pago, solo seguro de vida e IVA sobre intereses, y
+    # su propio CAT (Liquidez!D:K, CAT!AB20). El crédito principal no cambia.
+    linea_separada: bool = False
+    # True (Santander, Cal!C47): si crédito + tope rebasa el aforo máximo no se
+    # financia nada, en vez de recortar a lo que cabe.
+    excede_aforo_cancela: bool = False
 
 
 @dataclass(frozen=True)
@@ -346,6 +356,14 @@ class ProductoHipotecario:
     # None = no los financia: se pagan de contado.
     financiamiento_gastos: Optional[FinanciamientoGastos] = None
 
+    # El aforo se mide sobre la vivienda más el inmueble adicional que el
+    # cliente deja en garantía (Afirme Tu Casa 2). Se cobra un avalúo por cada
+    # inmueble. Los productos que no la aceptan la ignoran.
+    acepta_garantia_adicional: bool = False
+    # Solo tiene sentido con garantía adicional o gastos financiados; sin
+    # ninguno es igual a otro producto del banco (Tu Casa 2 = Adquisición).
+    requiere_garantia_o_gastos_financiados: bool = False
+
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")
 
@@ -481,6 +499,10 @@ class Escenario:
     # permite suma al crédito lo que su regla deja; en los demás se pagan de
     # contado. Se pide el mismo monto a todos para que sean comparables.
     financiar_gastos_notariales: bool = False
+
+    # Valor de otro inmueble que el cliente ofrece en garantía. Solo el valor:
+    # no se piden datos del inmueble (regla 7).
+    valor_garantia_adicional: Dinero = Decimal("0")
 
     # Ingreso mensual comprobable, para evaluar capacidad de pago
     ingreso_mensual: Optional[Dinero] = None

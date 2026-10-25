@@ -45,6 +45,8 @@ class EscenarioEntrada(ModeloBase):
     gastos_notariales: Decimal = Field(default=Decimal("0"), ge=0)
     # Pedir a cada banco que lo permita sumar los gastos al crédito
     financiar_gastos_notariales: bool = False
+    # Valor de otro inmueble en garantía (Afirme Tu Casa 2). Solo el valor.
+    valor_garantia_adicional: Decimal = Field(default=Decimal("0"), ge=0)
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
@@ -93,6 +95,8 @@ class FinanciamientoGastosSalida(ModeloBase):
     tope: Optional[str]
     base_tope: str
     apertura_y_aforo_sobre_total: bool
+    incluye_apertura_y_avaluo: bool
+    linea_separada: bool
 
 
 class ProductoSalida(ModeloBase):
@@ -114,6 +118,7 @@ class ProductoSalida(ModeloBase):
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]
     financiamiento_gastos: Optional[FinanciamientoGastosSalida]
+    acepta_garantia_adicional: bool
     requiere_cofinanciamiento: bool
     dia_de_pago: Optional[int]
     primer_periodo_dias_reales: bool
@@ -170,6 +175,18 @@ class RenglonSalida(ModeloBase):
     saldo_final: str
 
 
+class LineaGastosSalida(ModeloBase):
+    """Segundo crédito con los gastos notariales (Santander Sustitución)."""
+
+    monto: str
+    tasa_anual: str
+    pago_mensual: str
+    total_pagado: str
+    total_intereses: str
+    total_iva_intereses: str
+    cat_estimado: str
+
+
 class CreditoInstitutoSalida(ModeloBase):
     instituto: str
     producto: str
@@ -201,6 +218,7 @@ class OpcionSalida(ModeloBase):
     gastos_notariales: str
     gastos_financiados: str
     gastos_de_contado: str
+    linea_gastos: Optional[LineaGastosSalida]
     cat_estimado: str
     pago_primer_mes: str
     pago_ultimo_mes: str

@@ -2050,6 +2050,7 @@ class Component extends DCLogic {
         enganche: (f.valorVivienda || 0) - (f.montoCredito || 0) - this.aportesCofi(f),
         gastosNotariales: Math.round((f.valorVivienda || 0) * (f.gastosNotarialesPct || 0)),
         financiarGastosNotariales: f.financiarGastos === "si",
+        valorGarantiaAdicional: f.valorGarantiaAdicional || 0,
         cofinanciamiento: cofi,
       });
     }
@@ -3263,7 +3264,11 @@ class Component extends DCLogic {
       tituloCampos = "Vivienda y crédito";
       campos = [campoNumero("valorVivienda", "Valor de la vivienda")]
         .concat(parMontoEnganche("valorVivienda"))
-        .concat([campoPct("Gastos notariales estimados", "Varían entre 6 % y 8 % según notaría y municipio."), campoFinanciarGastos, campoPlazo([60, 120, 180, 240])]);
+        .concat([campoPct("Gastos notariales estimados", "Varían entre 6 % y 8 % según notaría y municipio."), campoFinanciarGastos,
+          campoNumero("valorGarantiaAdicional", "Inmueble adicional en garantía (opcional)", {
+            hayNota: true, nota: "Solo el valor. Afirme Tu Casa 2 mide su aforo de 80 % sobre ambos inmuebles y con eso puede financiar los gastos.",
+          }),
+          campoPlazo([60, 120, 180, 240])]);
     } else if (subtipo === "sustitucion") {
       tituloCampos = "Crédito actual";
       campos = [
@@ -3558,7 +3563,7 @@ class Component extends DCLogic {
               { k: "Comisión por apertura", v: mxn(o.comisionApertura) },
               { k: "Comisión por investigación", v: mxn(o.comisionInvestigacion), omitirSiCero: true },
               { k: "Avalúo", v: mxn(o.avaluo) },
-              { k: o.gastosFinanciados ? "Gastos notariales de contado (" + mxn(o.gastosFinanciados) + " van en el crédito)" : "Gastos notariales", v: mxn(o.gastosDeContado) },
+              { k: o.gastosFinanciados ? "Gastos notariales de contado (" + mxn(o.gastosFinanciados) + (o.lineaGastos ? " van en un segundo crédito)" : " van en el crédito)") : "Gastos notariales", v: mxn(o.gastosDeContado) },
               { k: "Penalización por prepago", v: mxn(o.penalizacionSalida) },
             ].filter((x) => !(x.omitirSiCero && x.v === "$0.00")),
             equilibrio: pe ? "Mes " + pe + " · " + (Math.floor((pe / 12) * 10) / 10).toFixed(1) + " años de " + Math.round(anios) : "No se alcanza",
@@ -3594,7 +3599,9 @@ class Component extends DCLogic {
     const det = opciones.find((o) => o.producto.id === (s.detalleId || (barata && barata.producto.id))) || elegibles[0];
     const detConceptos = det ? [
       det.montoCredito, det.totalIntereses, det.totalSeguros,
-      det.comisionApertura, det.totalComisionMensual || 0, det.totalIvaIntereses || 0, det.avaluo, det.gastosDeContado,
+      det.comisionApertura, det.totalComisionMensual || 0, det.totalIvaIntereses || 0, det.avaluo, det.gastosDeContado, det.comisionInvestigacion || 0,
+      det.lineaGastos ? det.lineaGastos.totalPagado : 0,
+      -Math.max(0, (det.gastosFinanciados || 0) - (det.gastosNotariales || 0)),
     ].reduce((a, b) => a + (b || 0), 0) : 0;
     const detAjuste = det ? (det.costoTotal || 0) - detConceptos : 0;
 
@@ -3845,18 +3852,23 @@ class Component extends DCLogic {
       detCat: det ? pct(det.catEstimado) : "—",
       detFuente: det ? det.producto.fuente : "",
       detDesglose: det ? [
-        { k: det.gastosFinanciados ? "Monto del crédito (incluye " + mxn(det.gastosFinanciados) + " de gastos notariales financiados)" : "Monto del crédito", v: mxn(det.montoCredito) },
+        { k: det.gastosFinanciados && !det.lineaGastos ? "Monto del crédito (incluye " + mxn(det.gastosFinanciados) + (det.gastosFinanciados > det.gastosNotariales ? " de notariales, avalúo y apertura financiados)" : " de gastos notariales financiados)") : "Monto del crédito", v: mxn(det.montoCredito) },
         { k: "Intereses del periodo", v: mxn(det.totalIntereses) },
         { k: det.subtipo === "terreno" ? "Seguro de daños del periodo (no aplica: un terreno baldío no tiene construcción que asegurar)" : "Seguros del periodo (vida y daños)",
           v: det.subtipo === "terreno" ? mxn(0) : mxn(det.totalSeguros) },
         { k: "Seguro de vida del periodo", v: mxn(det.totalSeguros), soloTerreno: true },
         { k: "Comisión por apertura", v: mxn(det.comisionApertura) },
         { k: "Comisión mensual acumulada", v: mxn(det.totalComisionMensual || 0) },
+        { k: "Comisión por investigación", v: mxn(det.comisionInvestigacion || 0), omitirSiCero: true },
         { k: "IVA sobre intereses del periodo", v: mxn(det.totalIvaIntereses || 0), omitirSiCero: true },
         { k: "Avalúo", v: mxn(det.avaluo), omitirSiCero: true },
         { k: det.gastosFinanciados ? "Gastos notariales de contado" : "Gastos notariales estimados", v: mxn(det.gastosDeContado), omitirSiCero: true },
+        { k: det.lineaGastos ? "Segundo crédito por " + mxn(det.lineaGastos.monto) + " de gastos notariales: capital, intereses, vida e IVA (CAT estimado " + pct(det.lineaGastos.catEstimado) + ")" : "",
+          v: det.lineaGastos ? mxn(det.lineaGastos.totalPagado) : "$0.00", omitirSiCero: true },
+        { k: "Apertura y avalúo financiados (ya incluidos en el monto del crédito)",
+          v: "−" + mxn(Math.max(0, (det.gastosFinanciados || 0) - (det.gastosNotariales || 0))), omitirSiCero: true },
       ].filter((x) => (x.soloTerreno ? det.subtipo === "terreno" : true))
-       .filter((x) => !(x.omitirSiCero && x.v === "$0.00")) : [],
+       .filter((x) => !(x.omitirSiCero && (x.v === "$0.00" || x.v === "−$0.00"))) : [],
       detHayAjuste: !!(det && Math.abs(detAjuste) >= 0.01),
       detAjuste: (detAjuste < 0 ? "−" : "") + mxn(Math.abs(detAjuste)).replace("$", "$"),
       detCostoTotal: det ? mxn(det.costoTotal) : "—",
@@ -3865,9 +3877,11 @@ class Component extends DCLogic {
       detDesembolsoPartes: det ? [
         { k: "Enganche", v: mxn(esc.enganche || 0) },
         { k: "Comisión por apertura", v: mxn(det.comisionApertura) },
+        { k: "Comisión por investigación", v: mxn(det.comisionInvestigacion || 0) },
         { k: "Avalúo", v: mxn(det.avaluo) },
         { k: det.gastosFinanciados ? "Gastos notariales de contado" : "Gastos notariales", v: mxn(det.gastosDeContado) },
-      ].filter((x) => x.v !== "$0.00") : [],
+        { k: "Apertura y avalúo financiados", v: "−" + mxn(Math.max(0, (det.gastosFinanciados || 0) - (det.gastosNotariales || 0))) },
+      ].filter((x) => x.v !== "$0.00" && x.v !== "−$0.00") : [],
       detColSeg1: "Seguro de vida",
       detColSeg2: "Seguro de daños",
       detHaySeg1: !!(det && (det.producto.seguroVidaMensual || 0) > 0),

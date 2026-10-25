@@ -263,7 +263,10 @@ function adaptarProducto(p) {
       tope: num(p.financiamientoGastos.tope),
       baseTope: p.financiamientoGastos.baseTope,
       sobreTotal: p.financiamientoGastos.aperturaYAforoSobreTotal,
+      incluyeAperturaYAvaluo: p.financiamientoGastos.incluyeAperturaYAvaluo,
+      lineaSeparada: p.financiamientoGastos.lineaSeparada,
     } : null,
+    aceptaGarantiaAdicional: !!p.aceptaGarantiaAdicional,
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,
@@ -365,6 +368,12 @@ export function descripcionFinanciamientoGastos(producto) {
   if (!f) return "No los financia: se pagan de contado";
   const tope = f.tope == null ? "Sin tope porcentual"
     : "Hasta " + (f.tope * 100).toFixed(0) + "\u00A0% " + (f.baseTope === "valor_inmueble" ? "del valor" : "del crédito");
+  if (f.lineaSeparada) {
+    return tope + " en un segundo crédito con la misma tasa y plazo, seguro de vida e IVA sobre intereses; si no cabe en el aforo, nada.";
+  }
+  if (f.incluyeAperturaYAvaluo) {
+    return "Notariales, avalúos y la comisión por apertura, hasta el aforo de 80\u00A0% sobre la vivienda más el inmueble adicional en garantía.";
+  }
   return tope + ", dentro del aforo máximo. Comisión por apertura sobre "
     + (f.sobreTotal ? "el crédito con gastos." : "el crédito sin gastos.");
 }
@@ -427,6 +436,14 @@ function adaptarOpcion(o, escenario) {
     gastosNotariales: num(o.gastosNotariales),
     gastosFinanciados: num(o.gastosFinanciados) || 0,
     gastosDeContado: num(o.gastosDeContado),
+    // Segundo crédito con los gastos (Santander Sustitución)
+    lineaGastos: o.lineaGastos ? {
+      monto: num(o.lineaGastos.monto),
+      tasaAnual: num(o.lineaGastos.tasaAnual),
+      pagoMensual: num(o.lineaGastos.pagoMensual),
+      totalPagado: num(o.lineaGastos.totalPagado),
+      catEstimado: num(o.lineaGastos.catEstimado),
+    } : null,
     catEstimado: v(o.catEstimado),
     // Mensualidad = pago regular (sin periodo irregular ni pago de cierre)
     pagoPrimerMes: v(o.pagoRegularInicial),
@@ -493,6 +510,7 @@ function cuerpoComparacion(escenario, escenarioRefId) {
     plazoMeses: escenario.plazoMeses,
     gastosNotariales: String(escenario.gastosNotariales || 0),
     financiarGastosNotariales: !!escenario.financiarGastosNotariales,
+    valorGarantiaAdicional: String(destino === "adquisicion" ? escenario.valorGarantiaAdicional || 0 : 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
     escenarioTasa: escenarioRefId || "base",

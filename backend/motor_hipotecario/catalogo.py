@@ -1191,3 +1191,88 @@ CATALOGO += [
     ),
 ]
 
+
+# ---------------------------------------------------------------------------
+# Afirme Tu Casa 2: adquisición con gastos financiados y garantía adicional
+# ---------------------------------------------------------------------------
+CATALOGO += [
+    replace(
+        next(p for p in CATALOGO if p.id == "afirme-adquisicion-2026-07"),
+        id="afirme-tu-casa-2-2026-07",
+        nombre="Multiproductos — Tu Casa 2 (gastos financiados)",
+        # 'Parametro Destino'!B98:F109 = las de adquisición; el crédito nunca
+        # pasa de 80 % (C20), así que solo aplica el primer tramo.
+        tasa_anual=Decimal("0.1005"),
+        tabla_tasas=((240, Decimal("0.80"), Decimal("0.1005")),),
+        aforo_max=Decimal("0.80"),                       # sobre vivienda + garantía
+        acepta_garantia_adicional=True,
+        requiere_garantia_o_gastos_financiados=True,
+        # F3 = MIN(80 % de (H22+H23), H22 + M23): financia notariales, avalúos
+        # y la apertura (1 % del total, L4).
+        financiamiento_gastos=FinanciamientoGastos(tope=None, incluye_apertura_y_avaluo=True),
+        fuente="Cotizador AFIRME_MULTIPRODUCTOS.xlsm, destino TU CASA2 (código 8; "
+        "Parametro Destino F3:H1, M20:M23, Simulación H22:H25, M38:M45), versión "
+        "BAF-040-2607-06, guardado 2026-07-06. SIN escenario capturado: tabla y CAT "
+        "con la mecánica de adquisición (validada con su escenario capturado).",
+        notas="Mismas tasas que Adquisición (A-BB sin nómina), aforo de 80 % sobre la "
+        "vivienda más un inmueble adicional en garantía; con la garantía el crédito "
+        "puede cubrir notariales, avalúos y la apertura. SUPUESTOS que corrigen la "
+        "hoja: el seguro de daños se cobra sobre la vivienda comprada (la hoja lo "
+        "cobra sobre la garantía, H23) y un avalúo por inmueble (la hoja cobra dos "
+        "veces el de la garantía); se financian los notariales capturados, no la "
+        "estimación del banco (5 % del valor más 75 % de eso sobre la garantía). No "
+        "se cobra el trámite CUV ($301.60 con aforo > 79.99 %).",
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Santander Sustitución con línea de gastos
+# ---------------------------------------------------------------------------
+CATALOGO += [
+    replace(
+        _POR_ID["santander-2026-10"],
+        id="santander-sustitucion-2025-12",
+        nombre="Sustitución de hipoteca",
+        destino=Destino.SUSTITUCION,
+        # Perfil 3 a 5, oferta "Ninguno" (Adm!CG7:CG9); perfiles 1–2: 12.10 %
+        tasa_anual=Decimal("0.111"),
+        plazos_meses=tuple(range(84, 241, 12)),          # Adm!E116
+        aforo_max=Decimal("0.90"),                       # perfil 4–5 asalariado (EK8:EK9)
+        monto_minimo=Decimal("100000"),                  # Adm!Z3
+        valor_minimo_inmueble=Decimal("250000"),         # Adm!AA3
+        comision_apertura=Decimal("0"),                  # Adm!B116 → P4
+        comision_apertura_monto=None,
+        avaluo=Decimal("3000.0036"),                     # Cal!C111 = 2,586.21 × 1.16
+        comision_mensual=Decimal("406"),                 # 350 + IVA (Cal!C126)
+        seguro_vida_mensual=Decimal("0.0008254"),        # dos intervinientes (Adm!T8)
+        # Daños: valor × 0.70 × 0.0003 mensual, IVA incluido (Adm!AA11·X4)
+        seguro_danos_monto_mensual=None,
+        seguro_danos_anual=Decimal("0.0036"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        # CAT!L5, H25, I25: avalúo, daños y comisión ÷ 1.16
+        cat_netos_de_iva=frozenset({
+            ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL,
+        }),
+        # "Financiamiento de gastos": 7 % del crédito en una línea aparte,
+        # todo o nada por aforo (Cal!C47); misma tasa y pago, vida e IVA de
+        # intereses (Liquidez!D18:K18); CAT propio (CAT!AB20).
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.07"), linea_separada=True, excede_aforo_cancela=True
+        ),
+        vigente_desde=date(2025, 12, 15),
+        fuente="Cotizador Santander.xlsm, destino Sustitución (Adm, Cal, Liquidez, "
+        "CAT), versión 2025-6 Ro (15 diciembre 2025). SIN escenario capturado: "
+        "validado contra sus fórmulas con una réplica que reproduce el escenario "
+        "guardado de adquisición.",
+        notas="Tasa de mercado abierto para perfiles 3 a 5; perfiles 1–2 pagan 12.10 %, "
+        "y con Hipoteca Plus (nómina, tarjeta y seguros) baja hasta 9.30 %. Aforo de "
+        "90 % para asalariados perfil 4–5 (75 % a 85 % en los demás). Seguro de vida "
+        "para dos intervinientes. Los gastos se financian en un segundo crédito: "
+        "SUPUESTO, el mínimo entre los gastos del escenario y el 7 % (el cotizador "
+        "financia el 7 % fijo). Mejora de Condiciones no se incluye: falta confirmar "
+        "con Santander a quién aplica.",
+    ),
+]
+

@@ -610,6 +610,7 @@ def test_productos_de_sustitucion_en_el_catalogo():
         "scotiabank-7x5-pasivo-hipotecario-2024-01",
         "scotiabank-pasivos-pagos-oportunos-2024-01",
         "scotiabank-pasivos-valora-2024-01",
+        "santander-sustitucion-2025-12",
     }
 
 
@@ -1111,3 +1112,111 @@ def test_comparar_financia_solo_donde_el_producto_lo_permite():
     assert por_id["banorte-mejora-hipoteca-2026-06"].gastos_financiados == 0
     assert por_id["banorte-mejora-hipoteca-2026-06"].gastos_de_contado == D("120000")
     assert por_id["scotiabank-pasivos-pagos-oportunos-2024-01"].gastos_financiados == D("90000")
+
+
+# ---------------------------------------------------------------------------
+# Santander Sustitución con línea de gastos y Afirme Tu Casa 2
+# ---------------------------------------------------------------------------
+
+def test_santander_sustitucion_con_linea_de_gastos_reproduce_sus_formulas():
+    """
+    Réplica de Cal, Liquidez y CAT (que reproduce al centavo el escenario
+    guardado de adquisición) con valor 3,000,000, saldo 1,500,000, gastos
+    120,000 y 240 meses: la línea de gastos es el 7 % (105,000).
+    """
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    escenario = _con_gastos(_escenario_sustitucion(D("3000000"), D("1500000"), 240), "120000")
+    r = evaluar_producto(escenario, POR_ID["santander-sustitucion-2025-12"], momento=date(2026, 10, 24))
+    assert r.elegible, r.motivos_rechazo
+    assert r.gastos_financiados == D("105000") and r.gastos_de_contado == D("15000")
+    principal = {
+        1: "18017.220681181132281158520163928431066226793165935",
+        2: "18015.837770379385374573651921385124539224729570856",
+        120: "17716.868214272600609546516304183661439349595437144",
+        240: "16769.287399122813710051178650119800143026737963275",
+    }
+    gastos = {
+        1: "1346.2434356826792596810964114749901746358755216155",
+        12: "1343.0980017116354945834526677410483049126687297827",
+        240: "1102.9660287521367328620429134013014923258017942866",
+    }
+    for mes, esp in principal.items():
+        assert abs(r.tabla.renglones[mes - 1].pago_total - D(esp)) < D("0.000001")
+    for mes, esp in gastos.items():
+        assert abs(r.tabla_gastos.renglones[mes - 1].pago_total - D(esp)) < D("0.000001")
+    assert abs(r.tabla_gastos.renglones[0].iva_intereses - D("157.557988")) < D("0.000001")
+    assert abs(r.cat_estimado - D("0.13943305310672")) < D("0.0000001")
+    assert abs(r.cat_gastos_estimado - D("0.12955723200051")) < D("0.0000001")
+    assert abs(r.pago_regular_inicial - D("19363.464116863811540839616575")) < D("0.000001")
+
+
+def test_santander_sustitucion_sin_gastos_si_el_siete_por_ciento_no_cabe():
+    """Cal!C47: (crédito + 7 %) / valor > aforo → 0, todo o nada."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    escenario = _con_gastos(_escenario_sustitucion(D("3000000"), D("2600000"), 240), "120000")
+    r = evaluar_producto(escenario, POR_ID["santander-sustitucion-2025-12"], momento=date(2026, 10, 24))
+    assert r.elegible
+    assert r.gastos_financiados == 0 and r.tabla_gastos is None
+    assert r.gastos_de_contado == D("120000")
+
+
+def _escenario_tu_casa(enganche, garantia, financiar=True):
+    from motor_hipotecario.modelos import Escenario
+
+    return Escenario(
+        valor_vivienda=D("3000000"), enganche=D(enganche), plazo_meses=180,
+        gastos_notariales=D("150000"), financiar_gastos_notariales=financiar,
+        valor_garantia_adicional=D(garantia),
+    )
+
+
+def test_afirme_tu_casa_2_financia_gastos_con_la_mecanica_de_adquisicion():
+    """
+    Sin garantía y con 1,000,000 de enganche el crédito cubre notariales, avalúo
+    y la apertura (1 % del total): (2,000,000 + 150,000 + 7,500) / 0.99. Tasa y
+    tabla son las de Adquisición al mismo monto (aforo ≤ 80 %).
+    """
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    momento = date(2026, 7, 6)
+    r = evaluar_producto(_escenario_tu_casa("1000000", "0"), POR_ID["afirme-tu-casa-2-2026-07"],
+                         momento=momento)
+    assert r.elegible, r.motivos_rechazo
+    total = (D("2000000") + D("150000") + D("7500")) / D("0.99")
+    assert r.monto_credito == total
+    assert r.producto.tasa_anual == D("0.1005")
+    assert abs(r.desembolso_inicial - D("1000000")) < D("0.01")   # solo el enganche
+    adq = evaluar_producto(
+        replace(_escenario_tu_casa(str(D("3000000") - total), "0"), financiar_gastos_notariales=False),
+        POR_ID["afirme-adquisicion-2026-07"], momento=momento,
+    )
+    assert adq.monto_credito == total and adq.producto.tasa_anual == D("0.1005")
+    assert [x.pago_total for x in r.tabla.renglones] == [x.pago_total for x in adq.tabla.renglones]
+    assert r.cat_estimado == adq.cat_estimado
+
+
+def test_afirme_tu_casa_2_con_garantia_adicional():
+    """F3 = MIN(80 % de (vivienda + garantía), vivienda + gastos); dos avalúos."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_escenario_tu_casa("0", "1500000"), POR_ID["afirme-tu-casa-2-2026-07"],
+                         momento=date(2026, 7, 6))
+    assert r.elegible, r.motivos_rechazo
+    assert r.avaluo == D("7500") + D("3750")          # 2.5 al millar de cada inmueble
+    assert r.monto_credito == (D("3000000") + D("150000") + D("11250")) / D("0.99")
+    # Sin garantía ni gastos financiados aplica Adquisición
+    r = evaluar_producto(_escenario_tu_casa("1000000", "0", financiar=False),
+                         POR_ID["afirme-tu-casa-2-2026-07"], momento=date(2026, 7, 6))
+    assert not r.elegible
+

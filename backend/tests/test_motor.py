@@ -1766,3 +1766,114 @@ def test_la_tasa_por_aforo_usa_el_credito_con_gastos():
         _escenario_gastos(), producto_financia(tabla_tasas=tabla, sobre_total=False), momento=HOY
     )
     assert r.producto.tasa_anual == Decimal("0.10")
+
+
+# --------------------------------------------------------------------------
+# Garantía adicional y gastos de originación financiados (Afirme Tu Casa 2)
+# --------------------------------------------------------------------------
+# El aforo se mide sobre la vivienda más un inmueble adicional en garantía, y
+# el crédito puede cubrir notariales, avalúo y la propia apertura (1 % del
+# total): T = (base + notariales + avalúo) / (1 − 1 %).
+
+
+def producto_tu_casa(**kwargs):
+    return producto_limpio(
+        aforo_max=Decimal("0.80"),
+        comision_apertura=Decimal("0.01"),
+        avaluo=Decimal("4000"),
+        acepta_garantia_adicional=True,
+        financiamiento_gastos=FinanciamientoGastos(tope=None, incluye_apertura_y_avaluo=True),
+        **kwargs,
+    )
+
+
+def _escenario_garantia(garantia="1500000", enganche="0", financiar=True):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal(enganche), plazo_meses=240,
+        gastos_notariales=Decimal("150000"), financiar_gastos_notariales=financiar,
+        valor_garantia_adicional=Decimal(garantia),
+    )
+
+
+def test_la_garantia_adicional_amplia_el_aforo():
+    # 3,000,000 sobre 4,500,000 = 66.7 %: elegible con aforo máximo de 80 %
+    r = evaluar_producto(_escenario_garantia(financiar=False), producto_tu_casa(), momento=HOY)
+    assert r.elegible, r.motivos_rechazo
+    # Sin la garantía es 100 % del valor
+    r = evaluar_producto(_escenario_garantia(garantia="0", financiar=False), producto_tu_casa(), momento=HOY)
+    assert not r.elegible
+    # Un producto que no la acepta la ignora
+    r = evaluar_producto(_escenario_garantia(financiar=False), producto_financia(), momento=HOY)
+    assert not r.elegible
+
+
+def test_financia_notariales_avaluo_y_la_apertura_sobre_el_total():
+    r = evaluar_producto(_escenario_garantia(), producto_tu_casa(), momento=HOY)
+    total = (Decimal("3000000") + Decimal("150000") + Decimal("4000")) / Decimal("0.99")
+    assert r.monto_credito == total
+    assert r.comision_apertura == redondear(total * Decimal("0.01"))
+    assert r.gastos_financiados == total - Decimal("3000000")
+    # Todo lo de la firma va en el crédito: el desembolso queda en centavos
+    assert abs(r.desembolso_inicial) < Decimal("0.01")
+
+
+def test_gastos_de_originacion_topados_por_el_aforo_con_garantia():
+    # Garantía de 800,000: 80 % de 3,800,000 = 3,040,000 → solo 40,000 de gastos
+    r = evaluar_producto(_escenario_garantia(garantia="800000"), producto_tu_casa(), momento=HOY)
+    assert r.monto_credito == Decimal("3040000")
+    assert r.gastos_financiados == Decimal("40000")
+    assert r.desembolso_inicial == (
+        r.comision_apertura + r.avaluo + Decimal("150000") - Decimal("40000")
+    )
+
+
+def test_producto_que_solo_aplica_con_garantia_o_gastos_financiados():
+    producto = producto_tu_casa(requiere_garantia_o_gastos_financiados=True)
+    escenario = _escenario_garantia(garantia="0", enganche="1000000", financiar=False)
+    r = evaluar_producto(escenario, producto, momento=HOY)
+    assert not r.elegible and "garantía" in r.motivos_rechazo[0]
+    from dataclasses import replace as _replace
+    assert evaluar_producto(_replace(escenario, financiar_gastos_notariales=True), producto, momento=HOY).elegible
+
+
+# --------------------------------------------------------------------------
+# Gastos en una línea de crédito aparte (Santander Sustitución)
+# --------------------------------------------------------------------------
+# Cal!C47: 7 % del crédito, todo o nada si rebasa el aforo; Liquidez!D:K: misma
+# tasa, plazo y pago, solo seguro de vida e IVA de intereses; CAT!AB20 propio.
+
+
+def producto_linea_gastos(**kwargs):
+    return producto_limpio(
+        avaluo=Decimal("3000"),
+        comision_mensual=Decimal("406"),
+        seguro_vida_mensual=Decimal("0.0008"),
+        seguro_danos_monto_mensual=Decimal("630"),
+        financiamiento_gastos=FinanciamientoGastos(
+            tope=Decimal("0.07"), linea_separada=True, excede_aforo_cancela=True
+        ),
+        **kwargs,
+    )
+
+
+def test_gastos_en_linea_separada():
+    r = evaluar_producto(_escenario_gastos(), producto_linea_gastos(), momento=HOY)
+    assert r.gastos_financiados == Decimal("105000")             # 7 % de 1,500,000
+    assert r.monto_credito == r.tabla.monto == Decimal("1500000")
+    g = r.tabla_gastos
+    assert g.monto == Decimal("105000") and len(g.renglones) == 240
+    x = g.renglones[0]
+    assert x.seguro_danos == 0 and x.comision_mensual == 0
+    assert x.iva_intereses == x.interes * Decimal("0.16")
+    # El cliente paga ambas líneas cada mes
+    assert r.pago_regular_inicial == r.tabla.pago_regular_inicial + g.pago_regular_inicial
+    assert r.costo_total == (
+        r.tabla.total_pagado + g.total_pagado + r.avaluo + Decimal("120000") - Decimal("105000")
+    )
+    assert r.cat_gastos_estimado is not None and r.cat_gastos_estimado != r.cat_estimado
+
+
+def test_linea_de_gastos_todo_o_nada_por_aforo():
+    # 2,300,000 + 7 % = 2,461,000 > 95 % de 2,500,000: no se financia nada
+    r = evaluar_producto(_escenario_gastos(enganche="200000"), producto_linea_gastos(), momento=HOY)
+    assert r.gastos_financiados == 0 and r.tabla_gastos is None
