@@ -18,6 +18,7 @@ from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_institu
 from .referencias import TIIE_BASE
 from .modelos import (
     CreditoActual,
+    Destino,
     Dinero,
     Escenario,
     LineaCredito,
@@ -26,6 +27,11 @@ from .modelos import (
 )
 
 VERSION_MOTOR = "0.1.0"
+
+# Destinos en que el cliente compra y paga enganche. En sustitución y liquidez
+# el inmueble ya es suyo: la diferencia contra el crédito es patrimonio que no
+# sale de su bolsillo.
+DESTINOS_CON_ENGANCHE = (Destino.ADQUISICION, Destino.TERRENO)
 
 
 @dataclass(frozen=True)
@@ -295,7 +301,9 @@ def evaluar_producto(
     if escenario.aforo > producto.aforo_max:
         motivos.append(
             f"El aforo solicitado ({escenario.aforo:.1%}) supera el máximo del "
-            f"producto ({producto.aforo_max:.1%}). Se requiere más enganche."
+            f"producto ({producto.aforo_max:.1%}). "
+            + ("Se requiere más enganche." if escenario.destino in DESTINOS_CON_ENGANCHE
+               else "El monto pedido excede lo que presta sobre el valor del inmueble.")
         )
 
     if plazo not in producto.plazos_meses:
@@ -506,7 +514,7 @@ def evaluar_producto(
         elegible=not motivos,
         motivos_rechazo=tuple(motivos),
         advertencias=tuple(advertencias),
-        enganche=escenario.enganche,
+        enganche=escenario.enganche if escenario.destino in DESTINOS_CON_ENGANCHE else Decimal("0"),
         tabla_instituto=tabla_instituto,
         credito_actual=escenario.credito_actual,
     )

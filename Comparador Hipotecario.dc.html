@@ -2053,6 +2053,7 @@ class Component extends DCLogic {
         pagoMensualActual: f.pagoMensualActual || 0,
         plazoRemanenteMeses: f.plazoRemanenteMeses || 0,
         penalizacionPrepago: f.penalizacionPrepago || 0,
+        penalizacionPrepagoMonto: Math.round((f.saldoInsoluto || 0) * (f.penalizacionPrepago || 0) * 100) / 100,
         valorInmueble: f.valorInmueble || 0,
         plazoNuevoMeses: f.plazoNuevoMeses || f.plazoRemanenteMeses || 0,
         plazoMeses: f.plazoNuevoMeses || f.plazoRemanenteMeses || 0,
@@ -3262,7 +3263,7 @@ class Component extends DCLogic {
         campos: [
           campoNumero("valorInmueble", "Valor actual del inmueble"),
           campoNumero("plazoNuevoMeses", "Plazo nuevo (meses)", {
-            hayNota: true, nota: "Por defecto, igual al remanente del crédito actual.",
+            hayNota: true, nota: "Por defecto, igual al remanente. Los bancos ofrecen plazos en años completos.",
           }),
           campoNumero("gastosNotariales", "Gastos notariales estimados", {
             hayNota: true, nota: "Escrituración de la nueva hipoteca.",
@@ -3453,7 +3454,7 @@ class Component extends DCLogic {
     }));
 
     // ---------- Sustitución: cada opción contra quedarse ----------
-    const COLORES = [ACENTO, "#8A6A2F", "#6B7F8C"];
+    const COLORES = [ACENTO, "#8A6A2F", "#6B7F8C", "#4F7A5A", "#8C4F6B"];
     let sb = null;
     if (esSustitucion) {
       const r = m.evaluarSustitucion(esc, s.escenarioRef);
@@ -3461,7 +3462,8 @@ class Component extends DCLogic {
       const conPE = elegiblesSb.filter((o) => o.puntoEquilibrioMes);
       const rapida = conPE.slice().sort((a, b) => a.puntoEquilibrioMes - b.puntoEquilibrioMes)[0] || null;
       const mayor = elegiblesSb.slice().sort((a, b) => b.ahorroNeto - a.ahorroNeto)[0] || null;
-      const plazo = esc.plazoNuevoMeses || esc.plazoRemanenteMeses || 1;
+      // El eje cubre lo que dure más: el crédito nuevo o el actual.
+      const plazo = Math.max(esc.plazoNuevoMeses || 0, esc.plazoRemanenteMeses || 0) || 1;
       const anios = plazo / 12;
 
       const todos = elegiblesSb.reduce((a, o) => a.concat(o.serie.map((p) => p.acumulado)), [0]);
@@ -3534,10 +3536,11 @@ class Component extends DCLogic {
             costoCambio: mxn(o.costoDeCambiarse),
             costoPartes: [
               { k: "Comisión por apertura", v: mxn(o.comisionApertura) },
+              { k: "Comisión por investigación", v: mxn(o.comisionInvestigacion), omitirSiCero: true },
               { k: "Avalúo", v: mxn(o.avaluo) },
               { k: "Gastos notariales", v: mxn(o.gastosNotariales) },
               { k: "Penalización por prepago", v: mxn(o.penalizacionSalida) },
-            ],
+            ].filter((x) => !(x.omitirSiCero && x.v === "$0.00")),
             equilibrio: pe ? "Mes " + pe + " · " + (Math.floor((pe / 12) * 10) / 10).toFixed(1) + " años de " + Math.round(anios) : "No se alcanza",
             noConviene,
             ahorroNeto: mxn(o.ahorroNeto),
@@ -3571,7 +3574,7 @@ class Component extends DCLogic {
     const det = opciones.find((o) => o.producto.id === (s.detalleId || (barata && barata.producto.id))) || elegibles[0];
     const detConceptos = det ? [
       det.montoCredito, det.totalIntereses, det.totalSeguros,
-      det.comisionApertura, det.totalComisionMensual || 0, det.avaluo, det.gastosNotariales,
+      det.comisionApertura, det.totalComisionMensual || 0, det.totalIvaIntereses || 0, det.avaluo, det.gastosNotariales,
     ].reduce((a, b) => a + (b || 0), 0) : 0;
     const detAjuste = det ? (det.costoTotal || 0) - detConceptos : 0;
 
@@ -3829,6 +3832,7 @@ class Component extends DCLogic {
         { k: "Seguro de vida del periodo", v: mxn(det.totalSeguros), soloTerreno: true },
         { k: "Comisión por apertura", v: mxn(det.comisionApertura) },
         { k: "Comisión mensual acumulada", v: mxn(det.totalComisionMensual || 0) },
+        { k: "IVA sobre intereses del periodo", v: mxn(det.totalIvaIntereses || 0), omitirSiCero: true },
         { k: "Avalúo", v: mxn(det.avaluo), omitirSiCero: true },
         { k: "Gastos notariales estimados", v: mxn(det.gastosNotariales), omitirSiCero: true },
       ].filter((x) => (x.soloTerreno ? det.subtipo === "terreno" : true))

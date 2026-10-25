@@ -856,3 +856,17 @@ def test_liquidez_respeta_su_aforo():
     assert not evaluar_producto(escenario, POR_ID["banregio-liquidez-2023-12"], date(2026, 11, 1)).elegible
     assert not evaluar_producto(escenario, POR_ID["bx-liquidez-2022-10"]).elegible
     assert evaluar_producto(escenario, POR_ID["banamex-liquidez-mercado-abierto-2026-08"]).elegible
+
+
+def test_liquidez_no_cuenta_el_patrimonio_como_desembolso():
+    """En liquidez no hay enganche: el día de la firma solo salen los gastos."""
+    from motor_hipotecario.comparador import evaluar_producto
+
+    escenario = _escenario_liquidez(D("3000000"), D("1200000"), 120)
+    producto = next(p for p in CATALOGO if p.id == "banorte-liquidez-2026-06")
+    r = evaluar_producto(escenario, producto)
+    assert r.enganche == 0
+    assert r.desembolso_inicial == (
+        r.comision_apertura + r.avaluo + r.gastos_notariales + r.comision_investigacion
+    )
+

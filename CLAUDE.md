@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             259 pruebas. No deben bajar de ahí.
+  tests/             260 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -187,7 +187,8 @@ días. La capacidad de pago se mide con el pago regular.
 liquidez, terreno) y el comparador solo compara productos del destino del
 escenario. En sustitución el escenario trae `CreditoActual` y cada opción
 calcula ahorro mensual, costo de cambiarse, punto de equilibrio y ahorro neto
-contra quedarse.
+contra quedarse. Solo adquisición y terreno llevan enganche en el desembolso
+inicial: en sustitución y liquidez el inmueble ya es del cliente.
 
 **En liquidez el banco cobra IVA sobre los intereses** (no hay exención por
 casa habitación). `iva_sobre_intereses` lo suma al pago; con
@@ -426,7 +427,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 259 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 260 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

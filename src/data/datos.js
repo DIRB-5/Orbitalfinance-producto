@@ -27,7 +27,8 @@ export const organizacion = {
 export const asesorActual = organizacion.asesores[0];
 
 // --- Taxonomía de productos ------------------------------------------------
-// El motor hoy modela adquisición. Los demás subtipos quedan como próximos.
+// El motor modela adquisición, sustitución, liquidez y terreno. Construcción
+// queda como próximo.
 export const FAMILIAS = [
   {
     id: "hipotecario",
@@ -35,9 +36,9 @@ export const FAMILIAS = [
     descripcion: "Crédito con garantía inmobiliaria",
     subtipos: [
       { id: "adquisicion", nombre: "Adquisición", disponible: true, porDefecto: true },
-      { id: "sustitucion", nombre: "Sustitución", disponible: false },
-      { id: "liquidez", nombre: "Liquidez", disponible: false },
-      { id: "terreno", nombre: "Adquisición de terreno", disponible: false },
+      { id: "sustitucion", nombre: "Sustitución", disponible: true },
+      { id: "liquidez", nombre: "Liquidez", disponible: true },
+      { id: "terreno", nombre: "Adquisición de terreno", disponible: true },
       { id: "construccion", nombre: "Construcción", disponible: false },
       { id: "terreno-const", nombre: "Terreno + construcción", disponible: false },
     ],
@@ -226,7 +227,7 @@ function adaptarProducto(p) {
   return {
     id: p.id,
     familia: "hipotecario",
-    subtipo: "adquisicion",
+    subtipo: p.destino,
     institucion: p.institucion,
     nombre: p.nombre,
     tasa: { tipo: "fija", valor: num(p.tasaAnual), referencia: null, spread: null, piso: null, techo: null },
@@ -366,16 +367,34 @@ function adaptarOpcion(o, escenario) {
   });
   const elegible = o.elegible;
   const v = (x) => (elegible ? num(x) : null);
+  const tabla = elegible
+    ? o.tabla.map((r) => ({
+        mes: r.mes,
+        fechaPago: r.fechaPago,
+        saldoInicial: num(r.saldoInicial),
+        capital: num(r.capital),
+        interes: num(r.interes),
+        seguroVida: num(r.seguroVida),
+        seguroDanos: num(r.seguroDanos),
+        comisionMensual: num(r.comisionMensual),
+        aportacion: num(r.aportacion),
+        seguroDesempleo: num(r.seguroDesempleo),
+        ivaIntereses: num(r.ivaIntereses),
+        pagoTotal: num(r.pagoTotal),
+        saldoFinal: num(r.saldoFinal),
+      }))
+    : [];
   return {
     producto,
     familia: "hipotecario",
-    subtipo: "adquisicion",
+    subtipo: escenario.subtipo,
     tasaAnual: producto ? producto.tasa.valor : null,
     tasaVariable: !!o.tasaVariable,
     alternativaSinCofinanciamiento: !!o.alternativaSinCofinanciamiento,
     montoCredito: num(o.montoCredito),
     aforo: num(o.aforo),
     comisionApertura: num(o.comisionApertura),
+    comisionInvestigacion: num(o.comisionInvestigacion) || 0,
     totalComisionMensual: v(o.totalComisionMensual),
     totalAportaciones: v(o.totalAportaciones),
     creditoInstituto: o.creditoInstituto ? {
@@ -387,7 +406,6 @@ function adaptarOpcion(o, escenario) {
     } : null,
     avaluo: num(o.avaluo),
     gastosNotariales: num(o.gastosNotariales),
-    penalizacionSalida: 0,
     catEstimado: v(o.catEstimado),
     // Mensualidad = pago regular (sin periodo irregular ni pago de cierre)
     pagoPrimerMes: v(o.pagoRegularInicial),
@@ -402,26 +420,18 @@ function adaptarOpcion(o, escenario) {
     costoTotal: v(o.costoTotal),
     costoFinanciero: v(o.costoFinanciero),
     desembolsoInicial: num(o.desembolsoInicial),
-    costoDeCambiarse: null,
+    totalIvaIntereses: tabla.reduce((a, r) => a + r.ivaIntereses, 0),
+    // Sustitución: contra quedarse con el crédito actual
+    penalizacionSalida: num(escenario.penalizacionPrepagoMonto) || 0,
+    costoDeCambiarse: num(o.costoDeCambiarse),
+    ahorroMensual: v(o.ahorroMensual),
+    puntoEquilibrioMes: elegible ? o.puntoEquilibrioMes : null,
+    ahorroNeto: v(o.ahorroNeto),
+    serie: elegible ? o.serieAhorro.map((a, i) => ({ mes: i + 1, acumulado: num(a) })) : [],
     elegible,
     motivosRechazo: o.motivosRechazo,
     advertencias: o.advertencias,
-    tabla: elegible
-      ? o.tabla.map((r) => ({
-          mes: r.mes,
-          fechaPago: r.fechaPago,
-          saldoInicial: num(r.saldoInicial),
-          capital: num(r.capital),
-          interes: num(r.interes),
-          seguroVida: num(r.seguroVida),
-          seguroDanos: num(r.seguroDanos),
-          comisionMensual: num(r.comisionMensual),
-          aportacion: num(r.aportacion),
-          seguroDesempleo: num(r.seguroDesempleo),
-          pagoTotal: num(r.pagoTotal),
-          saldoFinal: num(r.saldoFinal),
-        }))
-      : [],
+    tabla,
   };
 }
 
@@ -430,15 +440,33 @@ function adaptarOpcion(o, escenario) {
 // cuando llegan.
 const resultados = new Map();
 
+// Subtipos que compara el motor, con su destino en la API.
+const DESTINO_API = { adquisicion: "adquisicion", sustitucion: "sustitucion", liquidez: "liquidez", terreno: "terreno" };
+
 function cuerpoComparacion(escenario, escenarioRefId) {
-  if (escenario.subtipo !== "adquisicion") return null;
-  const valor = escenario.valorVivienda || 0;
+  const destino = DESTINO_API[escenario.subtipo];
+  if (!destino) return null;
+  const valor = valorGarantiaDe(escenario);
   const monto = escenario.montoCredito || 0;
   // El enganche ya descuenta lo que cubre el instituto (crédito + subcuenta).
   const enganche = escenario.enganche === undefined ? valor - monto : escenario.enganche;
   if (valor <= 0 || monto <= 0 || enganche < 0 || !escenario.plazoMeses) return null;
-  const cofi = escenario.cofinanciamiento;
+  const cofi = destino === "adquisicion" ? escenario.cofinanciamiento : null;
+  let creditoActual = null;
+  if (destino === "sustitucion") {
+    if (!escenario.pagoMensualActual || !escenario.plazoRemanenteMeses) return null;
+    creditoActual = {
+      saldoInsoluto: String(monto),
+      pagoMensual: String(escenario.pagoMensualActual),
+      plazoRemanenteMeses: escenario.plazoRemanenteMeses,
+      tasaAnual: escenario.tasaActual ? String(escenario.tasaActual) : null,
+      penalizacionPrepago: String(escenario.penalizacionPrepagoMonto || 0),
+      institucion: escenario.institucionActual || "",
+    };
+  }
   return {
+    destino,
+    creditoActual,
     valorVivienda: String(valor),
     enganche: String(enganche),
     plazoMeses: escenario.plazoMeses,
@@ -494,9 +522,22 @@ export function evaluarEscenario(escenario, escenarioRefId, ids) {
   return opciones;
 }
 
-// Sustitución todavía no la modela el motor.
-export function evaluarSustitucion() {
-  return { lineaBase: null, opciones: [] };
+// Sustitución: el crédito actual como línea base y cada opción contra quedarse.
+export function evaluarSustitucion(escenario, escenarioRefId) {
+  const opciones = evaluarEscenario(escenario, escenarioRefId);
+  const pago = escenario.pagoMensualActual || 0;
+  const plazo = escenario.plazoRemanenteMeses || 0;
+  return {
+    lineaBase: {
+      institucionActual: escenario.institucionActual || "",
+      saldoInsoluto: escenario.saldoInsoluto || 0,
+      tasaActual: escenario.tasaActual || 0,
+      pagoMensualActual: pago,
+      plazoRemanenteMeses: plazo,
+      sumaPagosRestantes: pago * plazo,
+    },
+    opciones,
+  };
 }
 
 // Rango de costo total entre los escenarios de TIIE, para productos de tasa
