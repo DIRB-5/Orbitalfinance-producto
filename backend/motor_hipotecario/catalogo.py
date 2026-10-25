@@ -1009,8 +1009,155 @@ CATALOGO += [
         fuente="Cotizador SCOTIABANK Liquidez Libre 7x5.xlsm (motor 7x5). v2024.01, "
         "guardado 2024-03-22. SIN escenario capturado: validado contra sus fórmulas.",
         notas="TASAS DE MARZO DE 2024: confirmar vigencia con Scotiabank. Solo 5 años, "
-        "tasa fija. IVA de intereses en el pago, no en el CAT. Los esquemas Valora y "
-        "Pagos Oportunos de liquidez no se modelan.",
+        "tasa fija. IVA de intereses en el pago, no en el CAT. Valora y Pagos "
+        "Oportunos están aparte (Liquidez Libre).",
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
+# Scotiabank Valora y Pagos Oportunos (tasa fija, sin tramo variable)
+# ---------------------------------------------------------------------------
+# Comparten el motor del 7x5: interés con días del mes / 360, pago al millar
+# escrito en el archivo, cortes de pago 3 y 17, vida 0.6 al millar sobre saldo
+# y daños 0.31 al millar mensual sobre el valor. El pago no se recalcula: al
+# bajar la tasa (Pagos Oportunos) o crecer el pago (Valora) el crédito se
+# liquida antes del plazo. Ninguno de los dos archivos trae escenario
+# capturado: validados contra sus fórmulas.
+
+_SCOTIA_PASIVOS = replace(
+    next(p for p in CATALOGO if p.id == "scotiabank-7x5-pasivo-hipotecario-2024-01"),
+    tasa_anual=Decimal("0.1025"),
+    tabla_tasas=(),
+    tasa_variable=None,
+    reamortizar_mensual_desde=None,
+    aforo_max=Decimal("0.95"),                           # Simulador!V10
+    comision_apertura=Decimal("0"),                      # V12
+    monto_minimo=None,
+    monto_maximo=None,
+    valor_minimo_inmueble=None,                          # F11 apunta a V5, vacía
+)
+
+_SCOTIA_LIQUIDEZ = replace(
+    next(p for p in CATALOGO if p.id == "scotiabank-liquidez-libre-7x5-2024-01"),
+    aforo_max=Decimal("0.70"),                           # V34
+    comision_apertura=Decimal("0.0232"),                 # 2 % + IVA (T34)
+    cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_APERTURA}),  # CAT sin IVA
+)
+
+
+def _po_liquidez(plazo, factor, tasas, columna):
+    """Liquidez Libre Pagos Oportunos: la tasa baja cada año hasta el quinto."""
+    return replace(
+        _SCOTIA_LIQUIDEZ,
+        id=f"scotiabank-liquidez-libre-pagos-oportunos-{plazo // 12}-2024-01",
+        nombre=f"Liquidez Libre Pagos Oportunos {plazo // 12} años",
+        tasa_anual=tasas[0],
+        tasas_escalonadas=tuple(zip((13, 25, 37, 49), tasas[1:])),
+        factores_al_millar=((plazo, factor),),
+        plazos_meses=(plazo,),
+        fuente="Cotizador SCOTIABANK Liquidez Libre.xlsm, hojas Simulador Pagos "
+        f"Oportunos y Tabla Pagos Oportunos (tasas {columna}, factor AC34:AE34). "
+        "v2024.01, RECA 0319-138-027734/14-00093-0124 (2024-01-15). SIN escenario "
+        "capturado: validado contra sus fórmulas.",
+        notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. La tasa "
+        "baja cada año suponiendo pagos puntuales, como en el cotizador; con atrasos "
+        "no baja. IVA de intereses en el pago, no en el CAT."
+        + (" SUPUESTO: no se cobra la «Com. Aut. Dif.» de $580 mensuales que la hoja "
+           "suma al pago solo a 10 años (Z62) y deja fuera del CAT; parece residuo "
+           "de una versión anterior. Confirmar con Scotiabank." if plazo == 120 else ""),
+    )
+
+
+CATALOGO += [
+    replace(
+        _SCOTIA_PASIVOS,
+        id="scotiabank-pasivos-pagos-oportunos-2024-01",
+        nombre="Pago de Pasivos — Pagos Oportunos",
+        # La tasa baja cada año: 10.25, 10.05, 9.85, 9.65 y 9.50 % desde el
+        # quinto (Simulador!Z16:AD23, igual en los cuatro plazos).
+        tasas_escalonadas=(
+            (13, Decimal("0.1005")),
+            (25, Decimal("0.0985")),
+            (37, Decimal("0.0965")),
+            (49, Decimal("0.095")),
+        ),
+        factores_al_millar=(                             # N13:Q13
+            (84, Decimal("16.82")),
+            (120, Decimal("13.45")),
+            (180, Decimal("11.00")),
+            (240, Decimal("9.92")),
+        ),
+        plazos_meses=(84, 120, 180, 240),
+        fuente="Cotizador SCOTIABANK Pago de pasivos.xlsm, hojas Simulador y "
+        "POport. 7/10/15/20. v2024.01, RECA 0319-138-007480/24-00073-0124 "
+        "(2024-01-15), guardado 2024-03-22. SIN escenario capturado: validado "
+        "contra sus fórmulas.",
+        notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. La tasa "
+        "baja cada año suponiendo pagos puntuales, como en el cotizador. Sin "
+        "apertura ni avalúo. Financia gastos notariales hasta 6 % (no modelado).",
+    ),
+    replace(
+        _SCOTIA_PASIVOS,
+        id="scotiabank-pasivos-valora-2024-01",
+        nombre="Pago de Pasivos — Valora",
+        # Opción 1 (AA49:AK49), la única que deja elegir el simulador (AA57):
+        # su tasa es el piso de la reducción, así que queda fija.
+        factores_al_millar=(
+            (120, Decimal("12.38")),
+            (180, Decimal("9.93")),
+            (240, Decimal("8.86")),
+        ),
+        crecimiento_pago_anual=Decimal("0.026"),         # J24 = D13
+        plazos_meses=(120, 180, 240),
+        fuente="Cotizador SCOTIABANK Pago de pasivos.xlsm, hojas Simulador y "
+        "Valora 10/15/20. v2024.01, RECA 0319-138-007481/24-00074-0124 "
+        "(2024-01-15), guardado 2024-03-22. SIN escenario capturado: validado "
+        "contra sus fórmulas.",
+        notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. Tasa fija "
+        "10.25 %; el pago sube 2.6 % cada aniversario y el crédito se liquida antes "
+        "del plazo. Sin apertura ni avalúo. Financia gastos notariales hasta 6 % "
+        "(no modelado).",
+    ),
+    _po_liquidez(84, Decimal("19.43"), (
+        Decimal("0.15"), Decimal("0.148"), Decimal("0.146"), Decimal("0.144"), Decimal("0.1425"),
+    ), "AC35:AC39"),
+    _po_liquidez(120, Decimal("16.34"), (
+        Decimal("0.151"), Decimal("0.149"), Decimal("0.147"), Decimal("0.145"), Decimal("0.1435"),
+    ), "AD35:AD39"),
+    _po_liquidez(180, Decimal("14.51"), (
+        Decimal("0.155"), Decimal("0.153"), Decimal("0.151"), Decimal("0.149"), Decimal("0.1475"),
+    ), "AE35:AE39"),
+    replace(
+        _SCOTIA_LIQUIDEZ,
+        id="scotiabank-liquidez-libre-valora-2024-01",
+        nombre="Liquidez Libre Valora",
+        # SUPUESTO: la opción de tasa más alta (15.5 %, Z16 / AF16). La elige
+        # el usuario entre 14.5, 15 y 15.5 %; sin regla en el archivo que la
+        # asigne, se toma la conservadora. Baja 0.25 pp cada año desde el mes
+        # 37 hasta el piso de 14.5 % (Tabla Valora!AH51, AO3).
+        tasa_anual=Decimal("0.155"),
+        tasas_escalonadas=(
+            (37, Decimal("0.1525")),
+            (49, Decimal("0.15")),
+            (61, Decimal("0.1475")),
+            (73, Decimal("0.145")),
+        ),
+        factores_al_millar=(
+            (120, Decimal("15.80")),                     # AG16
+            (180, Decimal("13.58")),                     # AA16
+        ),
+        crecimiento_pago_anual=Decimal("0.015"),         # AB16 / AH16
+        plazos_meses=(120, 180),
+        fuente="Cotizador SCOTIABANK Liquidez Libre.xlsm, hojas Simulador Valora y "
+        "Tabla Valora. v2024.01, RECA 0319-138-027732/14-00091-0124 (2024-01-15). "
+        "SIN escenario capturado: validado contra sus fórmulas.",
+        notas="TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank. SUPUESTO: "
+        "tasa inicial 15.5 %, la más alta de las tres que ofrece el simulador (14.5, "
+        "15 y 15.5 %, con PTI de 35, 30 y 20 %); confirmar con Scotiabank cómo la "
+        "asigna. El pago sube 1.5 % cada aniversario y la tasa baja 0.25 pp por año "
+        "desde el cuarto, con pagos puntuales; el crédito se liquida antes del plazo. "
+        "IVA de intereses en el pago, no en el CAT.",
     ),
 ]
 

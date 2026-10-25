@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             260 pruebas. No deben bajar de ahí.
+  tests/             280 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -233,7 +233,8 @@ Estos son productos reales del mercado mexicano que el motor **todavía no
 modela**. Si te topas con ellos, no improvises: son extensiones diseñadas, no
 parches.
 
-1. **Tasa escalonada por periodo — HECHO, SIN VALIDAR.** `tasas_escalonadas`
+1. **Tasa escalonada por periodo — HECHO, VALIDADO POR FÓRMULA contra
+   Scotiabank Pagos Oportunos (sin escenario capturado).** `tasas_escalonadas`
    en el producto: ((mes desde el que aplica, tasa anual), ...); antes del primer
    escalón aplica `tasa_anual`. Dos mecánicas, por producto:
    - pago fijo calculado a la tasa inicial (`recalcular_pago_al_cambiar_tasa`
@@ -242,7 +243,10 @@ parches.
      No admite tasas que suben.
    - pago recalculado al cambiar la tasa, sobre saldo y plazo restante (True),
      como Banamex `TablaCTH!S128`.
-   No se combina con mensualidad creciente. Ojo al comparar: con plazos
+   No se combina con mensualidad creciente. Sí con `crecimiento_pago_anual`
+   (pago al millar que sube cada aniversario sin recalcularse, Scotiabank
+   Valora), con pago fijo. Los dos esquemas de Scotiabank suponen pagos
+   puntuales, como sus cotizadores: con atrasos la tasa no baja. Ojo al comparar: con plazos
    efectivos distintos la suma de pagos favorece al crédito más corto aunque
    pague más al mes (riesgo 8.2 del análisis); el prototipo ya avisa cuando los
    plazos difieren.
@@ -427,7 +431,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 260 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 280 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

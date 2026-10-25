@@ -443,6 +443,14 @@ def construir_tabla(
             "Los factores al millar por año no se combinan con crecimiento, tasa "
             "escalonada ni reamortización."
         )
+    if producto.crecimiento_pago_anual and (
+        crece or factores_anuales or producto.reamortizar_mensual_desde
+        or (producto.tasas_escalonadas and producto.recalcular_pago_al_cambiar_tasa)
+    ):
+        raise ValueError(
+            "El pago que crece cada aniversario no se combina con mensualidad "
+            "creciente, factores por año, reamortización ni escalones que recalculan el pago."
+        )
     if factores_anuales:
         anualidad = monto * factores_anuales[0] / Decimal(1000)
     elif factores and not crece:
@@ -511,6 +519,10 @@ def construir_tabla(
         if factores_anuales:
             anio = min((mes - 1) // 12, len(factores_anuales) - 1)
             anualidad = monto * factores_anuales[anio] / Decimal(1000)
+            pago_fijo = anualidad + seguros_en_pago
+
+        if producto.crecimiento_pago_anual and mes > 1 and (mes - 1) % 12 == 0:
+            anualidad *= Decimal(1) + producto.crecimiento_pago_anual
             pago_fijo = anualidad + seguros_en_pago
 
         pago_del_mes = pago_fijo

@@ -247,6 +247,13 @@ class ProductoHipotecario:
     # Medida: año 1 de su tabla, luego × 1.02 redondeado a 6 decimales).
     factores_al_millar_anuales: Tuple[Decimal, ...] = ()
 
+    # El pago (capital + interés) se multiplica por (1 + crecimiento) en cada
+    # aniversario (meses 13, 25, ...) sin recalcularse sobre el saldo, así que
+    # el crédito se liquida antes del plazo (Scotiabank Valora: 2.6 % en Pago
+    # de pasivos, 1.5 % en Liquidez Libre). Se combina con factores al millar
+    # por plazo y con tasa escalonada de pago fijo.
+    crecimiento_pago_anual: Optional[Decimal] = None
+
     # Desde este mes el pago se recalcula CADA mes sobre el saldo, los meses
     # restantes y la tasa del periodo con su convención de días (Scotiabank
     # 7x5 desde el mes 61).

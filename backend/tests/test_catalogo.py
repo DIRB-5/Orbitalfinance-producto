@@ -608,6 +608,8 @@ def test_productos_de_sustitucion_en_el_catalogo():
         "bx-mejora-tu-hipoteca-2026-01",
         "banorte-mejora-hipoteca-2026-06",
         "scotiabank-7x5-pasivo-hipotecario-2024-01",
+        "scotiabank-pasivos-pagos-oportunos-2024-01",
+        "scotiabank-pasivos-valora-2024-01",
     }
 
 
@@ -824,7 +826,11 @@ def test_productos_de_liquidez_en_el_catalogo():
     ids = {p.id for p in CATALOGO if p.destino is Destino.LIQUIDEZ}
     assert ids == {"banorte-liquidez-2026-06", "banamex-liquidez-mercado-abierto-2026-08",
                    "bx-liquidez-2022-10", "banregio-liquidez-2023-12",
-                   "scotiabank-liquidez-libre-7x5-2024-01"}
+                   "scotiabank-liquidez-libre-7x5-2024-01",
+                   "scotiabank-liquidez-libre-pagos-oportunos-7-2024-01",
+                   "scotiabank-liquidez-libre-pagos-oportunos-10-2024-01",
+                   "scotiabank-liquidez-libre-pagos-oportunos-15-2024-01",
+                   "scotiabank-liquidez-libre-valora-2024-01"}
 
 
 @pytest.mark.parametrize("producto_id, valor, monto, plazo, tasa, iva_en_pago", [
@@ -869,4 +875,139 @@ def test_liquidez_no_cuenta_el_patrimonio_como_desembolso():
     assert r.desembolso_inicial == (
         r.comision_apertura + r.avaluo + r.gastos_notariales + r.comision_investigacion
     )
+
+
+# ---------------------------------------------------------------------------
+# Scotiabank Valora y Pagos Oportunos (Pago de pasivos y Liquidez Libre)
+# ---------------------------------------------------------------------------
+# Ningún archivo trae escenario capturado. La referencia está escrita con las
+# fórmulas de las hojas ('Valora 10'!G:I, 'POport. 7'!E, Tabla Valora!D:F,
+# AH; Tabla Pagos Oportunos!AI:AK) y los CAT esperados se calcularon con una
+# réplica celda por celda de cada hoja (IRR de AE22:AE262 / AS13:AS254).
+
+def _scotia_referencia(monto, valor, factor, tasa_del_mes, crecimiento, iva, primer_pago):
+    """Renglones (saldo, interés, capital, vida, daños, IVA, pago) de la hoja."""
+    import calendar
+    from datetime import date
+
+    filas, saldo, pago, fecha = [], monto, monto * factor / 1000, primer_pago
+    for k in range(1, 241):
+        if k > 1:
+            fecha = date(fecha.year + fecha.month // 12, fecha.month % 12 + 1, 1)
+            if (k - 1) % 12 == 0:
+                pago *= 1 + crecimiento                   # J = D13 en el aniversario
+        dias = calendar.monthrange(fecha.year, fecha.month)[1]
+        interes = saldo * tasa_del_mes(k) / 360 * dias    # F * E / 360 * AI
+        capital = min(pago - interes, saldo)              # MIN(I*(1+J), F+G)
+        vida, danos = saldo * D("0.0006"), valor * D("0.00031")
+        iva_mes = interes * D("0.16") if iva else D(0)
+        filas.append((saldo, interes, capital, vida, danos, iva_mes,
+                      capital + interes + vida + danos + iva_mes))
+        saldo -= capital
+        if saldo == 0:
+            return filas
+    raise AssertionError("la referencia no liquida en 240 meses")
+
+
+def _tasa_pasivos_po(k):
+    return (D("0.1025"), D("0.1005"), D("0.0985"), D("0.0965"), D("0.095"))[min((k - 1) // 12, 4)]
+
+
+def _tasa_liquidez_valora(k):
+    # 15.5 % hasta el mes 36; −0.25 pp cada aniversario con piso de 14.5 %
+    return max(D("0.155") - D("0.0025") * max(0, (k - 25) // 12), D("0.145"))
+
+
+def _tasa_liquidez_po(tasas):
+    return lambda k: D(tasas[min((k - 1) // 12, 4)])
+
+
+_PO_LIQ = {
+    84: ("0.15", "0.148", "0.146", "0.144", "0.1425"),
+    120: ("0.151", "0.149", "0.147", "0.145", "0.1435"),
+    180: ("0.155", "0.153", "0.151", "0.149", "0.1475"),
+}
+
+# (producto, destino, plazo, factor, tasa del mes, crecimiento, IVA, meses, CAT)
+_CASOS_SCOTIA = [
+    ("scotiabank-pasivos-valora-2024-01", "sustitucion", 120, "12.38",
+     lambda k: D("0.1025"), "0.026", False, 118, "0.128710"),
+    ("scotiabank-pasivos-valora-2024-01", "sustitucion", 180, "9.93",
+     lambda k: D("0.1025"), "0.026", False, 169, "0.127456"),
+    ("scotiabank-pasivos-valora-2024-01", "sustitucion", 240, "8.86",
+     lambda k: D("0.1025"), "0.026", False, 211, "0.126653"),
+    ("scotiabank-pasivos-pagos-oportunos-2024-01", "sustitucion", 84, "16.82",
+     _tasa_pasivos_po, "0", False, 83, "0.12666936"),
+    ("scotiabank-pasivos-pagos-oportunos-2024-01", "sustitucion", 120, "13.45",
+     _tasa_pasivos_po, "0", False, 117, "0.124858"),
+    ("scotiabank-pasivos-pagos-oportunos-2024-01", "sustitucion", 180, "11.00",
+     _tasa_pasivos_po, "0", False, 170, "0.122954"),
+    ("scotiabank-pasivos-pagos-oportunos-2024-01", "sustitucion", 240, "9.92",
+     _tasa_pasivos_po, "0", False, 216, "0.12179470"),
+    ("scotiabank-liquidez-libre-valora-2024-01", "liquidez", 120, "15.80",
+     _tasa_liquidez_valora, "0.015", True, 118, "0.19346029"),
+    ("scotiabank-liquidez-libre-valora-2024-01", "liquidez", 180, "13.58",
+     _tasa_liquidez_valora, "0.015", True, 170, "0.18925093"),
+    ("scotiabank-liquidez-libre-pagos-oportunos-7-2024-01", "liquidez", 84, "19.43",
+     _tasa_liquidez_po(_PO_LIQ[84]), "0", True, 83, "0.19061974"),
+    ("scotiabank-liquidez-libre-pagos-oportunos-10-2024-01", "liquidez", 120, "16.34",
+     _tasa_liquidez_po(_PO_LIQ[120]), "0", True, 116, "0.18767018"),
+    ("scotiabank-liquidez-libre-pagos-oportunos-15-2024-01", "liquidez", 180, "14.51",
+     _tasa_liquidez_po(_PO_LIQ[180]), "0", True, 166, "0.18905666"),
+]
+
+
+@pytest.mark.parametrize("pid, destino, plazo, factor, tasa, crec, iva, meses, cat", _CASOS_SCOTIA)
+def test_scotiabank_valora_y_pagos_oportunos_reproducen_sus_formulas(
+    pid, destino, plazo, factor, tasa, crec, iva, meses, cat
+):
+    """Cotización del 2024-03-22 (la guardada en ambos archivos): primer pago el 17 de abril."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    valor, monto = D("3000000"), D("1500000")
+    if destino == "sustitucion":
+        escenario = _escenario_sustitucion(valor, monto, plazo)
+    else:
+        escenario = _escenario_liquidez(valor, monto, plazo)
+    r = evaluar_producto(escenario, POR_ID[pid], momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert r.tabla.renglones[0].fecha_pago == date(2024, 4, 17)
+
+    referencia = _scotia_referencia(monto, valor, D(factor), tasa, D(crec), iva, date(2024, 4, 17))
+    assert len(r.tabla.renglones) == len(referencia) == meses   # se liquida antes del plazo
+    for x, esp in zip(r.tabla.renglones, referencia):
+        calc = (x.saldo_inicial, x.interes, x.capital, x.seguro_vida, x.seguro_danos,
+                x.iva_intereses, x.pago_total)
+        for c, e in zip(calc, esp):
+            assert abs(c - e) < D("0.000001"), f"mes {x.mes}: {c} != {e}"
+    assert abs(r.cat_estimado - D(cat)) < D("0.000001")
+
+
+def test_scotiabank_liquidez_libre_cobra_apertura_y_avaluo():
+    """2 % + IVA de apertura (sin IVA en el CAT) y avalúo del tabulador LiqLibre."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_escenario_liquidez(D("3000000"), D("1500000"), 180),
+                         POR_ID["scotiabank-liquidez-libre-valora-2024-01"], momento=date(2024, 3, 22))
+    assert r.comision_apertura == D("1500000") * D("0.0232")
+    assert r.avaluo == D("4663")
+    # Aforo máximo 70 %: a 75 % no es elegible
+    r = evaluar_producto(_escenario_liquidez(D("2000000"), D("1500000"), 180),
+                         POR_ID["scotiabank-liquidez-libre-valora-2024-01"], momento=date(2024, 3, 22))
+    assert not r.elegible
+
+
+def test_scotiabank_pago_de_pasivos_sin_apertura_ni_avaluo():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    r = evaluar_producto(_escenario_sustitucion(D("1600000"), D("1500000"), 240),
+                         POR_ID["scotiabank-pasivos-pagos-oportunos-2024-01"], momento=date(2024, 3, 22))
+    assert r.elegible  # aforo 93.75 % < 95 %
+    assert r.comision_apertura == 0 and r.avaluo == 0
 

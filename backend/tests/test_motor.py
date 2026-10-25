@@ -815,6 +815,53 @@ def test_escalonada_no_se_combina_con_pago_creciente():
 
 
 # --------------------------------------------------------------------------
+# Pago al millar que crece cada aniversario (Scotiabank Valora)
+# --------------------------------------------------------------------------
+
+def producto_valora(**kwargs) -> ProductoHipotecario:
+    """Pago de 12.38 al millar que sube 2.6 % en los meses 13, 25, ... sin recalcularse."""
+    base = dict(tasa_anual=Decimal("0.1025"), factores_al_millar=((240, Decimal("12.38")),),
+                crecimiento_pago_anual=Decimal("0.026"))
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+def test_pago_anual_creciente_sube_cada_aniversario_sin_recalcular():
+    tabla = _tabla(producto_valora())
+    pago = [r.capital + r.interes for r in tabla.renglones]
+    base = Decimal("1850000") * Decimal("12.38") / Decimal(1000)
+    assert pago[0] == pago[11] == base
+    assert pago[12] == pago[23] == base * Decimal("1.026")
+    assert pago[24] == base * Decimal("1.026") ** 2
+    # El pago crece más rápido que lo que amortiza: se liquida antes del plazo
+    assert tabla.plazo_efectivo_meses < 240
+    assert tabla.renglones[-1].saldo_final == Decimal("0")
+
+
+def test_pago_anual_creciente_con_tasa_que_baja():
+    """Valora de Liquidez Libre: además baja la tasa desde el mes 37."""
+    escalones = ((37, Decimal("0.1000")), (49, Decimal("0.0975")))
+    tabla = _tabla(producto_valora(tasas_escalonadas=escalones))
+    r37 = tabla.renglones[36]
+    assert r37.interes == r37.saldo_inicial * Decimal("0.1000") / 12
+    assert r37.capital + r37.interes == (
+        Decimal("1850000") * Decimal("12.38") / Decimal(1000) * Decimal("1.026") ** 3
+    )
+    assert tabla.plazo_efectivo_meses < _tabla(producto_valora()).plazo_efectivo_meses
+
+
+@pytest.mark.parametrize("extra", [
+    dict(crecimiento_pago_mensual=((1, Decimal("0.001")),)),
+    dict(factores_al_millar_anuales=(Decimal("12.38"),)),
+    dict(reamortizar_mensual_desde=61),
+    dict(tasas_escalonadas=((37, Decimal("0.10")),), recalcular_pago_al_cambiar_tasa=True),
+])
+def test_pago_anual_creciente_no_se_combina(extra):
+    with pytest.raises(ValueError, match="aniversario"):
+        _tabla(producto_valora(**extra))
+
+
+# --------------------------------------------------------------------------
 # Cofinanciamiento INFONAVIT / FOVISSSTE
 # --------------------------------------------------------------------------
 # Como en los cotizadores (BX+ COFI / INFONAVIT, Banorte FOVISSSTE): el crédito
