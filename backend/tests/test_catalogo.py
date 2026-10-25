@@ -438,3 +438,44 @@ def test_scotiabank_7x5_reproduce_las_formulas_del_cotizador():
         flujos.append(capital + interes + vida + danos)
     neto = credito - credito * D("0.0125") - D("4500")
     assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")
+
+
+def _atm_referencia(valor, credito, tasa, factores):
+    """TablaATM: S = monto × factor del año / 1000; cierra con C + O."""
+    i = tasa / 12
+    c, s, filas, flujos = credito, None, [], []
+    for mes in range(1, 241):
+        anio = (mes - 1) // 12
+        o = c * i
+        cand = credito * factores[anio] / 1000
+        s = c + o if c + o < cand else cand
+        k = s - o
+        vida = c * D("0.000474")
+        danos = max(D("0.8") * valor * D("0.0003"), D("0.0003") * c)
+        filas.append((c, o, k))
+        flujos.append(s + vida + danos)
+        c -= k
+        if c == 0:
+            break
+    return filas, flujos
+
+
+def test_banamex_a_tu_medida_reproduce_las_formulas_del_cotizador():
+    from motor_hipotecario.amortizacion import factores_crecientes
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .test_cotizadores_reales import _cat
+
+    valor, credito = D("3000000"), D("2400000")
+    escenario = Escenario(valor_vivienda=valor, enganche=valor - credito, plazo_meses=240)
+    resultado = evaluar_producto(escenario, POR_ID["banamex-a-tu-medida-mercado-abierto-2026-08"])
+    assert resultado.elegible
+    factores = factores_crecientes(D("8.88"), D("0.02"), 20)
+    filas, flujos = _atm_referencia(valor, credito, D("0.105"), factores)
+    assert resultado.tabla.plazo_efectivo_meses == len(filas) == 233  # el análisis: mes 233
+    for r, (c, o, k) in zip(resultado.tabla.renglones, filas):
+        for calc, esp in ((r.saldo_inicial, c), (r.interes, o), (r.capital, k)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
+    neto = credito - D("5500") / D("1.16") - credito * D("0.01")
+    assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")

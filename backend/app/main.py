@@ -89,6 +89,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
             FaseCrecimientoSalida(desde_mes=desde, crecimiento_mensual=_tasa(g))
             for desde, g in p.crecimiento_pago_mensual
         ],
+        factores_al_millar_anuales=[str(f) for f in p.factores_al_millar_anuales],
         tasas_escalonadas=[
             EscalonSalida(desde_mes=desde, tasa_anual=_tasa(tasa))
             for desde, tasa in p.tasas_escalonadas

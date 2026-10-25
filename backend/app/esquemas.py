@@ -88,6 +88,7 @@ class ProductoSalida(ModeloBase):
     convencion_amortizacion: str
     seguros_en_pago_fijo: bool
     crecimiento_pago_mensual: List[FaseCrecimientoSalida]
+    factores_al_millar_anuales: List[str]
     tasas_escalonadas: List[EscalonSalida]
     recalcular_pago_al_cambiar_tasa: bool
     regla_aportaciones: Optional[ReglaAportacionesSalida]

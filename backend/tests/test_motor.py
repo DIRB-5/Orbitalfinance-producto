@@ -1350,3 +1350,33 @@ def test_7x5_reproduce_la_referencia():
             assert abs(calc - esp) < Decimal("0.000001"), f"mes {renglon.mes}: {calc} != {esp}"
     assert r.tabla.renglones[-1].saldo_final == 0
     assert any("TIIE" in a for a in r.advertencias)
+
+
+# --------------------------------------------------------------------------
+# Factores al millar por año (Banamex La Hipoteca a tu Medida)
+# --------------------------------------------------------------------------
+
+from motor_hipotecario.amortizacion import factores_crecientes  # noqa: E402
+
+
+@pytest.mark.parametrize("primero, esperados", [
+    # Calculos!DK103:DK202, cacheados en el archivo
+    ("8.88", {2: "9.0576", 3: "9.238752", 4: "9.423527", 5: "9.611998", 20: "12.936484"}),
+    ("7.931667", {2: "8.0903", 3: "8.252106", 4: "8.417148", 5: "8.585491", 20: "11.554941"}),
+])
+def test_factores_crecientes_reproducen_los_de_banamex(primero, esperados):
+    factores = factores_crecientes(Decimal(primero), Decimal("0.02"), 20)
+    assert len(factores) == 20
+    for anio, valor in esperados.items():
+        assert factores[anio - 1] == Decimal(valor)
+
+
+def test_pago_por_factor_anual_sobre_el_monto_original():
+    factores = factores_crecientes(Decimal("8.88"), Decimal("0.02"), 20)
+    producto = producto_limpio(tasa_anual=Decimal("0.105"), factores_al_millar_anuales=factores)
+    tabla = construir_tabla(LineaCredito(producto, Decimal("2000000"), 240), Decimal("3000000"))
+    pago = [r.capital + r.interes for r in tabla.renglones]
+    assert pago[0] == pago[11] == Decimal("2000000") * Decimal("8.88") / 1000
+    assert pago[12] == Decimal("2000000") * Decimal("9.0576") / 1000
+    assert tabla.plazo_efectivo_meses < 240  # el factor del año 1 liquida antes
+    assert tabla.renglones[-1].saldo_final == 0

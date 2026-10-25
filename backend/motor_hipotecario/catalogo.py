@@ -35,6 +35,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from .amortizacion import factores_crecientes
 from .modelos import (
     AportacionExcedente,
     BaseSeguroDanos,
@@ -508,5 +509,44 @@ CATALOGO: list[ProductoHipotecario] = [
         "variable desde el mes 61 (TIIE + 4.5, techo 15 %): el costo depende del "
         "escenario de TIIE. Los factores al millar vienen escritos en el archivo. "
         "Aplica a IR 1 y 2 si el aforo pasa de 65 %. Seguros sin IVA en el archivo.",
+    ),
+    ProductoHipotecario(
+        id="banamex-a-tu-medida-mercado-abierto-2026-08",
+        institucion="Banamex",
+        nombre="La Hipoteca a tu Medida (Mercado abierto)",
+        tasa_anual=Decimal("0.105"),                     # CL48 = CO144, como Perfiles
+        convencion_interes=ConvencionDias.TASA_ENTRE_12,
+        # Pago = monto original × factor del año / 1000 (TablaATM!U129). Año 1
+        # de la tabla del archivo (DJ80:DJ91, 8.88 a 10.50 %); luego × 1.02
+        # redondeado a 6 decimales (DK103:DK202). Liquida en el mes 233.
+        factores_al_millar_anuales=factores_crecientes(Decimal("8.88"), Decimal("0.02"), 20),
+        plazos_meses=(240,),                             # CM7: solo 20 años
+        aforo_max=Decimal("0.90"),
+        monto_minimo=Decimal("300000"),
+        monto_maximo=Decimal("7999999.99"),              # CO48: 8 millones o más, excepción
+        valor_minimo_inmueble=Decimal("750000"),
+        comision_apertura=Decimal("0.01"),               # CK79, sin IVA
+        seguro_vida_mensual=Decimal("0.000474"),
+        seguro_danos_anual=Decimal("0.0036"),
+        base_seguro_danos=BaseSeguroDanos.MAXIMO_CONSTRUCCION_SALDO,
+        factor_construccion=Decimal("0.80"),
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("3500"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("5500"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("7500"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("10500"), Decimal("0")),
+            (Decimal("8000000.01"), Decimal("15500"), Decimal("0")),
+            (Decimal("15000000.01"), Decimal("4490"), Decimal("1.05")),
+        ),
+        cat_netos_de_iva=frozenset({ConceptoIVA.AVALUO}),  # TablaATM!AS127
+        vigente_desde=date(2026, 8, 21),
+        fuente="Cotizador BANAMEX.xlsm, hoja ADQUISICION, producto La Hipoteca a "
+        "tu Medida (Calculos CL, DH103:DK202, TablaATM). Versión v.20260824. SIN "
+        "escenario capturado: validado contra sus fórmulas y contra los factores "
+        "por año guardados.",
+        notas="Pago creciente 2 % anual sobre el monto original, solo a 20 años. "
+        "Tasa de Mercado abierto; con vinculación baja hasta 9.05 % (factor año 1 "
+        "7.931667). Edad máxima del solicitante 59 años. Créditos de 8 millones o "
+        "más requieren excepción.",
     ),
 ]

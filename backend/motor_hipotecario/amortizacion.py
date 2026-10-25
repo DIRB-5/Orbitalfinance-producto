@@ -224,6 +224,17 @@ def _validar_crecimiento(producto: ProductoHipotecario) -> None:
         )
 
 
+def factores_crecientes(primero: Decimal, crecimiento: Decimal, anios: int) -> tuple:
+    """Factores por año: cada uno es el anterior × (1 + crecimiento),
+    redondeado a 6 decimales (Banamex Calculos!DK103:DK202)."""
+    factores = [primero]
+    for _ in range(anios - 1):
+        factores.append(
+            (factores[-1] * (Decimal(1) + crecimiento)).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+        )
+    return tuple(factores)
+
+
 def factor_al_millar(tasa_anual: Decimal, plazo_meses: int) -> Decimal:
     """Pago por cada $1,000 a tasa/12, redondeado hacia arriba a centavos."""
     pmt = _anualidad(Decimal(1000), tasa_anual / Decimal(12), plazo_meses)
@@ -368,7 +379,15 @@ def construir_tabla(
         seguros_en_pago = danos
     anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
     factores = dict(producto.factores_al_millar)
-    if factores and not crece:
+    factores_anuales = producto.factores_al_millar_anuales
+    if factores_anuales and (crece or producto.tasas_escalonadas or producto.reamortizar_mensual_desde):
+        raise ValueError(
+            "Los factores al millar por año no se combinan con crecimiento, tasa "
+            "escalonada ni reamortización."
+        )
+    if factores_anuales:
+        anualidad = monto * factores_anuales[0] / Decimal(1000)
+    elif factores and not crece:
         if plazo not in factores:
             raise ValueError(f"El producto no tiene factor al millar para {plazo} meses.")
         anualidad = monto * factores[plazo] / Decimal(1000)
@@ -423,6 +442,11 @@ def construir_tabla(
             if producto.seguros_en_pago_fijo:
                 i_mes += producto.seguro_vida_mensual
             anualidad = _anualidad(saldo_inicial, i_mes, plazo - mes + 1)
+            pago_fijo = anualidad + seguros_en_pago
+
+        if factores_anuales:
+            anio = min((mes - 1) // 12, len(factores_anuales) - 1)
+            anualidad = monto * factores_anuales[anio] / Decimal(1000)
             pago_fijo = anualidad + seguros_en_pago
 
         pago_del_mes = pago_fijo

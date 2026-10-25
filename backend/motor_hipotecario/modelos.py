@@ -190,6 +190,12 @@ class ProductoHipotecario:
     # pago es monto × factor / 1000 (Scotiabank los trae escritos a mano).
     factores_al_millar: Tuple[Tuple[int, Decimal], ...] = ()
 
+    # Factores al millar por año (año 1, año 2, ...): el pago del año es el
+    # monto ORIGINAL × factor / 1000 y cambia en los meses 13, 25, ... El
+    # último factor se usa para los años restantes (Banamex La Hipoteca a tu
+    # Medida: año 1 de su tabla, luego × 1.02 redondeado a 6 decimales).
+    factores_al_millar_anuales: Tuple[Decimal, ...] = ()
+
     # Desde este mes el pago se recalcula CADA mes sobre el saldo, los meses
     # restantes y la tasa del periodo con su convención de días (Scotiabank
     # 7x5 desde el mes 61).

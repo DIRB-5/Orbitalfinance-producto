@@ -239,6 +239,7 @@ function adaptarProducto(p) {
     comisionApertura: num(p.comisionApertura),
     comisionAperturaMonto: num(p.comisionAperturaMonto),
     comisionMensual: num(p.comisionMensual),
+    factoresAnuales: (p.factoresAlMillarAnuales || []).map(num),
     crecimientoPago: (p.crecimientoPagoMensual || []).map((f) => ({ desdeMes: f.desdeMes, mensual: num(f.crecimientoMensual) })),
     tasasEscalonadas: (p.tasasEscalonadas || []).map((e) => ({ desdeMes: e.desdeMes, tasaAnual: num(e.tasaAnual) })),
     recalcularPagoAlCambiarTasa: !!p.recalcularPagoAlCambiarTasa,
@@ -335,6 +336,11 @@ export function tasaNormalizada(producto) {
 }
 
 export function descripcionCrecimiento(producto) {
+  const fa = producto.factoresAnuales || [];
+  if (fa.length > 1) {
+    return "Sube cada año sobre el monto original: " + fa[0].toFixed(4) + " por millar el año 1, "
+      + fa[1].toFixed(4) + " el año 2 … " + fa[fa.length - 1].toFixed(4) + " el año " + fa.length + ".";
+  }
   const f = producto.crecimientoPago || [];
   if (!f.length) return "Pago fijo";
   return f.map((x) => (x.mensual * 100).toFixed(4) + "\u00A0% mensual desde el mes " + x.desdeMes).join("; ")
@@ -342,7 +348,7 @@ export function descripcionCrecimiento(producto) {
 }
 
 export function comportamientoMensualidad(producto) {
-  if ((producto.crecimientoPago || []).length) return "Creciente";
+  if ((producto.crecimientoPago || []).length || (producto.factoresAnuales || []).length > 1) return "Creciente";
   return producto.seguroVidaMensual > 0 ? "Decreciente" : "Fija";
 }
 
