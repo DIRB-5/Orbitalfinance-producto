@@ -119,9 +119,14 @@ CATALOGO: list[ProductoHipotecario] = [
         # CAT!L5: solo la apertura ÷ 1.16; daños y comisión mensual completos.
         cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_APERTURA}),
         vigente_desde=_ANALIZADO,
+        # Cerrado: cargaba los montos del flujo del CAT (sin IVA) y el avalúo
+        # como comisión por apertura. Lo sustituye santander-adquisicion-2025-12.
+        vigente_hasta=date(2026, 10, 24),
         fuente="Cotizador Santander.xlsm, hoja CAT (escenario capturado: "
         "$1,770,000 a 300 meses). Analizado 2026-10-22.",
-        notas=_SUPUESTOS + " El cotizador no trae avalúo.",
+        notas=_SUPUESTOS + " El cotizador no trae avalúo. VERSIÓN CERRADA el "
+        "2026-10-24: el pago mostrado omitía el IVA de daños y comisión, y los "
+        "$7,000 son el avalúo, no comisión por apertura.",
     ),
     ProductoHipotecario(
         id="banregio-adquisicion-2023-12",
@@ -727,6 +732,66 @@ CATALOGO: list[ProductoHipotecario] = [
 # ---------------------------------------------------------------------------
 _POR_ID = {p.id: p for p in CATALOGO}
 
+# Santander Adquisición corregido (nueva versión de santander-2026-10)
+CATALOGO.append(
+    replace(
+        _POR_ID["santander-2026-10"],
+        id="santander-adquisicion-2025-12",
+        nombre="Crédito hipotecario Adquisición (mercado abierto)",
+        # Oferta "Ninguno", perfiles 4–5 (Adm!CA8:CA9); perfil 3: 10.95 %,
+        # 2: 12.25 %, 1: 13.25 %. La oferta Asalariados y Hipoteca Plus bajan
+        # la tasa con nómina (el escenario capturado usa 9.5 %).
+        tasa_anual=Decimal("0.1025"),
+        # Adm!E112: 7 a 15 años y 20; 25 años solo con oferta Asalariados
+        plazos_meses=tuple(range(84, 181, 12)) + (240,),
+        aforo_max=Decimal("0.90"),                       # perfil 4–5 asalariado (EH8:EH9)
+        monto_minimo=Decimal("100000"),                  # Adm!Z3
+        valor_minimo_inmueble=Decimal("250000"),         # Adm!AA3
+        comision_apertura=Decimal("0"),                  # Adm!B112 vacía → P4 = 0
+        comision_apertura_monto=None,
+        comision_mensual=Decimal("406"),                 # 350 + IVA (C112, Captura!J88)
+        # Daños: valor × 0.70 × 0.0003 mensual, IVA incluido (Captura!I88)
+        seguro_danos_monto_mensual=None,
+        seguro_danos_anual=Decimal("0.0036"),
+        base_seguro_danos=BaseSeguroDanos.VALOR_CONSTRUCCION,
+        factor_construccion=Decimal("0.70"),
+        # Avalúo por tabulador del valor, IVA incluido (Adm!L7:N21, K4)
+        tarifa_avaluo=(
+            (Decimal("0"), Decimal("2000"), Decimal("0")),
+            (Decimal("500000.01"), Decimal("3000"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("4500"), Decimal("0")),
+            (Decimal("1500000.01"), Decimal("6000"), Decimal("0")),
+            (Decimal("2000000.01"), Decimal("7000"), Decimal("0")),
+            (Decimal("2500000.01"), Decimal("9000"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("10000"), Decimal("0")),
+            (Decimal("3500000.01"), Decimal("11000"), Decimal("0")),
+            (Decimal("4000000.01"), Decimal("13500"), Decimal("0")),
+            (Decimal("4500000.01"), Decimal("14000"), Decimal("0")),
+            (Decimal("5500000.01"), Decimal("17000"), Decimal("0")),
+            (Decimal("6000000.01"), Decimal("19000"), Decimal("0")),
+            (Decimal("6500000.01"), Decimal("20000"), Decimal("0")),
+            (Decimal("8000000.01"), Decimal("22000"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("24000"), Decimal("0")),
+        ),
+        # CAT!L5, H25, I25: avalúo, daños y comisión ÷ 1.16 (como HSBC)
+        cat_netos_de_iva=frozenset({
+            ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL,
+        }),
+        vigente_desde=date(2026, 10, 25),
+        vigente_hasta=None,
+        fuente="Cotizador Santander.xlsm (Adm, Cal, Captura, CAT), versión 2025-6 Ro "
+        "(15 diciembre 2025). Validado con su escenario capturado ($1,770,000 a 300 "
+        "meses, oferta Asalariados 9.5 %): pago al cliente (Captura!L88) y CAT "
+        "(CAT!E20).",
+        notas="Tasa de mercado abierto (oferta Ninguno) para perfiles 4 y 5; perfil 3 "
+        "10.95 %, 2 12.25 %, 1 13.25 %. Con nómina (Asalariados, Hipoteca Plus) baja "
+        "la tasa y se abre el plazo de 25 años. Aforo de 90 % para asalariados "
+        "perfil 4–5 (75 % a 85 % en los demás). Seguro de vida para dos "
+        "intervinientes. Sustituye a santander-2026-10 (cerrado el 2026-10-24).",
+    )
+)
+_POR_ID = {p.id: p for p in CATALOGO}
+
 CATALOGO += [
     replace(
         _POR_ID["banregio-adquisicion-2023-12"],
@@ -1231,7 +1296,7 @@ CATALOGO += [
 # ---------------------------------------------------------------------------
 CATALOGO += [
     replace(
-        _POR_ID["santander-2026-10"],
+        _POR_ID["santander-adquisicion-2025-12"],
         id="santander-sustitucion-2025-12",
         nombre="Sustitución de hipoteca",
         destino=Destino.SUSTITUCION,
@@ -1244,6 +1309,7 @@ CATALOGO += [
         comision_apertura=Decimal("0"),                  # Adm!B116 → P4
         comision_apertura_monto=None,
         avaluo=Decimal("3000.0036"),                     # Cal!C111 = 2,586.21 × 1.16
+        tarifa_avaluo=(),
         comision_mensual=Decimal("406"),                 # 350 + IVA (Cal!C126)
         seguro_vida_mensual=Decimal("0.0008254"),        # dos intervinientes (Adm!T8)
         # Daños: valor × 0.70 × 0.0003 mensual, IVA incluido (Adm!AA11·X4)

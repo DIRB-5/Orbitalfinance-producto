@@ -1220,3 +1220,55 @@ def test_afirme_tu_casa_2_con_garantia_adicional():
                          POR_ID["afirme-tu-casa-2-2026-07"], momento=date(2026, 7, 6))
     assert not r.elegible
 
+
+
+# ---------------------------------------------------------------------------
+# Santander Adquisición, versión corregida
+# ---------------------------------------------------------------------------
+# santander-2026-10 cargaba los montos del flujo del CAT (sin IVA) y el avalúo
+# como comisión por apertura. Se cierra y lo sustituye esta versión; la tasa
+# es la de mercado abierto (el escenario capturado usa la oferta Asalariados).
+
+def test_santander_adquisicion_cobra_lo_que_cobra_el_cotizador():
+    """Con la tasa del escenario capturado (9.5 %, oferta Asalariados), la tabla
+    reproduce el pago al cliente (Captura!L88) y el CAT (CAT!E20)."""
+    from dataclasses import replace
+
+    from motor_hipotecario.comparador import resolver_para_escenario
+    from motor_hipotecario.modelos import Escenario
+
+    p, cobrado = SANTANDER["parametros"], SANTANDER["cobrado"]
+    nuevo = POR_ID["santander-adquisicion-2025-12"]
+    escenario = Escenario(valor_vivienda=cobrado["valor_vivienda"],
+                          enganche=cobrado["valor_vivienda"] - p["monto"], plazo_meses=240)
+    resuelto = resolver_para_escenario(nuevo, escenario, 240)
+    assert resuelto.avaluo == cobrado["avaluo"] and resuelto.comision_apertura == 0
+    capturado = replace(resuelto, tasa_anual=p["tasa_anual"])
+    tabla = construir_tabla(LineaCredito(capturado, p["monto"], p["plazo_meses"]), cobrado["valor_vivienda"])
+    r1 = tabla.renglones[0]
+    assert abs(r1.seguro_danos - cobrado["seguro_danos_mensual"]) < D("1E-20")
+    assert r1.comision_mensual == cobrado["comision_mensual"]
+    assert abs(r1.pago_total - cobrado["pago_total_mes_1"]) < D("0.000001")
+    for mes, (interes, capital, vida, _, saldo) in SANTANDER["renglones"].items():
+        x = tabla.renglones[mes - 1]
+        for calc, esp in ((x.interes, interes), (x.capital, capital), (x.seguro_vida, vida),
+                          (x.saldo_final, saldo)):
+            assert abs(calc - esp) < TOL, f"mes {mes}: {calc} != {esp}"
+    assert abs(calcular_cat(tabla, capturado) - SANTANDER["cat_esperado"]) < D("0.00000001")
+
+
+def test_santander_adquisicion_reemplaza_a_la_version_anterior():
+    from datetime import date
+
+    from motor_hipotecario.modelos import ConceptoIVA
+
+    viejo, nuevo = POR_ID["santander-2026-10"], POR_ID["santander-adquisicion-2025-12"]
+    assert viejo.vigente_en(date(2026, 10, 24)) and not viejo.vigente_en(date(2026, 10, 25))
+    assert nuevo.vigente_en(date(2026, 10, 25)) and not nuevo.vigente_en(date(2026, 10, 24))
+    assert nuevo.tasa_anual == D("0.1025")                    # Adm!CA8:CA9, oferta Ninguno
+    assert 300 not in nuevo.plazos_meses                       # 25 años solo con Asalariados
+    assert nuevo.cat_netos_de_iva == frozenset({
+        ConceptoIVA.AVALUO, ConceptoIVA.SEGURO_DANOS, ConceptoIVA.COMISION_MENSUAL,
+    })
+    # La sustitución hereda la versión corregida
+    assert POR_ID["santander-sustitucion-2025-12"].vigente_hasta is None

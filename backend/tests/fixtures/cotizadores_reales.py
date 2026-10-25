@@ -84,9 +84,21 @@ SANTANDER = {
         "comision_mensual": D("350"),
         "comision_apertura": D("6034.48275862069"),   # ya neta de IVA en el archivo
     },
+    # Lo que se cobra al cliente en el mismo escenario. Los montos de arriba son
+    # los del flujo del CAT, sin IVA: los 6,034.48 son el AVALÚO (CAT!L5 =
+    # 7,000 / 1.16, tabulador Adm!K4), no comisión por apertura (es 0), y daños
+    # y comisión mensual son 441 / 1.16 y 406 / 1.16.
+    "cobrado": {
+        "valor_vivienda": D("2100000"),               # Adm!AA9
+        "avaluo": D("7000"),                          # Adm!K4 = Cal!C111
+        "seguro_danos_mensual": D("441"),             # Captura!I88: 2.1 M × 0.7 × 0.0003
+        "comision_mensual": D("406"),                 # Captura!J88: 350 + IVA
+        "pago_total_mes_1": D("17935.040679850717"),  # Captura!L88
+    },
     "cat_esperado": D("0.11847260599095755"),
     "tolerancia_cat_pb": D("0.001"),
-    # mes: (interes, capital, seguro_vida, pago_total, saldo_final)
+    # mes: (interes, capital, seguro_vida, pago_total, saldo_final). El pago
+    # total es el flujo del CAT (CAT!J25), no lo que paga el cliente.
     "renglones": {
         1:   (D("14207.086916666667"), D("1419.9957631840516"), D("1460.958"),
               D("17818.213093643823"), D("1768580.004236816")),

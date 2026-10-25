@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             308 pruebas. No deben bajar de ahí.
+  tests/             310 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -403,10 +403,13 @@ más el seguro de daños. `test_banregio_renglones` ya valida contra el motor.
 | Avalúo | ÷ 1.16 |
 | Comisión por apertura | **sin resolver** |
 
-Esta tabla sale **solo de HSBC**. Santander no la sigue: su CAT únicamente se
-reproduce con el seguro de daños y la comisión mensual **completos**, y la
-comisión por apertura ÷ 1.16 (`test_santander_cat`). No se sabe si los montos
-de su archivo ya vienen netos de IVA o si Santander los mete con IVA.
+La tabla sale de HSBC y Santander la sigue igual: los montos de su hoja CAT
+ya vienen sin IVA (daños 441 / 1.16, comisión 406 / 1.16, y los 7,000 / 1.16
+son el avalúo, no apertura; su apertura es 0). Se aclaró al analizar sus
+hojas Adm, Cal y Captura; `santander-2026-10` cargaba los montos sin IVA y
+el avalúo como apertura, así que se cerró y lo sustituye
+`santander-adquisicion-2025-12` (`test_santander_adquisicion_*`). Ningún
+cotizador analizado resuelve la comisión por apertura.
 
 **El tratamiento del IVA está pendiente de resolución con riesgo, para todos los
 conceptos salvo capital, interés y seguro de vida.** Hasta entonces, no lo
@@ -417,7 +420,8 @@ codifiques en duro: déjalo como parámetro del producto, por concepto.
 ÷ 1.16. Vacío = todo con IVA, que sobreestima el CAT. Capital, interés y seguro
 de vida entran siempre completos. Solo afecta al CAT, nunca al costo total.
 HSBC y Santander en el catálogo usan el tratamiento de su propio cotizador, y
-`test_hsbc_cat_desde_motor` / `test_santander_cat_desde_motor` lo validan.
+`test_hsbc_cat_desde_motor` / `test_santander_adquisicion_cobra_lo_que_cobra_el_cotizador`
+lo validan.
 
 Consecuencia a vigilar: dos productos del mismo comparativo pueden tener su CAT
 calculado con criterios de IVA distintos. Es lo que publica cada banco, pero no
@@ -453,7 +457,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 308 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 310 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

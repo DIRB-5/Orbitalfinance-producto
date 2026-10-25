@@ -259,7 +259,12 @@ def test_hsbc_cat_desde_motor():
 
 
 def test_santander_cat_desde_motor():
-    """Tratamiento de Santander: solo la apertura neta (7,000 / 1.16)."""
+    """
+    Montos del flujo del CAT tal como vienen en la hoja CAT. Los 7,000 / 1.16
+    son el avalúo (CAT!L5), no apertura; el resultado numérico es el mismo.
+    La versión que cobra lo que paga el cliente es santander-adquisicion-2025-12
+    (test_santander_adquisicion_cobra_lo_que_cobra_el_cotizador).
+    """
     p = SANTANDER["parametros"]
     producto, tabla = _producto_y_tabla(
         p, "Santander",
@@ -274,10 +279,10 @@ def test_santander_cat_desde_motor():
 
 def test_santander_cat():
     """
-    A diferencia de HSBC, el CAT de Santander solo se reproduce con el seguro de
-    daños y la comisión mensual COMPLETOS. La comisión por apertura ya viene
-    neta de IVA en el archivo. No se sabe si los montos de daños y comisión del
-    archivo ya son netos o si Santander los mete con IVA: queda para riesgo.
+    Montos de la hoja CAT, que ya vienen sin IVA: daños 380.17 = 441 / 1.16,
+    comisión 350 = 406 / 1.16 y 6,034.48 = avalúo de 7,000 / 1.16 (CAT!H25,
+    I25, L5). Es el mismo tratamiento que HSBC: avalúo, daños y comisión
+    entran al CAT sin IVA. El cliente paga los montos con IVA (Captura!I88:L88).
     """
     p = SANTANDER["parametros"]
     tasa = p["tasa_anual"]
