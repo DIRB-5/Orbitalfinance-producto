@@ -42,6 +42,7 @@ from .modelos import (
     ConvencionDias,
     ProductoHipotecario,
     ReglaAportaciones,
+    TasaVariable,
     TipoLinea,
 )
 
@@ -434,5 +435,78 @@ CATALOGO: list[ProductoHipotecario] = [
         "ocupacional 0.0604 %). Valor mínimo de 1,000,000 en CDMX, GDL y MTY. El "
         "avalúo es reembolsable según el banco, pero el cotizador lo incluye en "
         "el CAT.",
+    ),
+    ProductoHipotecario(
+        id="scotiabank-7x5-adquisicion-2024-01",
+        institucion="Scotiabank",
+        nombre="Hipoteca 7x5 — Adquisición Tradicional",
+        # Fija los primeros 5 años según plazo (Simulador!V63:V66); desde el
+        # mes 61, TIIE + 4.5 con techo de 15 % (Tabla de amortizacion!P75).
+        tasa_anual=Decimal("0.1075"),
+        tabla_tasas=(
+            (120, Decimal("0.75"), Decimal("0.10")),
+            (240, Decimal("0.75"), Decimal("0.1075")),
+        ),
+        tasa_variable=TasaVariable(
+            desde_mes=61, sobretasa=Decimal("0.045"), techo=Decimal("0.15")
+        ),
+        # Interés con días del mes / 360; pago al millar fijo (W63:W66) los
+        # primeros 60 meses y reamortización mensual desde el 61.
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        factores_al_millar=(
+            (120, Decimal("13.30")),
+            (180, Decimal("11.32")),
+            (240, Decimal("10.27")),
+        ),
+        reamortizar_mensual_desde=61,
+        cortes_de_pago=(3, 17),                          # Tabla!AZ15
+        # 5 años no se incluye: sin comisión por apertura y sin tramo variable
+        plazos_meses=(120, 180, 240),
+        aforo_max=Decimal("0.75"),                       # X33, enganche mínimo 25 %
+        monto_minimo=Decimal("250000"),                  # Z33
+        monto_maximo=Decimal("5000000"),                 # AA33
+        valor_minimo_inmueble=Decimal("400000"),         # AB33
+        comision_apertura=Decimal("0.0125"),             # V33, sin IVA
+        seguro_vida_mensual=Decimal("0.0006"),           # AA43, vida y desempleo
+        seguro_danos_anual=Decimal("0.00372"),           # AA44: 0.00031 mensual
+        base_seguro_danos=BaseSeguroDanos.VALOR_TOTAL,
+        tarifa_avaluo=(                                  # S93:U114, sin IVA
+            (Decimal("0"), Decimal("1900"), Decimal("0")),
+            (Decimal("500000.01"), Decimal("3300"), Decimal("0")),
+            (Decimal("1000000.01"), Decimal("4500"), Decimal("0")),
+            (Decimal("1500000.01"), Decimal("5750"), Decimal("0")),
+            (Decimal("2000000.01"), Decimal("7000"), Decimal("0")),
+            (Decimal("2500000.01"), Decimal("8200"), Decimal("0")),
+            (Decimal("3000000.01"), Decimal("11000"), Decimal("0")),
+            (Decimal("4000000.01"), Decimal("13900"), Decimal("0")),
+            (Decimal("5000000.01"), Decimal("15500"), Decimal("0")),
+            (Decimal("6000000.01"), Decimal("19000"), Decimal("0")),
+            (Decimal("7000000.01"), Decimal("20000"), Decimal("0")),
+            (Decimal("8000000.01"), Decimal("20100"), Decimal("0")),
+            (Decimal("9000000.01"), Decimal("22500"), Decimal("0")),
+            (Decimal("10000000.01"), Decimal("27000"), Decimal("0")),
+            (Decimal("11000000.01"), Decimal("28000"), Decimal("0")),
+            (Decimal("12000000.01"), Decimal("30000"), Decimal("0")),
+            (Decimal("13000000.01"), Decimal("32000"), Decimal("0")),
+            (Decimal("14000000.01"), Decimal("34000"), Decimal("0")),
+            (Decimal("15000000.01"), Decimal("37000"), Decimal("0")),
+            (Decimal("20000000.01"), Decimal("39000"), Decimal("0")),
+            (Decimal("25000000.01"), Decimal("40000"), Decimal("0")),
+        ),
+        # CAT (AQ): sin IVA en ningún concepto
+        cat_netos_de_iva=frozenset(),
+        vigente_desde=date(2024, 1, 15),
+        fuente="Cotizador SCOTIABANK Multiproducto 7x5.xlsm (Simulador, Tabla "
+        "de amortizacion), versión v2024.01, guardado 2024-03-22; RECA "
+        "0319-138-020519/15-00085-0124. SIN escenario capturado: validado contra "
+        "sus fórmulas.",
+        notas="TASAS DE MARZO DE 2024: confirmar vigencia con Scotiabank. Desde "
+        "2025 los contratos nuevos no pueden referenciar la TIIE a 28 días "
+        "(Banxico, Circular 3/2023): la versión vigente del 7x5 debe usar TIIE de "
+        "Fondeo u otra tasa, quizá con otro margen. Tasa "
+        "variable desde el mes 61 (TIIE + 4.5, techo 15 %): el costo depende del "
+        "escenario de TIIE. Los factores al millar vienen escritos en el archivo. "
+        "Aplica a IR 1 y 2 si el aforo pasa de 65 %. Seguros sin IVA en el archivo.",
     ),
 ]

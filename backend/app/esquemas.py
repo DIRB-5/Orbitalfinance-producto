@@ -39,6 +39,8 @@ class EscenarioEntrada(ModeloBase):
     fecha_primer_pago: Optional[date] = None
     fecha_disposicion: Optional[date] = None
     cofinanciamiento: Optional[CofinanciamientoEntrada] = None
+    # Escenario de TIIE para productos de tasa variable
+    escenario_tasa: str = Field(default="base", pattern="^(conservador|base|estres)$")
 
 
 class EscalonSalida(ModeloBase):
@@ -67,6 +69,13 @@ class ReglaAportacionesSalida(ModeloBase):
     excedente: str
 
 
+class TasaVariableSalida(ModeloBase):
+    desde_mes: int
+    referencia: str
+    sobretasa: str
+    techo: Optional[str]
+
+
 class ProductoSalida(ModeloBase):
     id: str
     institucion: str
@@ -86,6 +95,7 @@ class ProductoSalida(ModeloBase):
     dia_de_pago: Optional[int]
     primer_periodo_dias_reales: bool
     tabla_tasas: List[TramoTasaSalida]
+    tasa_variable: Optional[TasaVariableSalida]
     tiene_tarifa_avaluo: bool
     valor_minimo_inmueble: Optional[str]
     plazos_meses: List[int]
@@ -109,8 +119,16 @@ class ProductoSalida(ModeloBase):
     negociado_por: Optional[str]
 
 
+class EscenarioTasaSalida(ModeloBase):
+    id: str
+    nombre: str
+    tiie: str
+
+
 class CatalogoSalida(ModeloBase):
     productos: List[ProductoSalida]
+    escenarios_tiie: List[EscenarioTasaSalida]
+    fuente_tiie: str
 
 
 class RenglonSalida(ModeloBase):
@@ -141,6 +159,7 @@ class CreditoInstitutoSalida(ModeloBase):
 
 class OpcionSalida(ModeloBase):
     producto_id: str
+    tasa_variable: bool
     alternativa_sin_cofinanciamiento: bool
     tasa_anual: str
     tasa_normalizada: str
@@ -171,6 +190,8 @@ class OpcionSalida(ModeloBase):
 
 class ComparacionSalida(ModeloBase):
     version_motor: str
+    escenario_tasa: str
+    tiie: str
     generado_en: str
     fecha_primer_pago: str
     opciones: List[OpcionSalida]

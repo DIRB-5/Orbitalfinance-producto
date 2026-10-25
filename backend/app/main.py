@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from motor_hipotecario.amortizacion import redondear, tasa_normalizada
 from motor_hipotecario.catalogo import CATALOGO
 from motor_hipotecario.instituto import COFINAVIT
+from motor_hipotecario.referencias import ESCENARIOS_TIIE, FUENTE_TIIE
 from motor_hipotecario.comparador import (
     VERSION_MOTOR,
     ResultadoOpcion,
@@ -27,14 +28,18 @@ from .esquemas import (
     ComparacionSalida,
     CreditoInstitutoSalida,
     EscalonSalida,
+    EscenarioTasaSalida,
     FaseCrecimientoSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
     ReglaAportacionesSalida,
     RenglonSalida,
+    TasaVariableSalida,
     TramoTasaSalida,
 )
+
+NOMBRES_ESCENARIO = {"conservador": "Conservador", "base": "Base", "estres": "Estrés"}
 
 app = FastAPI(title="Comparador hipotecario", version=VERSION_MOTOR)
 
@@ -93,6 +98,16 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         requiere_cofinanciamiento=p.requiere_cofinanciamiento,
         dia_de_pago=p.dia_de_pago,
         primer_periodo_dias_reales=p.primer_periodo_dias_reales,
+        tasa_variable=(
+            TasaVariableSalida(
+                desde_mes=p.tasa_variable.desde_mes,
+                referencia=p.tasa_variable.referencia,
+                sobretasa=_tasa(p.tasa_variable.sobretasa),
+                techo=_tasa(p.tasa_variable.techo) if p.tasa_variable.techo is not None else None,
+            )
+            if p.tasa_variable is not None
+            else None
+        ),
         tabla_tasas=[
             TramoTasaSalida(plazo_max_meses=pl, aforo_max=_tasa(af), tasa_anual=_tasa(t))
             for pl, af, t in p.tabla_tasas
@@ -142,6 +157,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
     t = o.tabla
     return OpcionSalida(
         producto_id=o.producto.id,
+        tasa_variable=o.producto.tasa_variable is not None,
         alternativa_sin_cofinanciamiento=o.alternativa_sin_cofinanciamiento,
         tasa_anual=_tasa(o.producto.tasa_anual),
         tasa_normalizada=_tasa(tasa_normalizada(o.producto)),
@@ -194,7 +210,14 @@ def salud() -> dict:
 @app.get("/api/catalogo", response_model=CatalogoSalida)
 def catalogo() -> CatalogoSalida:
     hoy = date.today()
-    return CatalogoSalida(productos=[_producto(p) for p in CATALOGO if p.vigente_en(hoy)])
+    return CatalogoSalida(
+        productos=[_producto(p) for p in CATALOGO if p.vigente_en(hoy)],
+        escenarios_tiie=[
+            EscenarioTasaSalida(id=k, nombre=NOMBRES_ESCENARIO[k], tiie=_tasa(v))
+            for k, v in ESCENARIOS_TIIE.items()
+        ],
+        fuente_tiie=FUENTE_TIIE,
+    )
 
 
 @app.post("/api/comparar", response_model=ComparacionSalida)
@@ -208,6 +231,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,
         fecha_disposicion=entrada.fecha_disposicion,
+        tiie=ESCENARIOS_TIIE[entrada.escenario_tasa],
         cofinanciamiento=(
             Cofinanciamiento(**entrada.cofinanciamiento.model_dump())
             if entrada.cofinanciamiento
@@ -223,6 +247,8 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
     opciones = sorted(resultado.opciones, key=lambda o: (not o.elegible, o.costo_total))
     return ComparacionSalida(
         version_motor=resultado.snapshot.version_motor,
+        escenario_tasa=entrada.escenario_tasa,
+        tiie=_tasa(escenario.tiie),
         generado_en=resultado.snapshot.generado_en.isoformat(),
         fecha_primer_pago=(
             escenario.fecha_primer_pago or primer_pago_por_defecto(resultado.snapshot.generado_en)

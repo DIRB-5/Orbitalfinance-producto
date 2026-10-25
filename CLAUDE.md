@@ -19,9 +19,11 @@ suscripción es la brokerage, y el asesor rota.
 ```
 /backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
-    catalogo.py      Catálogo real (HSBC, Santander, Banregio, Banorte, BX+, Banamex).
+    catalogo.py      Catálogo real (HSBC, Santander, Banregio, Banorte, BX+, Banamex,
+                     Scotiabank).
+    referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             181 pruebas. No deben bajar de ahí.
+  tests/             186 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -88,8 +90,15 @@ números son inventados.
 `fuente` y una prueba que lo reproduzca contra su cotizador
 (`tests/test_catalogo.py`).** Lo que no venga en la fuente se marca como
 supuesto en `notas`. Si el cotizador no trae escenario capturado (BX+
-Cofinavit y Apoyo Infonavit, Banamex), la prueba usa una implementación de
-referencia escrita con sus fórmulas, y la `fuente` lo dice.
+Cofinavit y Apoyo Infonavit, Banamex, Scotiabank), la prueba usa una
+implementación de referencia escrita con sus fórmulas, y la `fuente` lo dice.
+
+**Productos de tasa variable** (Scotiabank 7x5: fija 5 años, luego TIIE + 4.5
+con techo de 15 %): `ProductoHipotecario.tasa_variable` se resuelve con la TIIE
+del escenario de la comparación (`Escenario.tiie`, escenarios en
+`referencias.py`). El comparativo muestra el rango de costo entre escenarios
+(sensibilidad). Actualiza `referencias.py` cuando cambie la TIIE o salga una
+nueva encuesta de Banxico, con su fuente.
 
 Condiciones que dependen del escenario (tasa por plazo y aforo en
 `tabla_tasas`, avalúo por tabulador en `tarifa_avaluo`) se resuelven en
@@ -399,7 +408,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 181 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 186 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

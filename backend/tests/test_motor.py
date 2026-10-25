@@ -1251,3 +1251,102 @@ def test_danos_sobre_el_mayor_entre_valor_y_saldo():
     tabla = construir_tabla(LineaCredito(producto, Decimal("2700000"), 240), Decimal("3000000"))
     assert tabla.renglones[0].seguro_danos == Decimal("2700000") * Decimal("0.0003")  # saldo > 80 %
     assert tabla.renglones[-1].seguro_danos == Decimal("2400000") * Decimal("0.0003")  # 80 % del valor
+
+
+# --------------------------------------------------------------------------
+# Scotiabank 7x5: factor al millar fijo, reamortización mensual, tasa variable
+# --------------------------------------------------------------------------
+
+from motor_hipotecario.comparador import primer_pago_por_defecto  # noqa: E402
+from motor_hipotecario.modelos import TasaVariable  # noqa: E402
+
+
+def producto_7x5(**kwargs) -> ProductoHipotecario:
+    base = dict(
+        tasa_anual=Decimal("0.1075"),
+        convencion_interes=ConvencionDias.DIAS_REALES_360,
+        convencion_pago=ConvencionDias.TASA_ENTRE_12,
+        factores_al_millar=((240, Decimal("10.27")),),
+        reamortizar_mensual_desde=61,
+        tasa_variable=TasaVariable(desde_mes=61, sobretasa=Decimal("0.045"), techo=Decimal("0.15")),
+        cortes_de_pago=(3, 17),
+    )
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+def test_factor_al_millar_fijo_por_plazo():
+    tabla = construir_tabla(
+        LineaCredito(producto_7x5(tasa_variable=None, reamortizar_mensual_desde=None),
+                     Decimal("1000000"), 240),
+        Decimal("1500000"), fecha_primer_pago=date(2026, 11, 17),
+    )
+    assert tabla.renglones[0].capital + tabla.renglones[0].interes == Decimal("10270")
+
+
+def test_tasa_variable_se_resuelve_con_la_tiie_del_escenario():
+    escenario = Escenario(
+        valor_vivienda=Decimal("1500000"), enganche=Decimal("500000"), plazo_meses=240,
+        tiie=Decimal("0.07"),
+    )
+    resuelto = resolver_para_escenario(producto_7x5(), escenario, 240)
+    assert resuelto.tasas_escalonadas == ((61, Decimal("0.115")),)
+    alta = Escenario(valor_vivienda=Decimal("1500000"), enganche=Decimal("500000"),
+                     plazo_meses=240, tiie=Decimal("0.12"))
+    assert resolver_para_escenario(producto_7x5(), alta, 240).tasas_escalonadas == (
+        (61, Decimal("0.15")),  # techo
+    )
+
+
+def test_primer_pago_con_dias_de_corte():
+    for hoy, esperado in ((date(2026, 10, 24), date(2026, 11, 17)),
+                          (date(2026, 10, 10), date(2026, 11, 3)),
+                          (date(2026, 10, 1), date(2026, 10, 17)),
+                          (date(2026, 12, 20), date(2027, 1, 17))):
+        assert primer_pago_por_defecto(hoy, cortes=(3, 17)) == esperado
+
+
+def _referencia_7x5(credito, tasa, tiie, primer_pago, factor=Decimal("10.27"), plazo=240):
+    """Tabla de amortizacion de SCOTIABANK Multiproducto 7x5 (pseudocódigo
+    del análisis del archivo), sin seguros."""
+    import calendar
+
+    def dias(f):
+        return calendar.monthrange(f.year, f.month)[1]
+
+    b, prev, filas, fecha = credito, None, [], primer_pago
+    for k in range(1, plazo + 1):
+        p = tasa if k <= 60 else min(tiie + Decimal("0.045"), Decimal("0.15"))
+        f = p / 360 * dias(fecha) * b
+        if k == 1:
+            d = b / 1000 * factor
+        elif k <= 60:
+            d = b + f if b + f - prev <= 0 else prev
+        else:
+            i = p / 360 * dias(fecha)
+            rem = plazo - (k - 1)
+            d = b + f if b + f - prev <= 0 else b * i / (1 - (1 + i) ** -rem)
+        if k == plazo:
+            d = b + f
+        filas.append((b, f, d - f))
+        b, prev = b - (d - f), d
+        fecha = date(fecha.year + (fecha.month == 12), fecha.month % 12 + 1, 1)
+        if b <= 0:
+            break
+    return filas
+
+
+def test_7x5_reproduce_la_referencia():
+    escenario = Escenario(
+        valor_vivienda=Decimal("1500000"), enganche=Decimal("500000"), plazo_meses=240,
+        tiie=Decimal("0.07"),
+    )
+    r = evaluar_producto(escenario, producto_7x5(), momento=date(2026, 10, 24))
+    filas = _referencia_7x5(Decimal("1000000"), Decimal("0.1075"), Decimal("0.07"), date(2026, 11, 17))
+    assert r.tabla.plazo_efectivo_meses == len(filas)
+    for renglon, (saldo, interes, capital) in zip(r.tabla.renglones, filas):
+        for calc, esp in ((renglon.saldo_inicial, saldo), (renglon.interes, interes),
+                          (renglon.capital, capital)):
+            assert abs(calc - esp) < Decimal("0.000001"), f"mes {renglon.mes}: {calc} != {esp}"
+    assert r.tabla.renglones[-1].saldo_final == 0
+    assert any("TIIE" in a for a in r.advertencias)

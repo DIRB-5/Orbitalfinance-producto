@@ -72,6 +72,8 @@ export function etiquetaTasa(producto, escenarioRefId) {
   const t = producto.tasa || {};
   const r = tasaResuelta(producto, escenarioRefId);
   const p = (x) => (x * 100).toFixed(2) + "\u00A0%";
+  const v = producto.tasaVariableInfo;
+  if (v) return p(r) + " fija, desde el mes " + v.desdeMes + ": " + v.referencia + " + " + (v.sobretasa * 100).toFixed(2);
   if (t.tipo !== "variable") return p(r);
   return (t.referencia || "").replace("_", " ") + " + " + (t.spread * 100).toFixed(2) + " = " + p(r);
 }
@@ -206,6 +208,7 @@ export function suscribir(fn) {
 }
 
 export let estadoApi = { catalogo: "pendiente", error: null };
+export let fuenteTiie = "";
 
 const num = (x) => (x === null || x === undefined ? null : Number(x));
 
@@ -259,6 +262,12 @@ function adaptarProducto(p) {
     notas: p.notas,
     negociadoPor: p.negociadoPor,
     penalizacionPrepago: "",
+    tasaVariableInfo: p.tasaVariable ? {
+      desdeMes: p.tasaVariable.desdeMes,
+      referencia: p.tasaVariable.referencia,
+      sobretasa: num(p.tasaVariable.sobretasa),
+      techo: num(p.tasaVariable.techo),
+    } : null,
   };
 }
 
@@ -272,6 +281,12 @@ export async function cargarCatalogo() {
     if (!r.ok) throw new Error("La API respondió " + r.status);
     const datos = await r.json();
     productos.splice(0, productos.length, ...datos.productos.map(adaptarProducto));
+    // Escenarios de TIIE del motor (con su fuente) en lugar de valores fijos
+    (datos.escenariosTiie || []).forEach((e) => {
+      const ref = ESCENARIOS_REFERENCIA.find((r) => r.id === e.id);
+      if (ref) ref.TIIE_28 = num(e.tiie);
+    });
+    fuenteTiie = datos.fuenteTiie || "";
     estadoApi = { catalogo: "listo", error: null };
   } catch (e) {
     estadoApi = { catalogo: "error", error: String(e.message || e) };
@@ -348,7 +363,7 @@ function adaptarOpcion(o, escenario) {
     familia: "hipotecario",
     subtipo: "adquisicion",
     tasaAnual: producto ? producto.tasa.valor : null,
-    tasaVariable: false,
+    tasaVariable: !!o.tasaVariable,
     alternativaSinCofinanciamiento: !!o.alternativaSinCofinanciamiento,
     montoCredito: num(o.montoCredito),
     aforo: num(o.aforo),
@@ -402,7 +417,7 @@ function adaptarOpcion(o, escenario) {
 // cuando llegan.
 const resultados = new Map();
 
-function cuerpoComparacion(escenario) {
+function cuerpoComparacion(escenario, escenarioRefId) {
   if (escenario.subtipo !== "adquisicion") return null;
   const valor = escenario.valorVivienda || 0;
   const monto = escenario.montoCredito || 0;
@@ -417,6 +432,7 @@ function cuerpoComparacion(escenario) {
     gastosNotariales: String(escenario.gastosNotariales || 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
+    escenarioTasa: escenarioRefId || "base",
     cofinanciamiento: cofi ? {
       instituto: cofi.instituto,
       salarioMensual: String(cofi.salarioMensual || 0),
@@ -426,15 +442,15 @@ function cuerpoComparacion(escenario) {
   };
 }
 
-export function estadoComparacion(escenario) {
-  const cuerpo = cuerpoComparacion(escenario);
+export function estadoComparacion(escenario, escenarioRefId) {
+  const cuerpo = cuerpoComparacion(escenario, escenarioRefId);
   if (!cuerpo) return "incompleto";
   const r = resultados.get(JSON.stringify(cuerpo));
   return r ? r.estado : "pendiente";
 }
 
 export function evaluarEscenario(escenario, escenarioRefId, ids) {
-  const cuerpo = cuerpoComparacion(escenario);
+  const cuerpo = cuerpoComparacion(escenario, escenarioRefId);
   if (!cuerpo || !productos.length) return [];
   const clave = JSON.stringify(cuerpo);
   const guardado = resultados.get(clave);
@@ -470,9 +486,16 @@ export function evaluarSustitucion() {
   return { lineaBase: null, opciones: [] };
 }
 
-// Solo aplica a productos de tasa variable; el catálogo actual no tiene.
-export function sensibilidad() {
-  return null;
+// Rango de costo total entre los escenarios de TIIE, para productos de tasa
+// variable. Usa (y pide si faltan) las comparaciones de cada escenario.
+export function sensibilidad(producto, escenario) {
+  if (!producto || !producto.tasaVariableInfo) return null;
+  const costos = ESCENARIOS_REFERENCIA.map((ref) => {
+    const r = evaluarEscenario(escenario, ref.id, [producto.id])[0];
+    return r && r.elegible ? r.costoTotal : null;
+  });
+  if (costos.some((c) => c === null)) return null;
+  return { min: Math.min.apply(null, costos), max: Math.max.apply(null, costos) };
 }
 
 export const avisoLegal = [

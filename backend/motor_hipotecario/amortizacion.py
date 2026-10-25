@@ -367,7 +367,12 @@ def construir_tabla(
         i_pago += producto.seguro_vida_mensual
         seguros_en_pago = danos
     anualidad = _anualidad_creciente(monto, i_pago, plazo, crecimiento)
-    if producto.pago_por_millar_redondeado and not crece:
+    factores = dict(producto.factores_al_millar)
+    if factores and not crece:
+        if plazo not in factores:
+            raise ValueError(f"El producto no tiene factor al millar para {plazo} meses.")
+        anualidad = monto * factores[plazo] / Decimal(1000)
+    elif producto.pago_por_millar_redondeado and not crece:
         pmt = _anualidad(Decimal(1000), i_pago, plazo)
         factor = (pmt * 100).to_integral_value(rounding=ROUND_CEILING) / Decimal(100)
         anualidad = monto * factor / Decimal(1000)
@@ -411,6 +416,14 @@ def construir_tabla(
         interes_amortizacion = interes_regular
         if convencion_amortizacion is not None:
             interes_amortizacion = saldo_inicial * tasa_periodica(tasa, convencion_amortizacion)
+
+        if producto.reamortizar_mensual_desde and mes >= producto.reamortizar_mensual_desde:
+            # Pago recalculado cada mes con la tasa y los días del periodo
+            i_mes = tasa_periodica(tasa, convencion_interes, dias)
+            if producto.seguros_en_pago_fijo:
+                i_mes += producto.seguro_vida_mensual
+            anualidad = _anualidad(saldo_inicial, i_mes, plazo - mes + 1)
+            pago_fijo = anualidad + seguros_en_pago
 
         pago_del_mes = pago_fijo
         if crece:

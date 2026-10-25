@@ -128,6 +128,21 @@ class Cofinanciamiento:
 
 
 @dataclass(frozen=True)
+class TasaVariable:
+    """
+    Tasa referenciada desde `desde_mes`: referencia + sobretasa, con techo y
+    piso opcionales. El valor de la referencia lo pone el escenario de la
+    comparación (`Escenario.tiie`), no el producto.
+    """
+
+    desde_mes: int
+    sobretasa: Decimal
+    techo: Optional[Decimal] = None
+    piso: Optional[Decimal] = None
+    referencia: str = "TIIE"
+
+
+@dataclass(frozen=True)
 class ProductoHipotecario:
     """
     Condiciones de un producto de crédito hipotecario en un periodo de vigencia.
@@ -170,6 +185,24 @@ class ProductoHipotecario:
     # arriba a centavos (Banamex: ROUNDUP(PMT(tasa/12, n, −1000), 2)). El
     # último pago sale menor.
     pago_por_millar_redondeado: bool = False
+
+    # Factores de pago al millar fijos por plazo ((plazo, factor), ...): el
+    # pago es monto × factor / 1000 (Scotiabank los trae escritos a mano).
+    factores_al_millar: Tuple[Tuple[int, Decimal], ...] = ()
+
+    # Desde este mes el pago se recalcula CADA mes sobre el saldo, los meses
+    # restantes y la tasa del periodo con su convención de días (Scotiabank
+    # 7x5 desde el mes 61).
+    reamortizar_mensual_desde: Optional[int] = None
+
+    # Tasa variable referenciada (Scotiabank 7x5: TIIE + 4.5 desde el mes 61,
+    # techo 15 %). Se resuelve con la TIIE del escenario.
+    tasa_variable: Optional[TasaVariable] = None
+
+    # Días de corte del primer pago (Scotiabank: 3 o 17): se usa el primero si
+    # la cotización cae entre ese día y el anterior al segundo; si no, el
+    # segundo. Si el corte ya pasó en el mes, el primer pago es el mes siguiente.
+    cortes_de_pago: Tuple[int, ...] = ()
 
     # Primer periodo irregular (Banorte): el mes 1 cobra interés por los días
     # reales desde la disposición hasta el primer pago, inclusive, y prorratea
@@ -352,6 +385,10 @@ class Escenario:
     # Fecha de disposición del crédito. Solo la usan los productos con primer
     # periodo irregular; si no se captura, es la fecha de la comparación.
     fecha_disposicion: Optional[date] = None
+
+    # TIIE supuesta para productos de tasa variable (escenario de la
+    # comparación). None = escenario base de motor_hipotecario.referencias.
+    tiie: Optional[Decimal] = None
 
     # Cofinanciamiento INFONAVIT / FOVISSSTE, si aplica.
     cofinanciamiento: Optional[Cofinanciamiento] = None

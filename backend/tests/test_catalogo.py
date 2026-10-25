@@ -404,3 +404,37 @@ def test_banamex_reproduce_las_formulas_del_cotizador():
                           (r.seguro_vida, vida), (r.seguro_danos, danos)):
             assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
     assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")
+
+
+def test_scotiabank_7x5_reproduce_las_formulas_del_cotizador():
+    """Sin escenario capturado: referencia con las fórmulas de la Tabla de
+    amortizacion (pago al millar 10.27 los primeros 60 meses, días reales,
+    reamortización mensual desde el 61 a TIIE + 4.5) más seguros y CAT."""
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    from .test_cotizadores_reales import _cat
+    from .test_motor import _referencia_7x5
+
+    valor, credito, tiie = D("1500000"), D("1125000"), D("0.07")
+    escenario = Escenario(valor_vivienda=valor, enganche=valor - credito, plazo_meses=240, tiie=tiie)
+    resultado = evaluar_producto(
+        escenario, POR_ID["scotiabank-7x5-adquisicion-2024-01"], momento=date(2026, 10, 24)
+    )
+    assert resultado.elegible
+    assert resultado.tabla.renglones[0].fecha_pago == date(2026, 11, 17)
+    assert resultado.comision_apertura == credito * D("0.0125")
+    assert resultado.avaluo == D("4500")              # 1 a 1.5 millones
+
+    filas = _referencia_7x5(credito, D("0.1075"), tiie, date(2026, 11, 17))
+    flujos = []
+    for r, (saldo, interes, capital) in zip(resultado.tabla.renglones, filas):
+        vida, danos = saldo * D("0.0006"), valor * D("0.00031")
+        for calc, esp in ((r.saldo_inicial, saldo), (r.interes, interes), (r.capital, capital),
+                          (r.seguro_vida, vida), (r.seguro_danos, danos)):
+            assert abs(calc - esp) < D("0.000001"), f"mes {r.mes}: {calc} != {esp}"
+        flujos.append(capital + interes + vida + danos)
+    neto = credito - credito * D("0.0125") - D("4500")
+    assert abs(resultado.cat_estimado - _cat(flujos, neto)) < D("0.0000001")

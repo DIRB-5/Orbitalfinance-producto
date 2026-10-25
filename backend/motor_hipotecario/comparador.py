@@ -15,6 +15,7 @@ from typing import Optional
 from .amortizacion import TablaAmortizacion, construir_tabla, redondear
 from .cat import calcular_cat
 from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_instituto
+from .referencias import TIIE_BASE
 from .modelos import (
     Dinero,
     Escenario,
@@ -170,6 +171,16 @@ def resolver_para_escenario(
                 cambios["tasa_anual"] = tasa
                 break
 
+    if producto.tasa_variable is not None:
+        tv = producto.tasa_variable
+        tasa = (escenario.tiie if escenario.tiie is not None else TIIE_BASE) + tv.sobretasa
+        if tv.techo is not None:
+            tasa = min(tasa, tv.techo)
+        if tv.piso is not None:
+            tasa = max(tasa, tv.piso)
+        cambios["tasas_escalonadas"] = ((tv.desde_mes, tasa),)
+        cambios["recalcular_pago_al_cambiar_tasa"] = True
+
     if producto.tarifa_avaluo:
         valor = escenario.valor_vivienda
         tramo = None
@@ -280,7 +291,9 @@ def evaluar_producto(
     fecha = (
         fecha_primer_pago
         or escenario.fecha_primer_pago
-        or primer_pago_por_defecto(momento, producto.dia_de_pago, producto.dia_corte_primer_pago)
+        or primer_pago_por_defecto(
+            momento, producto.dia_de_pago, producto.dia_corte_primer_pago, producto.cortes_de_pago
+        )
     )
     disposicion = escenario.fecha_disposicion or momento
 
@@ -335,6 +348,17 @@ def evaluar_producto(
     tabla_cat = tabla
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(linea, escenario.valor_vivienda, fecha)
+
+    if producto.tasa_variable is not None:
+        tv = producto.tasa_variable
+        tiie = escenario.tiie if escenario.tiie is not None else TIIE_BASE
+        advertencias.append(
+            f"Tasa variable desde el mes {tv.desde_mes}: {tv.referencia} supuesta de "
+            f"{tiie * 100:.2f} % + {tv.sobretasa * 100:.2f} = "
+            f"{producto.tasas_escalonadas[0][1] * 100:.2f} %"
+            + (f" (techo {tv.techo * 100:.2f} %)" if tv.techo is not None else "")
+            + ". El costo depende de la TIIE futura."
+        )
 
     if tabla_instituto is not None:
         advertencias.append(
@@ -413,13 +437,22 @@ def evaluar_producto(
 
 
 def primer_pago_por_defecto(
-    momento: date, dia_de_pago: Optional[int] = None, dia_corte: Optional[int] = None
+    momento: date,
+    dia_de_pago: Optional[int] = None,
+    dia_corte: Optional[int] = None,
+    cortes: tuple = (),
 ) -> date:
     """
     Día 1 del mes siguiente. Con `dia_de_pago`: ese día del mes siguiente
     (fin de mes + días), recorrido 30 días si `momento` cae en `dia_corte` o
     después.
     """
+    if cortes:
+        primero, segundo = cortes
+        corte = primero if primero <= momento.day < segundo else segundo
+        if momento.day > corte:
+            return date(momento.year + (momento.month == 12), momento.month % 12 + 1, corte)
+        return date(momento.year, momento.month, corte)
     if dia_de_pago is None:
         if momento.month == 12:
             return date(momento.year + 1, 1, 1)
