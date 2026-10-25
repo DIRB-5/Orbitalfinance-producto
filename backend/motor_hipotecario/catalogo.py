@@ -56,6 +56,15 @@ from .modelos import (
 # vigencia de las condiciones.
 _ANALIZADO = date(2026, 10, 22)
 
+# Santander: el cotizador es el más reciente disponible (guardado 2026-10-23,
+# etiqueta de versión 2025-6 Ro). Santander no publica tasas por destino.
+_VIGENCIA_SANTANDER = (
+    " Tasas del cotizador más reciente que tiene el broker (guardado el "
+    "2026-10-23, aunque su versión dice 15 de diciembre de 2025). El sitio de "
+    "Santander solo publica \"desde 9.90 %\" (Hipoteca Plus, consultado "
+    "2026-10-25); confirmar con el ejecutivo antes de entregar una propuesta."
+)
+
 _SUPUESTOS = (
     "SUPUESTOS POR CONFIRMAR con la institución: aforo máximo de 90 % y plazos "
     "ofrecidos; no vienen en el cotizador."
@@ -787,7 +796,8 @@ CATALOGO.append(
         "10.95 %, 2 12.25 %, 1 13.25 %. Con nómina (Asalariados, Hipoteca Plus) baja "
         "la tasa y se abre el plazo de 25 años. Aforo de 90 % para asalariados "
         "perfil 4–5 (75 % a 85 % en los demás). Seguro de vida para dos "
-        "intervinientes. Sustituye a santander-2026-10 (cerrado el 2026-10-24).",
+        "intervinientes. Sustituye a santander-2026-10 (cerrado el 2026-10-24)."
+        + _VIGENCIA_SANTANDER,
     )
 )
 _POR_ID = {p.id: p for p in CATALOGO}
@@ -1341,7 +1351,7 @@ CATALOGO += [
         "para dos intervinientes. Los gastos se financian en un segundo crédito: "
         "SUPUESTO, el mínimo entre los gastos del escenario y el 7 % (el cotizador "
         "financia el 7 % fijo). No aplica a hipotecas que ya son de Santander: para "
-        "esas está Mejora de Condiciones.",
+        "esas está Mejora de Condiciones." + _VIGENCIA_SANTANDER,
     ),
 ]
 CATALOGO.append(
@@ -1366,7 +1376,7 @@ CATALOGO.append(
         "como en el cotizador; un comparador externo sin fecha reporta apertura de "
         "1 % + IVA: confirmar con Santander. Financia gastos en un segundo crédito "
         "como Sustitución. No se modela la opción de refinanciar también el crédito "
-        "INFONAVIT/FOVISSSTE (Mejoras Cofis).",
+        "INFONAVIT/FOVISSSTE (Mejoras Cofis)." + _VIGENCIA_SANTANDER,
     )
 )
 
