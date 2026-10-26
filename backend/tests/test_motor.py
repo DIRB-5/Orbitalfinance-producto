@@ -1916,3 +1916,89 @@ def test_producto_que_excluye_creditos_propios():
     assert evaluar_producto(_sustitucion_desde(""), sustitucion, momento=HOY).elegible
     r = evaluar_producto(_sustitucion_desde("Santander"), sustitucion, momento=HOY)
     assert not r.elegible and "Mejora" in r.motivos_rechazo[0]
+
+
+# --------------------------------------------------------------------------
+# Refinanciar el crédito del instituto (Santander Mejoras Cofis)
+# --------------------------------------------------------------------------
+# Tercera línea con el saldo INFONAVIT/FOVISSSTE: misma tasa y plazo, vida y
+# comisión mensual; aforo y base de gastos sobre los dos créditos.
+
+from motor_hipotecario.modelos import (  # noqa: E402
+    CreditoInstitutoActual,
+    RefinanciamientoInstituto,
+    TipoLinea,
+)
+
+
+from dataclasses import replace  # noqa: E402
+
+
+def _mejora_cofis(saldo_instituto="400000", enganche="1800000", gastos=None):
+    instituto = CreditoInstitutoActual(
+        instituto=TipoLinea.INFONAVIT, saldo=Decimal(saldo_instituto),
+        pago_mensual=Decimal("6000"), plazo_remanente_meses=120,
+    )
+    escenario = Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal(enganche), plazo_meses=240,
+        destino=Destino.SUSTITUCION,
+        credito_actual=CreditoActual(
+            saldo_insoluto=Decimal("3000000") - Decimal(enganche), pago_mensual=Decimal("16000"),
+            plazo_remanente_meses=240, institucion="Control", credito_instituto=instituto,
+        ),
+    )
+    if gastos:
+        escenario = replace(escenario, gastos_notariales=Decimal(gastos), financiar_gastos_notariales=True)
+    return escenario
+
+
+def producto_refinancia(**kwargs):
+    return producto_limpio(
+        seguro_vida_mensual=Decimal("0.0008"), seguro_danos_monto_mensual=Decimal("630"),
+        comision_mensual=Decimal("406"), avaluo=Decimal("3000"),
+        refinanciamiento_instituto=RefinanciamientoInstituto(comision_mensual=Decimal("406")),
+        **kwargs,
+    )
+
+
+def test_refinancia_el_credito_del_instituto_en_otra_linea():
+    r = evaluar_producto(_mejora_cofis(), producto_refinancia(), momento=HOY)
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == Decimal("1200000")
+    t = r.tabla_instituto_refinanciado
+    assert t.monto == Decimal("400000") and len(t.renglones) == 240
+    x = t.renglones[0]
+    assert x.seguro_danos == 0 and x.iva_intereses == 0 and x.comision_mensual == Decimal("406")
+    assert x.seguro_vida == Decimal("400000") * Decimal("0.0008")
+    # El cliente paga las tres líneas; hoy paga banco + instituto
+    assert r.pago_regular_inicial == r.tabla.pago_regular_inicial + t.pago_regular_inicial
+    assert r.ahorro_mensual == Decimal("16000") + Decimal("6000") - r.pago_regular_inicial
+    assert r.costo_total == r.tabla.total_pagado + t.total_pagado + r.avaluo
+    assert r.cat_instituto_refinanciado_estimado is not None
+    assert any("aportaciones" in a for a in r.advertencias)
+
+
+def test_serie_de_ahorro_con_plazos_distintos_del_banco_y_del_instituto():
+    r = evaluar_producto(_mejora_cofis(), producto_refinancia(), momento=HOY)
+    serie = r.serie_ahorro
+    pago_nuevo = lambda m: r.tabla.renglones[m - 1].pago_total + r.tabla_instituto_refinanciado.renglones[m - 1].pago_total
+    # Hasta el mes 120 hoy se pagan los dos créditos; después solo el bancario
+    assert abs(serie[119] - serie[118] - (Decimal("22000") - pago_nuevo(120))) < Decimal("1E-15")
+    assert abs(serie[120] - serie[119] - (Decimal("16000") - pago_nuevo(121))) < Decimal("1E-15")
+
+
+def test_aforo_y_gastos_sobre_los_dos_creditos():
+    # 2,600,000 + 400,000 = 100 % del valor: no cabe en 95 %
+    r = evaluar_producto(_mejora_cofis(enganche="400000"), producto_refinancia(), momento=HOY)
+    assert not r.elegible and "aforo" in r.motivos_rechazo[0]
+    # 7 % de gastos sobre 1,600,000 = 112,000
+    p = producto_refinancia(financiamiento_gastos=FinanciamientoGastos(
+        tope=Decimal("0.07"), linea_separada=True, excede_aforo_cancela=True))
+    r = evaluar_producto(_mejora_cofis(gastos="120000"), p, momento=HOY)
+    assert r.gastos_financiados == Decimal("112000")
+
+
+def test_sin_regla_el_credito_del_instituto_se_queda_igual():
+    r = evaluar_producto(_mejora_cofis(), producto_limpio(), momento=HOY)
+    assert r.tabla_instituto_refinanciado is None
+    assert r.ahorro_mensual == Decimal("16000") - r.pago_regular_inicial

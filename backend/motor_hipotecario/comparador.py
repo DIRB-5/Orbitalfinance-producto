@@ -19,7 +19,9 @@ from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_institu
 from .referencias import TIIE_BASE
 from .modelos import (
     BaseTopeGastos,
+    ConceptoIVA,
     CreditoActual,
+    CreditoInstitutoActual,
     Destino,
     Dinero,
     Escenario,
@@ -92,6 +94,28 @@ class ResultadoOpcion:
     tabla_gastos: Optional[TablaAmortizacion] = None
     cat_gastos_estimado: Optional[Decimal] = None
 
+    # Crédito del instituto refinanciado en una línea aparte (Santander Mejoras
+    # Cofis). Como la de gastos: suma a la mensualidad y al costo total.
+    tabla_instituto_refinanciado: Optional[TablaAmortizacion] = None
+    cat_instituto_refinanciado_estimado: Optional[Decimal] = None
+
+    @property
+    def _lineas_adicionales(self) -> tuple:
+        return tuple(
+            t for t in (self.tabla_gastos, self.tabla_instituto_refinanciado) if t is not None
+        )
+
+    def _pago_actual(self, mes: int) -> Dinero:
+        """Lo que hoy paga el cliente en `mes`: el bancario y, si este producto lo
+        refinancia, el del instituto (cada uno mientras dure su plazo)."""
+        actual = self.credito_actual
+        pago = actual.pago_mensual if mes <= actual.plazo_remanente_meses else Decimal("0")
+        instituto = actual.credito_instituto
+        if self.tabla_instituto_refinanciado is not None and instituto is not None:
+            if mes <= instituto.plazo_remanente_meses:
+                pago += instituto.pago_mensual
+        return pago
+
     # True si el escenario traía cofinanciamiento que este producto no acepta
     # y se evaluó como la ruta sin instituto (mismo enganche propio, el banco
     # financia también lo que cubriría el instituto).
@@ -117,7 +141,7 @@ class ResultadoOpcion:
     def ahorro_mensual(self) -> Optional[Dinero]:
         if self.credito_actual is None:
             return None
-        return self.credito_actual.pago_mensual - self.pago_regular_inicial
+        return self._pago_actual(1) - self.pago_regular_inicial
 
     @property
     def serie_ahorro(self) -> tuple:
@@ -128,11 +152,16 @@ class ResultadoOpcion:
         renglones = self.tabla.renglones
         acumulado = -self.costo_de_cambiarse
         serie = []
-        for mes in range(1, max(actual.plazo_remanente_meses, len(renglones)) + 1):
-            pago_actual = actual.pago_mensual if mes <= actual.plazo_remanente_meses else 0
+        meses = [actual.plazo_remanente_meses, len(renglones)]
+        if actual.credito_instituto is not None:
+            meses.append(actual.credito_instituto.plazo_remanente_meses)
+        meses += [len(t.renglones) for t in self._lineas_adicionales]
+        for mes in range(1, max(meses) + 1):
+            pago_actual = self._pago_actual(mes)
             pago_nuevo = renglones[mes - 1].pago_total if mes <= len(renglones) else 0
-            if self.tabla_gastos is not None and mes <= len(self.tabla_gastos.renglones):
-                pago_nuevo += self.tabla_gastos.renglones[mes - 1].pago_total
+            for t in self._lineas_adicionales:
+                if mes <= len(t.renglones):
+                    pago_nuevo += t.renglones[mes - 1].pago_total
             acumulado += pago_actual - pago_nuevo
             serie.append(acumulado)
         return tuple(serie)
@@ -151,10 +180,10 @@ class ResultadoOpcion:
         return serie[-1] if serie else None
 
     def _con_gastos(self, atributo: str) -> Dinero:
-        """Pago del crédito principal más el de la línea de gastos, si la hay."""
+        """Pago del crédito principal más el de las líneas adicionales."""
         pago = getattr(self.tabla, atributo)
-        if self.tabla_gastos is not None:
-            pago += getattr(self.tabla_gastos, atributo)
+        for t in self._lineas_adicionales:
+            pago += getattr(t, atributo)
         return pago
 
     @property
@@ -199,9 +228,7 @@ class ResultadoOpcion:
         pagado_instituto = (
             self.tabla_instituto.total_pagado if self.tabla_instituto is not None else Decimal("0")
         )
-        pagado_gastos = (
-            self.tabla_gastos.total_pagado if self.tabla_gastos is not None else Decimal("0")
-        )
+        pagado_gastos = sum((t.total_pagado for t in self._lineas_adicionales), Decimal("0"))
         return (
             self.tabla.total_pagado
             + pagado_instituto
@@ -220,6 +247,8 @@ class ResultadoOpcion:
         capital = self.monto_credito
         if self.tabla_gastos is None:
             capital -= self.gastos_financiados
+        if self.tabla_instituto_refinanciado is not None:
+            capital += self.tabla_instituto_refinanciado.monto
         return self.costo_total - capital
 
 
@@ -279,6 +308,16 @@ def credito_actual_es_propio(escenario: Escenario, producto: ProductoHipotecario
     if actual is None or not actual.institucion.strip():
         return None
     return _normalizado(producto.institucion) in _normalizado(actual.institucion)
+
+
+def credito_instituto_refinanciado(
+    escenario: Escenario, producto: ProductoHipotecario
+) -> Optional[CreditoInstitutoActual]:
+    """El crédito del instituto que este producto refinancia, si lo hay."""
+    actual = escenario.credito_actual
+    if producto.refinanciamiento_instituto is None or actual is None:
+        return None
+    return actual.credito_instituto
 
 
 def valor_garantia(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
@@ -353,7 +392,9 @@ def gastos_financiables(escenario: Escenario, producto: ProductoHipotecario) -> 
     regla = producto.financiamiento_gastos
     if regla is None or not escenario.financiar_gastos_notariales:
         return Decimal("0")
-    base = escenario.monto_credito
+    instituto = credito_instituto_refinanciado(escenario, producto)
+    # Santander Mejoras Cofis: el 7 % y el aforo sobre los dos créditos (Cal!C44)
+    base = escenario.monto_credito + (instituto.saldo if instituto else Decimal("0"))
     financiado = escenario.gastos_notariales
     if regla.incluye_apertura_y_avaluo:
         # Notariales, avalúo y la apertura sobre el total. Con apertura en
@@ -402,7 +443,11 @@ def evaluar_producto(
     monto_base = escenario.monto_credito
     plazo = escenario.plazo_meses
     valor_en_garantia = valor_garantia(escenario, producto)
-    aforo_base = monto_base / valor_en_garantia if valor_en_garantia else Decimal("0")
+    refinanciado = credito_instituto_refinanciado(escenario, producto)
+    saldo_instituto = refinanciado.saldo if refinanciado else Decimal("0")
+    aforo_base = (
+        (monto_base + saldo_instituto) / valor_en_garantia if valor_en_garantia else Decimal("0")
+    )
 
     motivos: list[str] = []
     advertencias: list[str] = []
@@ -509,7 +554,10 @@ def evaluar_producto(
     # --- Cálculo -----------------------------------------------------------
     # Banamex, BX+ y Afirme eligen el tramo de tasa con el aforo que incluye
     # los gastos; Scotiabank, sin ellos.
-    aforo_tasa = (monto if sobre_total else monto_base) / valor_en_garantia if valor_en_garantia else None
+    aforo_tasa = (
+        ((monto if sobre_total else monto_base) + saldo_instituto) / valor_en_garantia
+        if valor_en_garantia else None
+    )
     producto = resolver_para_escenario(producto, escenario, plazo_calculo, aforo=aforo_tasa)
 
     cofinanciamiento = escenario.cofinanciamiento
@@ -669,6 +717,40 @@ def evaluar_producto(
             escenario.valor_vivienda, fecha, fecha_disposicion=disposicion,
         )
         cat_gastos = calcular_cat(tabla_gastos, producto_gastos)
+
+    # Crédito del instituto refinanciado (Santander Mejoras Cofis): vida y
+    # comisión mensual (÷ 1.16 en el CAT, CAT!BB), sin daños ni IVA de intereses
+    tabla_refinanciada = None
+    cat_refinanciado = None
+    if refinanciado is not None:
+        producto_instituto = replace(
+            producto,
+            comision_mensual=producto.refinanciamiento_instituto.comision_mensual,
+            seguro_danos_anual=Decimal("0"),
+            seguro_danos_monto_mensual=None,
+            seguro_desempleo_pct=Decimal("0"),
+            avaluo=Decimal("0"),
+            tarifa_avaluo=(),
+            comision_apertura=Decimal("0"),
+            comision_apertura_monto=None,
+            comision_investigacion=Decimal("0"),
+            iva_sobre_intereses=False,
+            iva_intereses_en_cat=False,
+            financiamiento_gastos=None,
+            refinanciamiento_instituto=None,
+            cat_netos_de_iva=frozenset({ConceptoIVA.COMISION_MENSUAL}),
+        )
+        tabla_refinanciada = construir_tabla(
+            LineaCredito(producto=producto_instituto, monto=refinanciado.saldo, plazo_meses=plazo_calculo),
+            escenario.valor_vivienda, fecha, fecha_disposicion=disposicion,
+        )
+        cat_refinanciado = calcular_cat(tabla_refinanciada, producto_instituto)
+        advertencias.append(
+            f"Refinancia también el crédito {refinanciado.instituto.value.upper()} "
+            f"(${refinanciado.saldo:,.2f}) en un tercer crédito con la misma tasa y plazo. "
+            "Al salir del instituto, las aportaciones patronales dejan de pagar ese "
+            "crédito y vuelven a la subcuenta de vivienda."
+        )
     comision = redondear(producto.comision_apertura_para(monto_comision))
     cat = calcular_cat(tabla_cat, producto, monto_comision=monto_comision)
 
@@ -679,7 +761,9 @@ def evaluar_producto(
         # instituto, con ambos pagos.
         pago_inicial = tabla.pago_regular_inicial + (
             tabla_instituto.pago_regular_inicial if tabla_instituto is not None else 0
-        ) + (tabla_gastos.pago_regular_inicial if tabla_gastos is not None else 0)
+        ) + (tabla_gastos.pago_regular_inicial if tabla_gastos is not None else 0) + (
+            tabla_refinanciada.pago_regular_inicial if tabla_refinanciada is not None else 0
+        )
         if pago_inicial > tope:
             motivos.append(
                 f"El pago inicial (${pago_inicial:,.2f}) supera el "
@@ -713,6 +797,8 @@ def evaluar_producto(
         gastos_financiados=financiado,
         tabla_gastos=tabla_gastos,
         cat_gastos_estimado=cat_gastos,
+        tabla_instituto_refinanciado=tabla_refinanciada,
+        cat_instituto_refinanciado_estimado=cat_refinanciado,
         tabla_instituto=tabla_instituto,
         credito_actual=escenario.credito_actual,
     )

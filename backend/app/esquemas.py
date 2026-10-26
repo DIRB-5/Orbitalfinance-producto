@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from motor_hipotecario.modelos import Destino, TipoLinea
 from pydantic.alias_generators import to_camel
@@ -29,6 +29,22 @@ class CofinanciamientoEntrada(ModeloBase):
     saldo_subcuenta: Decimal = Field(default=Decimal("0"), ge=0)
 
 
+class CreditoInstitutoActualEntrada(ModeloBase):
+    """Crédito INFONAVIT/FOVISSSTE de la hipoteca actual. Saldo en pesos."""
+
+    instituto: TipoLinea
+    saldo: Decimal = Field(gt=0)
+    pago_mensual: Decimal = Field(ge=0)
+    plazo_remanente_meses: int = Field(gt=0, le=480)
+
+    @field_validator("instituto")
+    @classmethod
+    def _solo_instituto(cls, v: TipoLinea) -> TipoLinea:
+        if v is TipoLinea.BANCARIO:
+            raise ValueError("El crédito del instituto es INFONAVIT o FOVISSSTE.")
+        return v
+
+
 class CreditoActualEntrada(ModeloBase):
     saldo_insoluto: Decimal = Field(gt=0)
     pago_mensual: Decimal = Field(gt=0)
@@ -36,6 +52,7 @@ class CreditoActualEntrada(ModeloBase):
     tasa_anual: Optional[Decimal] = Field(default=None, ge=0)
     penalizacion_prepago: Decimal = Field(default=Decimal("0"), ge=0)
     institucion: str = ""
+    credito_instituto: Optional[CreditoInstitutoActualEntrada] = None
 
 
 class EscenarioEntrada(ModeloBase):
@@ -187,6 +204,18 @@ class LineaGastosSalida(ModeloBase):
     cat_estimado: str
 
 
+class LineaInstitutoSalida(ModeloBase):
+    """Crédito del instituto refinanciado en una línea aparte (Santander)."""
+
+    instituto: str
+    monto: str
+    tasa_anual: str
+    pago_mensual: str
+    total_pagado: str
+    total_intereses: str
+    cat_estimado: str
+
+
 class CreditoInstitutoSalida(ModeloBase):
     instituto: str
     producto: str
@@ -219,6 +248,7 @@ class OpcionSalida(ModeloBase):
     gastos_financiados: str
     gastos_de_contado: str
     linea_gastos: Optional[LineaGastosSalida]
+    linea_instituto: Optional[LineaInstitutoSalida]
     cat_estimado: str
     pago_primer_mes: str
     pago_ultimo_mes: str

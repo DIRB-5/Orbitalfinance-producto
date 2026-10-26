@@ -24,6 +24,7 @@ from motor_hipotecario.comparador import (
 from motor_hipotecario.modelos import (
     Cofinanciamiento,
     CreditoActual,
+    CreditoInstitutoActual,
     Escenario,
     ProductoHipotecario,
 )
@@ -37,6 +38,7 @@ from .esquemas import (
     FaseCrecimientoSalida,
     FinanciamientoGastosSalida,
     LineaGastosSalida,
+    LineaInstitutoSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
@@ -160,6 +162,29 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
     )
 
 
+def _credito_actual(c) -> CreditoActual:
+    datos = c.model_dump(exclude={"credito_instituto"})
+    instituto = None
+    if c.credito_instituto is not None:
+        instituto = CreditoInstitutoActual(**c.credito_instituto.model_dump())
+    return CreditoActual(**datos, credito_instituto=instituto)
+
+
+def _linea_instituto(o: ResultadoOpcion) -> Optional[LineaInstitutoSalida]:
+    t = o.tabla_instituto_refinanciado
+    if t is None:
+        return None
+    return LineaInstitutoSalida(
+        instituto=o.credito_actual.credito_instituto.instituto.value,
+        monto=_dinero(t.monto),
+        tasa_anual=_tasa(t.tasa_anual),
+        pago_mensual=_dinero(t.pago_regular_inicial),
+        total_pagado=_dinero(t.total_pagado),
+        total_intereses=_dinero(t.total_intereses),
+        cat_estimado=_tasa(o.cat_instituto_refinanciado_estimado),
+    )
+
+
 def _linea_gastos(o: ResultadoOpcion) -> Optional[LineaGastosSalida]:
     t = o.tabla_gastos
     if t is None:
@@ -214,6 +239,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         gastos_financiados=_dinero(o.gastos_financiados),
         gastos_de_contado=_dinero(o.gastos_de_contado),
         linea_gastos=_linea_gastos(o),
+        linea_instituto=_linea_instituto(o),
         cat_estimado=_tasa(o.cat_estimado),
         pago_primer_mes=_dinero(o.pago_primer_mes),
         pago_ultimo_mes=_dinero(o.pago_ultimo_mes),
@@ -290,7 +316,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         tiie=ESCENARIOS_TIIE[entrada.escenario_tasa],
         destino=entrada.destino,
         credito_actual=(
-            CreditoActual(**entrada.credito_actual.model_dump()) if entrada.credito_actual else None
+            _credito_actual(entrada.credito_actual) if entrada.credito_actual else None
         ),
         cofinanciamiento=(
             Cofinanciamiento(**entrada.cofinanciamiento.model_dump())

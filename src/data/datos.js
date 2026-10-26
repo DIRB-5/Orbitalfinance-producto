@@ -176,7 +176,7 @@ export const escenarioBase = {
 
 export const escenariosBase = {
   adquisicion: escenarioBase,
-  sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0, financiarGastos: "no" },
+  sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0, financiarGastos: "no", institutoActual: "no" },
   liquidez: { familia: "hipotecario", subtipo: "liquidez", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   terreno: { familia: "hipotecario", subtipo: "terreno", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   pyme: { familia: "pyme", subtipo: "pyme", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
@@ -437,6 +437,14 @@ function adaptarOpcion(o, escenario) {
     gastosFinanciados: num(o.gastosFinanciados) || 0,
     gastosDeContado: num(o.gastosDeContado),
     // Segundo crédito con los gastos (Santander Sustitución)
+    // Crédito del instituto refinanciado (Santander Mejora de Condiciones)
+    lineaInstituto: o.lineaInstituto ? {
+      instituto: o.lineaInstituto.instituto.toUpperCase(),
+      monto: num(o.lineaInstituto.monto),
+      pagoMensual: num(o.lineaInstituto.pagoMensual),
+      totalPagado: num(o.lineaInstituto.totalPagado),
+      catEstimado: num(o.lineaInstituto.catEstimado),
+    } : null,
     lineaGastos: o.lineaGastos ? {
       monto: num(o.lineaGastos.monto),
       tasaAnual: num(o.lineaGastos.tasaAnual),
@@ -500,6 +508,13 @@ function cuerpoComparacion(escenario, escenarioRefId) {
       tasaAnual: escenario.tasaActual ? String(escenario.tasaActual) : null,
       penalizacionPrepago: String(escenario.penalizacionPrepagoMonto || 0),
       institucion: escenario.institucionActual || "",
+      // Crédito INFONAVIT/FOVISSSTE si la hipoteca es de cofinanciamiento
+      creditoInstituto: tieneCreditoInstituto(escenario) ? {
+        instituto: escenario.institutoActual.toLowerCase(),
+        saldo: String(escenario.saldoInstituto),
+        pagoMensual: String(escenario.pagoInstituto || 0),
+        plazoRemanenteMeses: escenario.plazoInstitutoMeses || escenario.plazoRemanenteMeses,
+      } : null,
     };
   }
   return {
@@ -562,6 +577,10 @@ export function evaluarEscenario(escenario, escenarioRefId, ids) {
   return opciones;
 }
 
+function tieneCreditoInstituto(e) {
+  return (e.institutoActual === "INFONAVIT" || e.institutoActual === "FOVISSSTE") && (e.saldoInstituto || 0) > 0;
+}
+
 // Sustitución: el crédito actual como línea base y cada opción contra quedarse.
 export function evaluarSustitucion(escenario, escenarioRefId) {
   const opciones = evaluarEscenario(escenario, escenarioRefId);
@@ -575,6 +594,11 @@ export function evaluarSustitucion(escenario, escenarioRefId) {
       pagoMensualActual: pago,
       plazoRemanenteMeses: plazo,
       sumaPagosRestantes: pago * plazo,
+      instituto: tieneCreditoInstituto(escenario) ? {
+        nombre: escenario.institutoActual,
+        saldo: escenario.saldoInstituto,
+        pagoMensual: escenario.pagoInstituto || 0,
+      } : null,
     },
     opciones,
   };

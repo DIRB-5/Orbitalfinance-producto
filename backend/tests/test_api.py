@@ -182,3 +182,33 @@ def test_garantia_adicional_por_api():
     assert tu_casa["elegible"], tu_casa["motivosRechazo"]
     assert not opciones["afirme-adquisicion-2026-07"]["elegible"]   # 100 % del valor
 
+
+def test_mejora_refinancia_el_credito_infonavit_por_api():
+    cuerpo = {
+        "valorVivienda": "3000000", "enganche": "1800000", "plazoMeses": 180,
+        "destino": "sustitucion",
+        "creditoActual": {
+            "saldoInsoluto": "1200000", "pagoMensual": "16000", "plazoRemanenteMeses": 180,
+            "institucion": "Santander",
+            "creditoInstituto": {"instituto": "infonavit", "saldo": "400000",
+                                 "pagoMensual": "4500", "plazoRemanenteMeses": 180},
+        },
+    }
+    opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
+    mejora = opciones["santander-mejora-condiciones-2025-12"]
+    assert mejora["elegible"], mejora["motivosRechazo"]
+    assert mejora["lineaInstituto"]["monto"] == "400000.00"
+    assert mejora["lineaInstituto"]["catEstimado"].startswith("0.13530")
+    # Los demás sustituyen solo el bancario
+    assert opciones["banorte-mejora-hipoteca-2026-06"]["lineaInstituto"] is None
+
+
+def test_credito_del_instituto_no_puede_ser_bancario():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1800000", "plazoMeses": 180,
+              "destino": "sustitucion",
+              "creditoActual": {"saldoInsoluto": "1200000", "pagoMensual": "16000",
+                                "plazoRemanenteMeses": 180,
+                                "creditoInstituto": {"instituto": "bancario", "saldo": "1",
+                                                     "pagoMensual": "1", "plazoRemanenteMeses": 1}}}
+    assert cliente.post("/api/comparar", json=cuerpo).status_code == 422
+

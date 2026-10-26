@@ -2063,6 +2063,10 @@ class Component extends DCLogic {
         plazoRemanenteMeses: f.plazoRemanenteMeses || 0,
         penalizacionPrepago: f.penalizacionPrepago || 0,
         penalizacionPrepagoMonto: Math.round((f.saldoInsoluto || 0) * (f.penalizacionPrepago || 0) * 100) / 100,
+        institutoActual: f.institutoActual || "no",
+        saldoInstituto: f.saldoInstituto || 0,
+        pagoInstituto: f.pagoInstituto || 0,
+        plazoInstitutoMeses: f.plazoInstitutoMeses || 0,
         valorInmueble: f.valorInmueble || 0,
         plazoNuevoMeses: f.plazoNuevoMeses || f.plazoRemanenteMeses || 0,
         plazoMeses: f.plazoNuevoMeses || f.plazoRemanenteMeses || 0,
@@ -3282,7 +3286,20 @@ class Component extends DCLogic {
         campoNumero("pagoMensualActual", "Pago mensual actual"),
         campoNumero("plazoRemanenteMeses", "Plazo remanente (meses)"),
         campoTasaPct("penalizacionPrepago", "Penalización por prepago", "Sobre el saldo insoluto. Cero si el crédito no la cobra."),
-      ];
+        campoSegmentado("institutoActual", "¿Es de cofinanciamiento?", [
+          { label: "No", valor: "no" }, { label: "INFONAVIT", valor: "INFONAVIT" }, { label: "FOVISSSTE", valor: "FOVISSSTE" },
+        ], {
+          hayNota: true,
+          nota: "Santander Mejora de Condiciones refinancia también el crédito del instituto; los demás bancos solo el bancario.",
+          wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
+        }),
+      ].concat(s.form.institutoActual === "INFONAVIT" || s.form.institutoActual === "FOVISSSTE" ? [
+        campoNumero("saldoInstituto", "Saldo del crédito " + s.form.institutoActual + " (pesos)"),
+        campoNumero("pagoInstituto", "Pago mensual al instituto"),
+        campoNumero("plazoInstitutoMeses", "Plazo remanente del instituto (meses)", {
+          hayNota: true, nota: "Por defecto, igual al del crédito bancario.",
+        }),
+      ] : []);
       camposExtra = {
         titulo: "Inmueble y condiciones nuevas",
         campos: [
@@ -3532,7 +3549,10 @@ class Component extends DCLogic {
           { k: "Pago mensual actual", v: mxn(r.lineaBase.pagoMensualActual), fuerte: true },
           { k: "Plazo remanente", v: r.lineaBase.plazoRemanenteMeses + " meses", fuerte: false },
           { k: "Suma de pagos restantes", v: mxn(r.lineaBase.sumaPagosRestantes), fuerte: true },
-        ].map((b) => ({
+        ].concat(r.lineaBase.instituto ? [
+          { k: "Crédito " + r.lineaBase.instituto.nombre + ": saldo y pago (solo lo refinancia Santander Mejora)",
+            v: mxn(r.lineaBase.instituto.saldo) + " · " + mxn(r.lineaBase.instituto.pagoMensual), fuerte: false },
+        ] : []).map((b) => ({
           k: b.k, v: b.v,
           vStyle: { fontSize: b.fuerte ? "24px" : "20px", fontWeight: 600, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" },
         })),
@@ -3602,6 +3622,7 @@ class Component extends DCLogic {
       det.montoCredito, det.totalIntereses, det.totalSeguros,
       det.comisionApertura, det.totalComisionMensual || 0, det.totalIvaIntereses || 0, det.avaluo, det.gastosDeContado, det.comisionInvestigacion || 0,
       det.lineaGastos ? det.lineaGastos.totalPagado : 0,
+      det.lineaInstituto ? det.lineaInstituto.totalPagado : 0,
       -Math.max(0, (det.gastosFinanciados || 0) - (det.gastosNotariales || 0)),
     ].reduce((a, b) => a + (b || 0), 0) : 0;
     const detAjuste = det ? (det.costoTotal || 0) - detConceptos : 0;
@@ -3866,6 +3887,8 @@ class Component extends DCLogic {
         { k: det.gastosFinanciados ? "Gastos notariales de contado" : "Gastos notariales estimados", v: mxn(det.gastosDeContado), omitirSiCero: true },
         { k: det.lineaGastos ? "Segundo crédito por " + mxn(det.lineaGastos.monto) + " de gastos notariales: capital, intereses, vida e IVA (CAT estimado " + pct(det.lineaGastos.catEstimado) + ")" : "",
           v: det.lineaGastos ? mxn(det.lineaGastos.totalPagado) : "$0.00", omitirSiCero: true },
+        { k: det.lineaInstituto ? "Crédito " + det.lineaInstituto.instituto + " refinanciado por " + mxn(det.lineaInstituto.monto) + ": capital, intereses, vida y comisión (CAT estimado " + pct(det.lineaInstituto.catEstimado) + ")" : "",
+          v: det.lineaInstituto ? mxn(det.lineaInstituto.totalPagado) : "$0.00", omitirSiCero: true },
         { k: "Apertura y avalúo financiados (ya incluidos en el monto del crédito)",
           v: "−" + mxn(Math.max(0, (det.gastosFinanciados || 0) - (det.gastosNotariales || 0))), omitirSiCero: true },
       ].filter((x) => (x.soloTerreno ? det.subtipo === "terreno" : true))

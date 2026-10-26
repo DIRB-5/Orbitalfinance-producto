@@ -100,12 +100,42 @@ class CreditoActual:
     tasa_anual: Optional[Decimal] = None
     penalizacion_prepago: Decimal = Decimal("0")
     institucion: str = ""
+    # Crédito INFONAVIT/FOVISSSTE del cofinanciamiento actual, si lo hay. Su
+    # pago es el descuento por nómina que hoy hace el cliente.
+    credito_instituto: Optional["CreditoInstitutoActual"] = None
 
 
 class TipoLinea(str, Enum):
     BANCARIO = "bancario"
     INFONAVIT = "infonavit"
     FOVISSSTE = "fovissste"
+
+
+@dataclass(frozen=True)
+class CreditoInstitutoActual:
+    """
+    Crédito del instituto en una hipoteca de cofinanciamiento que el cliente ya
+    tiene. Solo montos: no se pide NSS (regla 7). El saldo va en pesos; si el
+    estado de cuenta viene en VSM o UMA, se convierte fuera del motor.
+    """
+
+    instituto: TipoLinea
+    saldo: Dinero
+    pago_mensual: Dinero
+    plazo_remanente_meses: int
+
+
+@dataclass(frozen=True)
+class RefinanciamientoInstituto:
+    """
+    El producto refinancia también el crédito del instituto en una línea aparte
+    (Santander Mejoras Cofis, hoja Sustitución): misma tasa, plazo y pago que la
+    principal, seguro de vida y comisión mensual; sin daños, avalúo, apertura ni
+    IVA de intereses. El aforo y la base de los gastos financiables suman los
+    dos créditos.
+    """
+
+    comision_mensual: Dinero                # 350 + IVA (Adm!Q6)
 
 
 class AportacionExcedente(str, Enum):
@@ -369,6 +399,10 @@ class ProductoHipotecario:
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).
     solo_credito_actual_propio: bool = False
     excluye_credito_actual_propio: bool = False
+
+    # Refinancia también el crédito del instituto del cofinanciamiento actual
+    # (`CreditoActual.credito_instituto`). None = solo el bancario.
+    refinanciamiento_instituto: Optional[RefinanciamientoInstituto] = None
 
     # Comisión por apertura como fracción del monto del crédito
     comision_apertura: Decimal = Decimal("0")

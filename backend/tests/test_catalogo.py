@@ -1323,3 +1323,46 @@ def test_santander_mejora_o_sustitucion_segun_el_banco_actual():
     assert not evaluar_producto(de_otro, mejora, momento=momento).elegible
     assert evaluar_producto(de_otro, sustitucion, momento=momento).elegible
 
+
+def test_santander_mejoras_cofis_reproduce_sus_formulas():
+    """
+    Mejora de Condiciones con Origen Cofinanciamiento: saldo bancario 1,200,000
+    e INFONAVIT 400,000 sobre 3,000,000 a 180 meses, gastos 120,000 (7 % de los
+    dos créditos = 112,000). Réplica de Cal, Liquidez, Sustitución y CAT, con
+    el pago de la tercera línea fijo como en su CAT (CAT!AW20).
+    """
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import CreditoInstitutoActual, TipoLinea
+
+    escenario = _con_gastos(_escenario_sustitucion(D("3000000"), D("1200000"), 180), "120000")
+    escenario = replace(escenario, credito_actual=replace(
+        escenario.credito_actual, institucion="Santander",
+        credito_instituto=CreditoInstitutoActual(
+            instituto=TipoLinea.INFONAVIT, saldo=D("400000"), pago_mensual=D("4500"),
+            plazo_remanente_meses=180,
+        ),
+    ))
+    r = evaluar_producto(escenario, POR_ID["santander-mejora-condiciones-2025-12"],
+                         momento=date(2026, 10, 25))
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == D("1200000") and r.gastos_financiados == D("112000")
+    tercera = r.tabla_instituto_refinanciado
+    esperado = {
+        "principal": (r.tabla, {1: "15211.302919247131303287239822"}),
+        "gastos": (r.tabla_gastos, {1: "1478.220524907510032751253494"}),
+        "instituto": (tercera, {1: "5131.100973082377101095746607",
+                                60: "5072.262549892614161661832531",
+                                180: "4802.114979125610651309984954"}),
+    }
+    for nombre, (tabla, filas) in esperado.items():
+        for mes, valor in filas.items():
+            assert abs(tabla.renglones[mes - 1].pago_total - D(valor)) < D("0.000001"), (nombre, mes)
+    assert abs(tercera.renglones[59].saldo_final - D("327167.0873320120656703329526")) < D("0.000001")
+    assert abs(r.cat_estimado - D("0.13349202193292")) < D("0.0000001")
+    assert abs(r.cat_gastos_estimado - D("0.11995858200797")) < D("0.0000001")
+    assert abs(r.cat_instituto_refinanciado_estimado - D("0.13530042878267")) < D("0.0000001")
+    assert abs(r.pago_regular_inicial - D("21820.624417237018437134239924")) < D("0.000001")
+

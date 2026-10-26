@@ -48,6 +48,7 @@ from .modelos import (
     ConvencionDias,
     ProductoHipotecario,
     ReglaAportaciones,
+    RefinanciamientoInstituto,
     TasaVariable,
     TipoLinea,
 )
@@ -1366,6 +1367,9 @@ CATALOGO.append(
         excluye_credito_actual_propio=False,
         # "Para mejorar las condiciones de tu hipoteca actual con Santander"
         solo_credito_actual_propio=True,
+        # Origen Cofinanciamiento (Adm!C22, hoja Sustitución): el saldo
+        # INFONAVIT/FOVISSSTE en un tercer crédito, comisión 350 + IVA (Q6)
+        refinanciamiento_instituto=RefinanciamientoInstituto(comision_mensual=Decimal("406")),
         fuente="Cotizador Santander.xlsm, destino Mejora de Condiciones (Adm, Cal, "
         "Liquidez, CAT), versión 2025-6 Ro (15 diciembre 2025). A quién aplica: "
         "santander.com.mx, Hipoteca Plus, consultado 2026-10-25. SIN escenario "
@@ -1375,8 +1379,13 @@ CATALOGO.append(
         "Hipoteca Plus baja hasta 9.25 %. Sin apertura y avalúo de $2,586.21 + IVA, "
         "como en el cotizador; un comparador externo sin fecha reporta apertura de "
         "1 % + IVA: confirmar con Santander. Financia gastos en un segundo crédito "
-        "como Sustitución. No se modela la opción de refinanciar también el crédito "
-        "INFONAVIT/FOVISSSTE (Mejoras Cofis)." + _VIGENCIA_SANTANDER,
+        "como Sustitución. Si la hipoteca actual es de cofinanciamiento, refinancia "
+        "también el crédito INFONAVIT/FOVISSSTE en un tercer crédito con la misma "
+        "tasa y plazo (Mejoras Cofis); el aforo y el 7 % de gastos se miden sobre "
+        "los dos. CORRECCIONES a la hoja: el pago de esa línea se toma fijo (la hoja "
+        "lo hace crecer cada año en pagos fijos, Sustitución!X19, pero su CAT no) y "
+        "si los dos créditos rebasan el aforo no es elegible (la hoja recorta el "
+        "crédito bancario)." + _VIGENCIA_SANTANDER,
     )
 )
 
