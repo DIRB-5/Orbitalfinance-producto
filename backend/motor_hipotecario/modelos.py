@@ -404,6 +404,14 @@ class ProductoHipotecario:
     # (Credirenovación Pasivo + Renovación: 35 %, validación de H30).
     remodelacion_max_pct_valor: Optional[Decimal] = None
 
+    # Segunda hipoteca para remodelar (Credirenovación modo 4): la vivienda ya
+    # tiene hipoteca con el mismo banco (`Escenario.credito_actual`), que NO se
+    # refinancia. El crédito es solo la obra; el aforo suma el saldo vigente
+    # sobre valor + obra, y el avalúo se mide sobre valor + obra.
+    segunda_hipoteca: bool = False
+    # Solo para vivienda sin hipoteca (Credirenovación modo 1).
+    excluye_vivienda_con_hipoteca: bool = False
+
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).

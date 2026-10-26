@@ -1565,3 +1565,44 @@ CATALOGO += [
     if p.id.startswith("scotiabank-credirenovacion-compra-") and "-green-" not in p.id
 ]
 
+# Modo 4, 2a Hipoteca con SB: la vivienda ya tiene hipoteca con Scotiabank, que
+# no se refinancia; el crédito nuevo es solo la obra (H30). Lo indican el
+# resumen ('Simulador Valora'!E56, E58), los ingresos (E66), el seguro de
+# daños en 0 (E60), la línea autorizada de PO ('Tabla PO'!H9 = H30), la Oferta
+# ("Remodelación de vivienda") y el RECA ("Renovación 2° Hipoteca"). Aforo de
+# 80 % combinado: saldo vigente + obra sobre valor + obra (H28, C33). Green no
+# aplica (T12).
+_RECA_SEGUNDA = {"valora": "0319-138-007456/24-00056-0124", "pagos-oportunos": "0319-138-007454/24-00055-0124"}
+CATALOGO += [
+    replace(
+        p,
+        id=p.id.replace("credirenovacion-", "credirenovacion-2a-hipoteca-"),
+        nombre=p.nombre.replace("Credirenovación", "Credirenovación 2a Hipoteca"),
+        segunda_hipoteca=True,
+        seguro_danos_anual=Decimal("0"),
+        fuente=p.fuente.replace("modo 1 Renovación (remodelar la vivienda propia)",
+                                "modo 4 2a Hipoteca con SB")
+        + f" RECA {_RECA_SEGUNDA['valora' if '-valora-' in p.id else 'pagos-oportunos']}.",
+        notas=p.notas + " Para quien ya tiene su hipoteca con Scotiabank: la hipoteca "
+        "vigente se queda y el crédito nuevo es solo la obra; el aforo de 80 % suma el "
+        "saldo vigente sobre la vivienda más la obra. Sin seguro de daños (lo cubre la "
+        "primera hipoteca). CORRECCIONES a la hoja: su tabla, su CAT, la apertura y el "
+        "dictamen toman saldo vigente + obra, contra el resto del archivo; aquí solo la "
+        "obra. Si saldo + obra rebasan el aforo no es elegible (la hoja solo avisa).",
+    )
+    for p in list(CATALOGO)
+    if p.id.startswith("scotiabank-credirenovacion-")
+    and p.destino is Destino.REMODELACION
+    and "-green-" not in p.id
+]
+
+# El modo 1 es para vivienda sin hipoteca. Se marca al final para que no lo
+# hereden los productos derivados de él (modos 2, 3 y 4).
+CATALOGO[:] = [
+    replace(p, excluye_vivienda_con_hipoteca=True)
+    if p.id.startswith("scotiabank-credirenovacion-") and p.destino is Destino.REMODELACION
+    and not p.segunda_hipoteca
+    else p
+    for p in CATALOGO
+]
+

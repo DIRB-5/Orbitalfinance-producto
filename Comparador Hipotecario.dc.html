@@ -2090,6 +2090,11 @@ class Component extends DCLogic {
         valorInmueble: f.valorInmueble || 0,
         enganche: (f.valorInmueble || 0) - (f.montoCredito || 0),
         gastosNotariales: Math.round((f.valorInmueble || 0) * (f.gastosNotarialesPct || 0)),
+        hipotecaVigente: f.hipotecaVigente || "no",
+        institucionVigente: f.institucionVigente || "",
+        saldoVigente: f.saldoVigente || 0,
+        pagoVigente: f.pagoVigente || 0,
+        plazoVigenteMeses: f.plazoVigenteMeses || 0,
       });
     }
     if (subtipo === "terreno") {
@@ -3350,7 +3355,22 @@ class Component extends DCLogic {
         }),
         campoPct("Gastos notariales estimados", "Escrituración de la hipoteca sobre la vivienda."),
         campoPlazo([84, 120, 180, 240]),
-      ];
+        campoSegmentado("hipotecaVigente", "¿La vivienda tiene hipoteca vigente?", [
+          { label: "No", valor: "no" }, { label: "Sí", valor: "si" },
+        ], {
+          hayNota: true,
+          nota: "Si es con Scotiabank aplica su segunda hipoteca, que no refinancia la vigente. Si es con otro banco, usa Sustitución con presupuesto de remodelación.",
+          wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
+        }),
+      ].concat(s.form.hipotecaVigente === "si" ? [
+        Object.assign(campoNumero("institucionVigente", "Institución de la hipoteca vigente"), {
+          esNumero: false, esTexto: true, valor: s.form.institucionVigente || "",
+          onChange: setSel("institucionVigente"),
+        }),
+        campoNumero("saldoVigente", "Saldo de la hipoteca vigente"),
+        campoNumero("pagoVigente", "Pago mensual de la hipoteca vigente"),
+        campoNumero("plazoVigenteMeses", "Plazo remanente (meses)"),
+      ] : []);
     } else if (subtipo === "terreno") {
       tituloCampos = "Terreno y crédito";
       campos = [campoNumero("valorTerreno", "Valor del terreno")]

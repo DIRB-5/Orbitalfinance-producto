@@ -1435,7 +1435,7 @@ def test_productos_de_remodelacion_en_el_catalogo():
     from motor_hipotecario.modelos import Destino
 
     ids = {p.id for p in CATALOGO if p.destino is Destino.REMODELACION}
-    assert len(ids) == 8 and all(i.startswith("scotiabank-credirenovacion-") for i in ids)
+    assert len(ids) == 14 and all(i.startswith("scotiabank-credirenovacion-") for i in ids)
 
 
 # Modo 2, Compra + Renovación: compra 3,000,000, obra 500,000, enganche
@@ -1532,4 +1532,72 @@ def test_credirenovacion_pasivo_reglas():
     po = POR_ID["scotiabank-credirenovacion-pasivo-pagos-oportunos-ninguna-2025-04"]
     assert evaluar_producto(_con_gastos(base, "120000"), po, momento=momento).gastos_financiados == 0
     assert "scotiabank-credirenovacion-pasivo-valora-green-2025-04" not in POR_ID
+
+
+# Modo 4, 2a Hipoteca con SB: valor 3,000,000, saldo vigente con Scotiabank
+# 1,000,000 (pago 12,000), obra 500,000. El crédito nuevo es solo la obra.
+_CREDIRENOVACION_SEGUNDA = {
+    ("valora-ninguna", 120): (116, "7330.00", "15.3094"),
+    ("valora-ninguna", 240): (200, "5720.00", "14.8087"),
+    ("valora-vinculacion", 120): (118, "6675.00", "13.1526"),
+    ("valora-premium", 240): (212, "4570.00", "11.3096"),
+    ("pagos-oportunos-ninguna", 120): (117, "7825.00", "15.6862"),
+    ("pagos-oportunos-vinculacion", 240): (215, "5435.00", "12.2950"),
+    ("pagos-oportunos-premium", 120): (117, "6880.00", "10.9706"),
+}
+
+
+def _segunda_hipoteca(plazo, institucion="Scotiabank", saldo="1000000"):
+    from motor_hipotecario.modelos import CreditoActual, Destino, Escenario
+
+    return Escenario(
+        valor_vivienda=D("3000000"), enganche=D("2500000"), plazo_meses=plazo,
+        destino=Destino.REMODELACION,
+        credito_actual=CreditoActual(saldo_insoluto=D(saldo), pago_mensual=D("12000"),
+                                     plazo_remanente_meses=180, institucion=institucion),
+    )
+
+
+@pytest.mark.parametrize("clave, plazo", sorted(_CREDIRENOVACION_SEGUNDA))
+def test_credirenovacion_segunda_hipoteca(clave, plazo):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    meses, pago1, cat = _CREDIRENOVACION_SEGUNDA[(clave, plazo)]
+    r = evaluar_producto(_segunda_hipoteca(plazo),
+                         POR_ID[f"scotiabank-credirenovacion-2a-hipoteca-{clave}-2025-04"],
+                         momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == D("500000")
+    assert len(r.tabla.renglones) == meses
+    assert abs(r.tabla.renglones[0].pago_total - D(pago1)) < D("0.005")
+    assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0001")
+    if clave == "valora-ninguna":
+        assert (r.comision_apertura, r.avaluo, r.dictamen_tecnico) == (D("5000"), D("11000"), D("5000"))
+
+
+def test_credirenovacion_segun_si_la_vivienda_tiene_hipoteca():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    momento = date(2024, 3, 22)
+    segunda = POR_ID["scotiabank-credirenovacion-2a-hipoteca-valora-ninguna-2025-04"]
+    libre = POR_ID["scotiabank-credirenovacion-valora-ninguna-2025-04"]
+    con_hipoteca = _segunda_hipoteca(240)
+    assert evaluar_producto(con_hipoteca, segunda, momento=momento).elegible
+    assert not evaluar_producto(con_hipoteca, libre, momento=momento).elegible
+    sin_hipoteca = Escenario(valor_vivienda=D("3000000"), enganche=D("2500000"), plazo_meses=240,
+                             destino=Destino.REMODELACION)
+    assert evaluar_producto(sin_hipoteca, libre, momento=momento).elegible
+    assert not evaluar_producto(sin_hipoteca, segunda, momento=momento).elegible
+    # Hipoteca con otro banco: ninguna de las dos (aplica pasivo + remodelación)
+    assert not evaluar_producto(_segunda_hipoteca(240, "BBVA"), segunda, momento=momento).elegible
+    # Aforo combinado: (2,500,000 + 500,000) / 3,500,000 = 85.7 %
+    assert not evaluar_producto(_segunda_hipoteca(240, saldo="2500000"), segunda,
+                                momento=momento).elegible
+    # La compra y el pasivo con remodelación no heredan la exclusión
+    assert not POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].excluye_vivienda_con_hipoteca
 

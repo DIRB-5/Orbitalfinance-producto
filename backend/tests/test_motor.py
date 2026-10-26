@@ -2122,3 +2122,61 @@ def test_sustitucion_con_obra_avisa_que_el_ahorro_incluye_la_obra():
     r = evaluar_producto(_sustitucion_con_obra(), p, momento=HOY)
     assert r.monto_credito == Decimal("2000000")
     assert any("obra" in a and "ahorro" in a for a in r.advertencias)
+
+
+# --------------------------------------------------------------------------
+# Segunda hipoteca para remodelar (Scotiabank Credirenovación modo 4)
+# --------------------------------------------------------------------------
+# La hipoteca vigente con el mismo banco no se refinancia: el crédito nuevo es
+# solo la obra, el aforo combina saldo vigente + obra sobre valor + obra, y el
+# seguro de daños lo cubre la primera hipoteca.
+
+
+def _remodelacion_con_hipoteca(saldo="1000000", institucion="Scotiabank", obra="500000"):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal("3000000") - Decimal(obra),
+        plazo_meses=240, destino=Destino.REMODELACION,
+        ingreso_mensual=Decimal("100000"), factor_pago_ingreso=Decimal("0.35"),
+        credito_actual=CreditoActual(saldo_insoluto=Decimal(saldo), pago_mensual=Decimal("12000"),
+                                     plazo_remanente_meses=180, institucion=institucion),
+    )
+
+
+def producto_segunda(**kwargs):
+    base = dict(institucion="Scotiabank", segunda_hipoteca=True, comision_apertura=Decimal("0.01"),
+                seguro_vida_mensual=Decimal("0.0006"),
+                tarifa_avaluo=((Decimal("0"), Decimal("0"), Decimal("1")),))
+    base.update(kwargs)
+    return producto_remodelacion(**base)
+
+
+def test_segunda_hipoteca_solo_financia_la_obra():
+    r = evaluar_producto(_remodelacion_con_hipoteca(), producto_segunda(), momento=HOY)
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == Decimal("500000")
+    assert r.comision_apertura == Decimal("5000") and r.dictamen_tecnico == Decimal("5000")
+    assert r.avaluo == Decimal("3500")                            # sobre valor + obra
+    assert r.tabla.renglones[0].seguro_danos == 0
+    # No es una sustitución: no hay ahorro contra quedarse
+    assert r.ahorro_mensual is None and r.costo_de_cambiarse is None
+    assert any("12,000" in a for a in r.advertencias)            # pago vigente + nuevo
+
+
+def test_segunda_hipoteca_aforo_combinado_y_capacidad():
+    # (2,500,000 + 500,000) / 3,500,000 = 85.7 % > 80 %
+    r = evaluar_producto(_remodelacion_con_hipoteca(saldo="2500000"), producto_segunda(), momento=HOY)
+    assert not r.elegible and "aforo" in r.motivos_rechazo[0]
+    # La capacidad de pago suma el pago vigente: con 40,000 de ingreso el tope es 14,000
+    from dataclasses import replace as _r
+    escenario = _r(_remodelacion_con_hipoteca(), ingreso_mensual=Decimal("40000"))
+    r = evaluar_producto(escenario, producto_segunda(), momento=HOY)
+    assert not r.elegible and any("ingreso" in m for m in r.motivos_rechazo)
+
+
+def test_segunda_hipoteca_requiere_hipoteca_propia_y_la_de_vivienda_libre_no_la_admite():
+    r = evaluar_producto(_remodelacion_con_hipoteca(institucion="BBVA"), producto_segunda(), momento=HOY)
+    assert not r.elegible and "Scotiabank" in r.motivos_rechazo[0]
+    sin_hipoteca = producto_remodelacion(excluye_vivienda_con_hipoteca=True)
+    r = evaluar_producto(_remodelacion_con_hipoteca(), sin_hipoteca, momento=HOY)
+    assert not r.elegible and "hipoteca vigente" in r.motivos_rechazo[0]
+    assert evaluar_producto(_remodelacion(), sin_hipoteca, momento=HOY).elegible

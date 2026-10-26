@@ -180,7 +180,7 @@ export const escenariosBase = {
   sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0, financiarGastos: "no", institutoActual: "no" },
   liquidez: { familia: "hipotecario", subtipo: "liquidez", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   terreno: { familia: "hipotecario", subtipo: "terreno", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
-  remodelacion: { familia: "hipotecario", subtipo: "remodelacion", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
+  remodelacion: { familia: "hipotecario", subtipo: "remodelacion", etiqueta: "", montoCredito: 0, plazoMeses: 0, hipotecaVigente: "no" },
   pyme: { familia: "pyme", subtipo: "pyme", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
 };
 
@@ -522,6 +522,16 @@ function cuerpoComparacion(escenario, escenarioRefId) {
         pagoMensual: String(escenario.pagoInstituto || 0),
         plazoRemanenteMeses: escenario.plazoInstitutoMeses || escenario.plazoRemanenteMeses,
       } : null,
+    };
+  }
+  // Remodelación de una vivienda con hipoteca vigente (no se refinancia)
+  if (destino === "remodelacion" && escenario.hipotecaVigente === "si") {
+    if (!escenario.saldoVigente || !escenario.pagoVigente || !escenario.plazoVigenteMeses) return null;
+    creditoActual = {
+      saldoInsoluto: String(escenario.saldoVigente),
+      pagoMensual: String(escenario.pagoVigente),
+      plazoRemanenteMeses: escenario.plazoVigenteMeses,
+      institucion: escenario.institucionVigente || "",
     };
   }
   return {

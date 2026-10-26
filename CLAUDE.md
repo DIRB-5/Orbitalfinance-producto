@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             364 pruebas. No deben bajar de ahí.
+  tests/             376 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -215,7 +215,11 @@ financia obra no es elegible, con su motivo. Pasivo + remodelación (modo 3)
 va en sustitución con la misma mecánica, tope de obra
 (`remodelacion_max_pct_valor`, 35 % del valor actual) y aviso de que el
 ahorro contra quedarse incluye la obra. La segunda hipoteca con el mismo
-banco no se modela. Las
+banco (modo 4) va en remodelación con `credito_actual` = la hipoteca vigente,
+que NO se refinancia (`segunda_hipoteca`): el crédito es solo la obra, el
+aforo suma el saldo vigente sobre valor + obra, sin seguro de daños, sin
+métricas contra quedarse y la capacidad de pago suma el pago vigente. El
+modo 1 es solo para vivienda sin hipoteca (`excluye_vivienda_con_hipoteca`). Las
 campañas de Credirenovación (Ninguna, Vinculación, Green, Premium) van como
 productos separados con su requisito en `notas`.
 
@@ -486,7 +490,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 364 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 376 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

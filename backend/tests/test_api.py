@@ -219,8 +219,9 @@ def test_remodelacion_por_api():
     cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
               "destino": "remodelacion"}
     opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
-    ids = {o["productoId"] for o in opciones}
-    assert len(ids) == 8 and all("credirenovacion" in i for i in ids)
+    ids = {o["productoId"] for o in opciones if o["elegible"]}
+    # Sin hipoteca vigente: los 8 de vivienda libre (la segunda hipoteca no aplica)
+    assert len(ids) == 8 and all("credirenovacion" in i and "2a-hipoteca" not in i for i in ids)
     ninguna = next(o for o in opciones if o["productoId"].startswith("scotiabank-credirenovacion-valora-ninguna"))
     assert ninguna["dictamenTecnico"] == "15000.00"
 
@@ -251,3 +252,17 @@ def test_pasivo_con_remodelacion_por_api():
     assert all(o["productoId"].startswith("scotiabank-credirenovacion-pasivo") for o in elegibles)
     assert all(o["montoCredito"] == "2000000.00" for o in elegibles)
 
+
+
+def test_segunda_hipoteca_por_api():
+    cuerpo = {
+        "valorVivienda": "3000000", "enganche": "2500000", "plazoMeses": 120,
+        "destino": "remodelacion",
+        "creditoActual": {"saldoInsoluto": "1000000", "pagoMensual": "12000",
+                          "plazoRemanenteMeses": 180, "institucion": "Scotiabank"},
+    }
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    elegibles = [o for o in opciones if o["elegible"]]
+    assert len(elegibles) == 6
+    assert all("2a-hipoteca" in o["productoId"] and o["montoCredito"] == "500000.00" for o in elegibles)
+    assert all(o["ahorroMensual"] is None for o in elegibles)

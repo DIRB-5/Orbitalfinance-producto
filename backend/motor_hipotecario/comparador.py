@@ -335,6 +335,8 @@ def obra_financiada(escenario: Escenario, producto: ProductoHipotecario) -> Dine
 def valor_proyectado(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
     """Valor de la vivienda con la obra que financia el producto: base del
     avalúo y del seguro de daños ('Simulador Valora'!C30 = C28 + C29)."""
+    if producto.segunda_hipoteca:
+        return escenario.valor_vivienda + escenario.monto_credito
     return escenario.valor_vivienda + obra_financiada(escenario, producto)
 
 
@@ -470,8 +472,12 @@ def evaluar_producto(
     valor_en_garantia = valor_garantia(escenario, producto)
     refinanciado = credito_instituto_refinanciado(escenario, producto)
     saldo_instituto = refinanciado.saldo if refinanciado else Decimal("0")
+    # Segunda hipoteca: la hipoteca vigente se queda y cuenta para el aforo
+    vigente = escenario.credito_actual if producto.segunda_hipoteca else None
+    saldo_vigente = vigente.saldo_insoluto if vigente else Decimal("0")
     aforo_base = (
-        (monto_base + saldo_instituto) / valor_en_garantia if valor_en_garantia else Decimal("0")
+        (monto_base + saldo_instituto + saldo_vigente) / valor_en_garantia
+        if valor_en_garantia else Decimal("0")
     )
 
     motivos: list[str] = []
@@ -542,6 +548,16 @@ def evaluar_producto(
             f"Solo mejora hipotecas que ya son de {producto.institucion}"
             + (": captura la institución del crédito actual." if propio is None
                else "; para traer una de otro banco aplica su producto de sustitución.")
+        )
+    if producto.segunda_hipoteca and not propio:
+        motivos.append(
+            f"Segunda hipoteca: solo para quien ya tiene su hipoteca con "
+            f"{producto.institucion}; captura la hipoteca vigente y su institución."
+        )
+    if producto.excluye_vivienda_con_hipoteca and escenario.credito_actual is not None:
+        motivos.append(
+            "El producto es para vivienda sin hipoteca vigente; con hipoteca aplica la "
+            "segunda hipoteca o la sustitución con remodelación."
         )
     if producto.excluye_credito_actual_propio and propio:
         motivos.append(
@@ -811,7 +827,7 @@ def evaluar_producto(
         tope = escenario.ingreso_mensual * escenario.factor_pago_ingreso
         # Con el pago regular (no un primer mes irregular) y, con crédito del
         # instituto, con ambos pagos.
-        pago_inicial = tabla.pago_regular_inicial + (
+        pago_inicial = (vigente.pago_mensual if vigente else 0) + tabla.pago_regular_inicial + (
             tabla_instituto.pago_regular_inicial if tabla_instituto is not None else 0
         ) + (tabla_gastos.pago_regular_inicial if tabla_gastos is not None else 0) + (
             tabla_refinanciada.pago_regular_inicial if tabla_refinanciada is not None else 0
@@ -827,6 +843,14 @@ def evaluar_producto(
                 "El pago se acerca al límite de capacidad de pago. El banco "
                 "podría requerir un coacreditado."
             )
+
+    if vigente is not None:
+        advertencias.append(
+            f"Se suma a la hipoteca vigente con {vigente.institucion or producto.institucion} "
+            f"(saldo ${vigente.saldo_insoluto:,.0f}, pago ${vigente.pago_mensual:,.2f}), que no "
+            f"se refinancia: en total pagaría ${vigente.pago_mensual + tabla.pago_regular_inicial:,.2f} "
+            "al mes al inicio."
+        )
 
     if producto.negociado_por:
         advertencias.append(
@@ -853,7 +877,8 @@ def evaluar_producto(
         tabla_instituto_refinanciado=tabla_refinanciada,
         cat_instituto_refinanciado_estimado=cat_refinanciado,
         tabla_instituto=tabla_instituto,
-        credito_actual=escenario.credito_actual,
+        # La segunda hipoteca no sustituye nada: sin métricas contra quedarse
+        credito_actual=None if producto.segunda_hipoteca else escenario.credito_actual,
     )
 
 
