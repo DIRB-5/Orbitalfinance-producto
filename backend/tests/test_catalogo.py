@@ -828,14 +828,14 @@ def _escenario_liquidez(valor, monto, plazo):
 def test_productos_de_liquidez_en_el_catalogo():
     from motor_hipotecario.modelos import Destino
 
-    ids = {p.id for p in CATALOGO if p.destino is Destino.LIQUIDEZ}
+    ids = {p.id for p in CATALOGO if p.destino is Destino.LIQUIDEZ and p.vigente_hasta is None}
     assert ids == {"banorte-liquidez-2026-06", "banamex-liquidez-mercado-abierto-2026-08",
                    "bx-liquidez-2022-10", "banregio-liquidez-2023-12",
-                   "scotiabank-liquidez-libre-7x5-2024-01",
-                   "scotiabank-liquidez-libre-pagos-oportunos-7-2024-01",
-                   "scotiabank-liquidez-libre-pagos-oportunos-10-2024-01",
-                   "scotiabank-liquidez-libre-pagos-oportunos-15-2024-01",
-                   "scotiabank-liquidez-libre-valora-2024-01"}
+                   "scotiabank-liquidez-libre-7x5-2026-07",
+                   "scotiabank-liquidez-libre-pagos-oportunos-7-2026-07",
+                   "scotiabank-liquidez-libre-pagos-oportunos-10-2026-07",
+                   "scotiabank-liquidez-libre-pagos-oportunos-15-2026-07",
+                   "scotiabank-liquidez-libre-valora-2026-07"}
 
 
 @pytest.mark.parametrize("producto_id, valor, monto, plazo, tasa, iva_en_pago", [
@@ -1877,3 +1877,26 @@ def test_pago_de_pasivos_con_tasas_de_julio_2026(producto, plazo, meses, pago1, 
     hoy = date(2026, 10, 26)
     assert POR_ID[producto].vigente_en(hoy)
     assert not POR_ID[producto.replace("-v2", "")].vigente_en(hoy)
+
+
+def test_liquidez_libre_con_avaluo_del_documento_de_comisiones():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    hoy, momento = date(2026, 10, 26), date(2024, 3, 22)
+    for clave in ("valora", "pagos-oportunos-15", "7x5"):
+        viejo = POR_ID[f"scotiabank-liquidez-libre-{clave}-2024-01"]
+        nuevo = POR_ID[f"scotiabank-liquidez-libre-{clave}-2026-07"]
+        assert not viejo.vigente_en(hoy) and nuevo.vigente_en(hoy)
+        plazo = max(nuevo.plazos_meses)
+        # Tramo de $500,001 a $1,000,000: 1,750 (antes 1,740)
+        e = _escenario_liquidez(D("900000"), D("500000"), plazo)
+        assert evaluar_producto(e, nuevo, momento=momento).avaluo == D("1750")
+        assert evaluar_producto(e, viejo, momento=momento).avaluo == D("1740")
+        # Fuera de ese tramo calcula igual que la versión del cotizador
+        e = _escenario_liquidez(D("3000000"), D("1500000"), plazo)
+        a, b = evaluar_producto(e, viejo, momento=momento), evaluar_producto(e, nuevo, momento=momento)
+        assert a.avaluo == b.avaluo and a.cat_estimado == b.cat_estimado
+        assert [r.pago_total for r in a.tabla.renglones] == [r.pago_total for r in b.tabla.renglones]
+

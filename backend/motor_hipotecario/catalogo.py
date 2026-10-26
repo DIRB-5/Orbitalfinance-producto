@@ -1862,3 +1862,41 @@ CATALOGO[:] = [
     if p in _PASIVOS_TASAS_2024 else p
     for p in CATALOGO
 ] + [_pasivos_2026(p) for p in _PASIVOS_TASAS_2024]
+
+
+# ---------------------------------------------------------------------------
+# Liquidez Libre con el documento de comisiones de julio 2026
+# ---------------------------------------------------------------------------
+# El documento (pp. 1–4) confirma tasas, factores y comisión de Liquidez Libre
+# (7x5, Valora y Pagos Oportunos) y pone su avalúo en la columna de Pago de
+# pasivos: el tramo de $500,001 a $1,000,000 cuesta $1,750 (el cotizador
+# v2024.01 decía $1,740). Lo demás no cambia.
+_LIQUIDEZ_LIBRE_2024 = [
+    p for p in CATALOGO if p.id.startswith("scotiabank-liquidez-libre-") and p.id.endswith("-2024-01")
+]
+CATALOGO[:] = [
+    replace(p, vigente_hasta=date(2026, 10, 25),
+            notas=p.notas + " VERSIÓN CERRADA el 2026-10-25: la sustituye la -2026-07 con "
+            "el avalúo del documento de comisiones de julio 2026.")
+    if p in _LIQUIDEZ_LIBRE_2024 else p
+    for p in CATALOGO
+] + [
+    replace(
+        p,
+        id=p.id.replace("-2024-01", "-2026-07"),
+        tarifa_avaluo=_AVALUO_PAGO_DE_PASIVOS,
+        vigente_desde=date(2026, 10, 26),
+        vigente_hasta=None,
+        fuente=p.fuente + " Tasas, factores, comisión y avalúo confirmados con "
+        + _COMISIONES_HIPOTECARIO.replace("p. 4", "pp. 1–4") + ".",
+        notas=p.notas.replace(
+            "TASAS DE MARZO DE 2024: confirmar vigencia con Scotiabank.",
+            "TASAS DEL COTIZADOR DE 2024, IGUALES EN EL DOCUMENTO DE COMISIONES DE JULIO 2026.",
+        ).replace(
+            "TASAS DE ENERO DE 2024: confirmar vigencia con Scotiabank.",
+            "TASAS DEL COTIZADOR DE 2024, IGUALES EN EL DOCUMENTO DE COMISIONES DE JULIO 2026.",
+        ) + " Avalúo con la tarifa de Pago de pasivos y Liquidez Libre del documento de "
+        "comisiones ($1,253 a $5,000; $1,750 de $500,001 a $1,000,000).",
+    )
+    for p in _LIQUIDEZ_LIBRE_2024
+]
