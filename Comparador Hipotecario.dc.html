@@ -3211,12 +3211,10 @@ class Component extends DCLogic {
     // Entrega por avance de obra: segunda y tercera (mes y monto); la primera,
     // al firmar, es el resto del crédito
     const camposEntregas = [
-      campoNumero("entrega2Monto", "Segunda entrega por avance de obra (opcional)", {
-        hayNota: true, nota: "La primera entrega, al firmar, es el resto del crédito. Solo Credirenovación entrega por avance de obra.",
+      campoNumero("entrega2Monto", "Entrega por avance de obra (opcional)", {
+        hayNota: true, nota: "Si la obra toca la estructura, Scotiabank entrega el 50 % al firmar y el resto al 80 % de avance: captura aquí esa segunda mitad.",
       }),
-      campoNumero("entrega2Mes", "Mes de la segunda entrega"),
-      campoNumero("entrega3Monto", "Tercera entrega (opcional)"),
-      campoNumero("entrega3Mes", "Mes de la tercera entrega"),
+      campoNumero("entrega2Mes", "Mes de esa entrega"),
     ];
     const campoSelect = (k, label, opts, extra) => Object.assign(campoNumero(k, label), {
       esNumero: false, esSelect: true, valor: s.form[k], onChange: setSel(k),

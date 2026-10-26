@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             394 pruebas. No deben bajar de ahí.
+  tests/             401 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -234,7 +234,11 @@ aforo suma el saldo vigente sobre valor + obra, sin seguro de daños, sin
 métricas contra quedarse y la capacidad de pago suma el pago vigente. El
 modo 1 es solo para vivienda sin hipoteca (`excluye_vivienda_con_hipoteca`). Las
 campañas de Credirenovación (Ninguna, Vinculación, Green, Premium) van como
-productos separados con su requisito en `notas`.
+productos separados con su requisito en `notas`. Versión vigente:
+`-2026-07`, que toma del folleto oficial "Renovación" (julio 2026) los
+montos mínimos y máximo, la entrega 50 % a la firma y resto con el avance
+(`ministracion_inicial_pct`) y el avalúo de Pago de pasivos + Renovación; las
+`-2025-04` (cotizador) quedaron cerradas el 2026-10-25.
 
 **En liquidez el banco cobra IVA sobre los intereses** (no hay exención por
 casa habitación). `iva_sobre_intereses` lo suma al pago; con
@@ -511,7 +515,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 394 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 401 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

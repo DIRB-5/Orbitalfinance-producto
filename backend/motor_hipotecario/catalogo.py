@@ -1635,3 +1635,73 @@ CATALOGO[:] = [
     for p in CATALOGO
 ]
 
+
+
+# ---------------------------------------------------------------------------
+# Credirenovación, versión con el folleto oficial "Renovación" (julio 2026)
+# ---------------------------------------------------------------------------
+# Las versiones -2025-04 (cotizador v2025.04) se cierran y las sustituyen las
+# -2026-07, con lo que el folleto FES_Renovacion (julio 2026) cambia:
+#   - montos: mínimo 150,000 (Renovación), 250,000 (Compra + Renovación),
+#     125,000 (Pago de pasivos + Renovación); máximo 10 millones (pp. 4–6);
+#   - entregas por avance de obra: 50 % a la firma y el resto al 80 % de avance
+#     (pp. 4–6);
+#   - avalúo de Pago de pasivos + Renovación con su propia columna de tarifas
+#     (p. 18).
+# Tasas, factores al millar, apertura, dictamen y seguros coinciden con el
+# cotizador y no cambian.
+_FOLLETO_RENOVACION = (
+    "Folleto Scotiabank 'Renovación' (FES_Renovacion, julio 2026; "
+    "cdn.aglty.io/scotia-bank-mexico/spanish/pdf/personas/creditos/creditos/FES_Renovacion.pdf)"
+)
+_AVALUO_PASIVO_RENOVACION = (                            # folleto p. 18
+    (Decimal("0"), Decimal("1253"), Decimal("0")),
+    (Decimal("500000.01"), Decimal("1740"), Decimal("0")),
+    (Decimal("1000000.01"), Decimal("2784"), Decimal("0")),
+    (Decimal("2000000.01"), Decimal("4663"), Decimal("0")),
+    (Decimal("3000000.01"), Decimal("5000"), Decimal("0")),
+)
+
+
+def _credirenovacion_2026(p):
+    pasivo = "-pasivo-" in p.id
+    compra = "-compra-" in p.id
+    segunda = p.segunda_hipoteca
+    if pasivo:
+        minimo = Decimal("125000")
+    elif compra:
+        minimo = Decimal("250000")
+    else:
+        minimo = Decimal("150000")
+    return replace(
+        p,
+        id=p.id.replace("-2025-04", "-2026-07"),
+        monto_minimo=minimo,
+        monto_maximo=Decimal("10000000"),
+        max_ministraciones=0 if pasivo else 2,
+        ministracion_inicial_pct=None if pasivo else Decimal("0.50"),
+        tarifa_avaluo=_AVALUO_PASIVO_RENOVACION if pasivo else p.tarifa_avaluo,
+        vigente_desde=date(2026, 10, 26),
+        vigente_hasta=None,
+        fuente=p.fuente + " Montos, entregas y avalúo de " + _FOLLETO_RENOVACION + ".",
+        notas=p.notas.replace("TASAS DE ABRIL DE 2025", "TASAS DEL COTIZADOR DE ABRIL DE "
+                              "2025, dentro de los rangos del folleto de julio 2026")
+        + (" Entrega por avance de obra: 50 % a la firma y el resto al 80 % de avance "
+           "(si la obra no toca la estructura, todo a la firma)." if not pasivo else "")
+        + (" SUPUESTO: avalúo con la columna de Pago de pasivos + Renovación del folleto "
+           "sobre el valor proyectado; el cotizador no lo cobra." if pasivo else "")
+        + (" SUPUESTO: monto mínimo de $150,000 como Renovación (el folleto no lo da para "
+           "2da hipoteca)." if segunda else ""),
+    )
+
+
+_CREDIRENOVACION_2025 = [
+    p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-") and p.id.endswith("-2025-04")
+]
+CATALOGO[:] = [
+    replace(p, vigente_hasta=date(2026, 10, 25),
+            notas=p.notas + " VERSIÓN CERRADA el 2026-10-25: la sustituye la -2026-07 "
+            "con montos, entregas y avalúo del folleto de julio 2026.")
+    if p in _CREDIRENOVACION_2025 else p
+    for p in CATALOGO
+] + [_credirenovacion_2026(p) for p in _CREDIRENOVACION_2025]

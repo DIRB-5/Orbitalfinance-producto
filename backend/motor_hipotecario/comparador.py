@@ -616,6 +616,15 @@ def evaluar_producto(
                 f"crecientes, ser hasta {producto.max_ministraciones} y sumar el monto del "
                 f"crédito (${monto:,.2f})."
             )
+        elif (
+            producto.ministracion_inicial_pct is not None
+            and escenario.ministraciones[0][1] != producto.ministracion_inicial_pct * monto
+        ):
+            motivos.append(
+                f"{producto.institucion} entrega al firmar el "
+                f"{producto.ministracion_inicial_pct:.0%} del crédito "
+                f"(${producto.ministracion_inicial_pct * monto:,.2f}) y el resto con el avance de obra."
+            )
         else:
             ministraciones = escenario.ministraciones
             advertencias.append(

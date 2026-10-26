@@ -1434,7 +1434,7 @@ def test_credirenovacion_costos_iniciales_por_campana():
 def test_productos_de_remodelacion_en_el_catalogo():
     from motor_hipotecario.modelos import Destino
 
-    ids = {p.id for p in CATALOGO if p.destino is Destino.REMODELACION}
+    ids = {p.id for p in CATALOGO if p.destino is Destino.REMODELACION and p.vigente_hasta is None}
     assert len(ids) == 14 and all(i.startswith("scotiabank-credirenovacion-") for i in ids)
 
 
@@ -1749,3 +1749,68 @@ def test_credirenovacion_compra_dictamen_con_tope():
                                  momento=date(2024, 3, 22))
     assert r.dictamen_tecnico == D("6600")
 
+
+
+# ---------------------------------------------------------------------------
+# Credirenovación -2026-07: montos, entregas y avalúo del folleto de julio 2026
+# ---------------------------------------------------------------------------
+
+def test_credirenovacion_2026_reemplaza_a_la_version_del_cotizador():
+    from datetime import date
+
+    viejos = [p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-") and p.id.endswith("-2025-04")]
+    nuevos = [p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-") and p.id.endswith("-2026-07")]
+    assert len(viejos) == len(nuevos) == 28
+    assert all(p.vigente_en(date(2026, 10, 25)) and not p.vigente_en(date(2026, 10, 26)) for p in viejos)
+    assert all(p.vigente_en(date(2026, 10, 26)) and not p.vigente_en(date(2026, 10, 25)) for p in nuevos)
+    assert all("FES_Renovacion" in p.fuente for p in nuevos)
+
+
+def test_credirenovacion_2026_calcula_igual_sin_lo_que_cambia_el_folleto():
+    """Sin entregas y con montos dentro de los mínimos, la tabla y el CAT son
+    los de la versión del cotizador (validada contra sus fórmulas)."""
+    from datetime import date
+
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    e = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
+                  destino=Destino.REMODELACION)
+    for clave in ("valora-ninguna", "pagos-oportunos-premium"):
+        viejo = _evaluar_con_condiciones(e, POR_ID[f"scotiabank-credirenovacion-{clave}-2025-04"],
+                                         momento=date(2024, 3, 22))
+        nuevo = _evaluar_con_condiciones(e, POR_ID[f"scotiabank-credirenovacion-{clave}-2026-07"],
+                                         momento=date(2024, 3, 22))
+        assert [r.pago_total for r in nuevo.tabla.renglones] == [r.pago_total for r in viejo.tabla.renglones]
+        assert nuevo.cat_estimado == viejo.cat_estimado
+
+
+@pytest.mark.parametrize("producto, minimo", [
+    ("scotiabank-credirenovacion-valora-ninguna-2026-07", "150000"),
+    ("scotiabank-credirenovacion-compra-valora-ninguna-2026-07", "250000"),
+    ("scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07", "125000"),
+])
+def test_credirenovacion_2026_montos_del_folleto(producto, minimo):
+    p = POR_ID[producto]
+    assert p.monto_minimo == D(minimo) and p.monto_maximo == D("10000000")
+
+
+def test_credirenovacion_2026_avaluo_de_pasivo_y_entregas_al_50():
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    # Pasivo + Renovación: tarifa propia sobre el valor proyectado (3.5 M → 5,000)
+    e = replace(_escenario_sustitucion(D("3000000"), D("1500000"), 240), monto_remodelacion=D("500000"))
+    e = replace(e, credito_actual=replace(e.credito_actual, institucion="Banorte"))
+    r = _evaluar_con_condiciones(e, POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07"],
+                                 momento=date(2026, 10, 26))
+    assert r.elegible and r.avaluo == D("5000")
+    # Entregas: 50 % a la firma; la segunda cuando haya 80 % de avance
+    remo = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
+                     destino=Destino.REMODELACION)
+    producto = POR_ID["scotiabank-credirenovacion-valora-ninguna-2026-07"]
+    mitad = replace(remo, ministraciones=((1, D("750000")), (4, D("750000"))))
+    assert _evaluar_con_condiciones(mitad, producto, momento=date(2026, 10, 26)).elegible
+    tres = replace(remo, ministraciones=((1, D("500000")), (3, D("500000")), (5, D("500000"))))
+    assert not _evaluar_con_condiciones(tres, producto, momento=date(2026, 10, 26)).elegible

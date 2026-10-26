@@ -445,6 +445,9 @@ class ProductoHipotecario:
     # Cuántas entregas por avance de obra admite (Credirenovación: 3). 0 = el
     # crédito se entrega completo al firmar.
     max_ministraciones: int = 0
+    # Fracción del crédito que se entrega al firmar si hay entregas por avance
+    # de obra (Scotiabank Renovación, folleto julio 2026: 50 %). None = libre.
+    ministracion_inicial_pct: Optional[Decimal] = None
 
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de

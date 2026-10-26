@@ -278,9 +278,9 @@ def test_ingreso_requerido_por_api():
     cuerpo = {"valorVivienda": "3000000", "enganche": "800000", "plazoMeses": 240,
               "montoRemodelacion": "500000"}
     opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
-    assert opciones["scotiabank-credirenovacion-compra-valora-ninguna-2025-04"]["ingresoRequerido"] == "83622.86"
+    assert opciones["scotiabank-credirenovacion-compra-valora-ninguna-2026-07"]["ingresoRequerido"] == "83622.86"
     productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
-    green = productos["scotiabank-credirenovacion-valora-green-2025-04"]
+    green = productos["scotiabank-credirenovacion-valora-green-2026-07"]
     assert green["factorPagoIngresoMax"] == "0.55" and green["ingresoMinimo"] == "20000.00"
 
 
@@ -289,7 +289,7 @@ def test_requisitos_del_cliente_por_api():
     assert {r["id"] for r in catalogo["requisitosCliente"]} == {
         "vinculacion_scotiabank", "premium_scotiabank", "ecotecnologias"}
     premium = next(p for p in catalogo["productos"]
-                   if p["id"] == "scotiabank-credirenovacion-valora-premium-2025-04")
+                   if p["id"] == "scotiabank-credirenovacion-valora-premium-2026-07")
     assert premium["requisitosCliente"] == ["premium_scotiabank"]
     cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
               "destino": "remodelacion"}
@@ -301,11 +301,11 @@ def test_requisitos_del_cliente_por_api():
 def test_entregas_por_avance_de_obra_por_api():
     cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
               "destino": "remodelacion",
-              "ministraciones": [{"mes": 1, "monto": "500000"}, {"mes": 3, "monto": "500000"},
-                                 {"mes": 5, "monto": "500000"}]}
+              # Folleto julio 2026: 50 % a la firma, el resto con el avance de obra
+              "ministraciones": [{"mes": 1, "monto": "750000"}, {"mes": 4, "monto": "750000"}]}
     opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
-    valora = next(o for o in opciones if o["productoId"] == "scotiabank-credirenovacion-valora-ninguna-2025-04")
+    valora = next(o for o in opciones if o["productoId"] == "scotiabank-credirenovacion-valora-ninguna-2026-07")
     assert valora["elegible"]
-    assert [r["disposicion"] for r in valora["tabla"][:5]] == ["0.00", "0.00", "500000.00", "0.00", "500000.00"]
-    assert valora["catEstimado"].startswith("0.1604")
+    assert [r["disposicion"] for r in valora["tabla"][:5]] == ["0.00", "0.00", "0.00", "750000.00", "0.00"]
+    assert valora["pagoRegularInicial"] == valora["tabla"][3]["pagoTotal"]
 

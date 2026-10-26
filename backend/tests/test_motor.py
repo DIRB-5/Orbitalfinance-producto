@@ -2250,3 +2250,14 @@ def test_una_sola_entrega_al_firmar_es_igual_a_no_tener_entregas():
     con = construir_tabla(linea, Decimal("3000000"), ministraciones=((1, Decimal("1500000")),))
     assert [r.pago_total for r in sin.renglones] == [r.pago_total for r in con.renglones]
     assert calcular_cat(sin, p) == calcular_cat(con, p)
+
+
+def test_primera_entrega_con_porcentaje_fijo():
+    """Folleto 'Renovación' (julio 2026): 50 % a la firma y el resto al 80 % de avance."""
+    from dataclasses import replace as _r
+    p = producto_pti(max_ministraciones=2, ministracion_inicial_pct=Decimal("0.50"))
+    mitad = _r(_remodelacion(), ministraciones=((1, Decimal("750000")), (4, Decimal("750000"))))
+    assert evaluar_producto(mitad, p, momento=HOY).elegible
+    otra = _r(_remodelacion(), ministraciones=((1, Decimal("500000")), (4, Decimal("1000000"))))
+    r = evaluar_producto(otra, p, momento=HOY)
+    assert not r.elegible and "50%" in r.motivos_rechazo[0]
