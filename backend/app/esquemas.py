@@ -64,6 +64,8 @@ class EscenarioEntrada(ModeloBase):
     financiar_gastos_notariales: bool = False
     # Valor de otro inmueble en garantía (Afirme Tu Casa 2). Solo el valor.
     valor_garantia_adicional: Decimal = Field(default=Decimal("0"), ge=0)
+    # Presupuesto de obra para remodelar la vivienda que se compra
+    monto_remodelacion: Decimal = Field(default=Decimal("0"), ge=0)
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
@@ -136,6 +138,7 @@ class ProductoSalida(ModeloBase):
     regla_aportaciones: Optional[ReglaAportacionesSalida]
     financiamiento_gastos: Optional[FinanciamientoGastosSalida]
     acepta_garantia_adicional: bool
+    financia_remodelacion: bool
     # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
     dictamen_tecnico_pct: str
     dictamen_tecnico_minimo: str
@@ -252,6 +255,7 @@ class OpcionSalida(ModeloBase):
     gastos_notariales: str
     gastos_financiados: str
     gastos_de_contado: str
+    remodelacion_financiada: str
     linea_gastos: Optional[LineaGastosSalida]
     linea_instituto: Optional[LineaInstitutoSalida]
     cat_estimado: str

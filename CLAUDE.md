@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             340 pruebas. No deben bajar de ahí.
+  tests/             353 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -208,7 +208,11 @@ presupuesto de obra. Sin enganche. El dictamen técnico de la obra
 (`dictamen_tecnico_pct` con mínimo y máximo) es un cargo único que entra
 completo al desembolso, al costo total y al CAT. Se supone el crédito
 disponible desde el mes 1 (el banco lo entrega por avance de obra). Compra +
-remodelación, pasivo + remodelación y segunda hipoteca no se modelan. Las
+remodelación (modo 2) va en adquisición: `Escenario.monto_remodelacion` y los
+productos con `financia_remodelacion` suman la obra al crédito, con aforo,
+avalúo y seguro de daños sobre el valor proyectado (compra + obra); quien no
+financia obra no es elegible, con su motivo. Pasivo + remodelación y segunda
+hipoteca no se modelan. Las
 campañas de Credirenovación (Ninguna, Vinculación, Green, Premium) van como
 productos separados con su requisito en `notas`.
 
@@ -479,7 +483,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 340 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 353 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

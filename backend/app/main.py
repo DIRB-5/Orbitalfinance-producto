@@ -121,6 +121,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
             else None
         ),
         acepta_garantia_adicional=p.acepta_garantia_adicional,
+        financia_remodelacion=p.financia_remodelacion,
         dictamen_tecnico_pct=_tasa(p.dictamen_tecnico_pct),
         dictamen_tecnico_minimo=_dinero(p.dictamen_tecnico_minimo),
         dictamen_tecnico_maximo=_dinero_opcional(p.dictamen_tecnico_maximo),
@@ -242,6 +243,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         gastos_notariales=_dinero(o.gastos_notariales),
         gastos_financiados=_dinero(o.gastos_financiados),
         gastos_de_contado=_dinero(o.gastos_de_contado),
+        remodelacion_financiada=_dinero(o.remodelacion_financiada),
         linea_gastos=_linea_gastos(o),
         linea_instituto=_linea_instituto(o),
         cat_estimado=_tasa(o.cat_estimado),
@@ -313,6 +315,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         gastos_notariales=entrada.gastos_notariales,
         financiar_gastos_notariales=entrada.financiar_gastos_notariales,
         valor_garantia_adicional=entrada.valor_garantia_adicional,
+        monto_remodelacion=entrada.monto_remodelacion,
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,

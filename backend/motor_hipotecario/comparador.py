@@ -93,6 +93,9 @@ class ResultadoOpcion:
     # `monto_credito` y se paga con la tabla: no se vuelve a sumar al costo.
     gastos_financiados: Dinero = Decimal("0")
 
+    # Presupuesto de obra incluido en `monto_credito` (Credirenovación modo 2)
+    remodelacion_financiada: Dinero = Decimal("0")
+
     # Segundo crédito con los gastos (Santander) y su CAT, si lo hay. Sus
     # pagos se suman a la mensualidad y su costo al costo total.
     tabla_gastos: Optional[TablaAmortizacion] = None
@@ -324,12 +327,25 @@ def credito_instituto_refinanciado(
     return actual.credito_instituto
 
 
+def obra_financiada(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
+    """Presupuesto de obra que el producto suma al crédito (Credirenovación)."""
+    return escenario.monto_remodelacion if producto.financia_remodelacion else Decimal("0")
+
+
+def valor_proyectado(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
+    """Valor de la vivienda con la obra que financia el producto: base del
+    avalúo y del seguro de daños ('Simulador Valora'!C30 = C28 + C29)."""
+    return escenario.valor_vivienda + obra_financiada(escenario, producto)
+
+
 def valor_garantia(escenario: Escenario, producto: ProductoHipotecario) -> Dinero:
-    """Valor sobre el que se mide el aforo: la vivienda, más el inmueble
-    adicional en garantía si el producto lo acepta (Afirme Tu Casa 2)."""
+    """Valor sobre el que se mide el aforo: la vivienda (con la obra que se
+    financia), más el inmueble adicional en garantía si el producto lo acepta
+    (Afirme Tu Casa 2)."""
+    valor = valor_proyectado(escenario, producto)
     if producto.acepta_garantia_adicional:
-        return escenario.valor_vivienda + escenario.valor_garantia_adicional
-    return escenario.valor_vivienda
+        return valor + escenario.valor_garantia_adicional
+    return valor
 
 
 def _avaluo_por_tarifa(producto: ProductoHipotecario, valor: Dinero) -> Optional[Dinero]:
@@ -376,7 +392,7 @@ def resolver_para_escenario(
         cambios["recalcular_pago_al_cambiar_tasa"] = True
 
     if producto.tarifa_avaluo:
-        avaluo = _avaluo_por_tarifa(producto, escenario.valor_vivienda)
+        avaluo = _avaluo_por_tarifa(producto, valor_proyectado(escenario, producto))
         if avaluo is not None:
             cambios["avaluo"] = avaluo
         if producto.acepta_garantia_adicional and escenario.valor_garantia_adicional > 0:
@@ -398,7 +414,10 @@ def gastos_financiables(escenario: Escenario, producto: ProductoHipotecario) -> 
         return Decimal("0")
     instituto = credito_instituto_refinanciado(escenario, producto)
     # Santander Mejoras Cofis: el 7 % y el aforo sobre los dos créditos (Cal!C44)
-    base = escenario.monto_credito + (instituto.saldo if instituto else Decimal("0"))
+    base = (
+        escenario.monto_credito + obra_financiada(escenario, producto)
+        + (instituto.saldo if instituto else Decimal("0"))
+    )
     financiado = escenario.gastos_notariales
     if regla.incluye_apertura_y_avaluo:
         # Notariales, avalúo y la apertura sobre el total. Con apertura en
@@ -444,8 +463,10 @@ def evaluar_producto(
             alternativa_sin_cofinanciamiento=True,
         )
 
-    monto_base = escenario.monto_credito
+    obra = obra_financiada(escenario, producto)
+    monto_base = escenario.monto_credito + obra
     plazo = escenario.plazo_meses
+    valor_tabla = valor_proyectado(escenario, producto)
     valor_en_garantia = valor_garantia(escenario, producto)
     refinanciado = credito_instituto_refinanciado(escenario, producto)
     saldo_instituto = refinanciado.saldo if refinanciado else Decimal("0")
@@ -526,6 +547,16 @@ def evaluar_producto(
         motivos.append(
             f"La hipoteca actual ya es de {producto.institucion}: aplica su Mejora de "
             "Condiciones, no la sustitución."
+        )
+
+    if escenario.monto_remodelacion > 0 and not producto.financia_remodelacion:
+        motivos.append(
+            f"El producto no financia remodelación: el presupuesto de obra "
+            f"(${escenario.monto_remodelacion:,.0f}) quedaría fuera del crédito."
+        )
+    if producto.financia_remodelacion and escenario.monto_remodelacion <= 0:
+        motivos.append(
+            "El producto es para compra con remodelación: captura el presupuesto de obra."
         )
 
     if plazo not in producto.plazos_meses:
@@ -638,7 +669,7 @@ def evaluar_producto(
         linea_banco = replace(linea, producto=replace(producto, regla_aportaciones=regla_banco))
 
     tabla = construir_tabla(
-        linea_banco, escenario.valor_vivienda, fecha, cofinanciamiento, fecha_disposicion=disposicion
+        linea_banco, valor_tabla, fecha, cofinanciamiento, fecha_disposicion=disposicion
     )
 
     # El CAT de los cotizadores excluye las aportaciones y usa un primer
@@ -647,7 +678,7 @@ def evaluar_producto(
     if tabla.total_aportaciones or producto.primer_periodo_dias_reales:
         tabla_cat = construir_tabla(
             linea,
-            escenario.valor_vivienda,
+            valor_tabla,
             fecha,
             fecha_disposicion=None if producto.primer_periodo_dias_reales else disposicion,
         )
@@ -719,7 +750,7 @@ def evaluar_producto(
         )
         tabla_gastos = construir_tabla(
             LineaCredito(producto=producto_gastos, monto=financiado, plazo_meses=plazo_calculo),
-            escenario.valor_vivienda, fecha, fecha_disposicion=disposicion,
+            valor_tabla, fecha, fecha_disposicion=disposicion,
         )
         cat_gastos = calcular_cat(tabla_gastos, producto_gastos)
 
@@ -748,7 +779,7 @@ def evaluar_producto(
         )
         tabla_refinanciada = construir_tabla(
             LineaCredito(producto=producto_instituto, monto=refinanciado.saldo, plazo_meses=plazo_calculo),
-            escenario.valor_vivienda, fecha, fecha_disposicion=disposicion,
+            valor_tabla, fecha, fecha_disposicion=disposicion,
         )
         cat_refinanciado = calcular_cat(tabla_refinanciada, producto_instituto)
         advertencias.append(
@@ -801,6 +832,7 @@ def evaluar_producto(
         advertencias=tuple(advertencias),
         enganche=escenario.enganche if escenario.destino in DESTINOS_CON_ENGANCHE else Decimal("0"),
         gastos_financiados=financiado,
+        remodelacion_financiada=obra,
         tabla_gastos=tabla_gastos,
         cat_gastos_estimado=cat_gastos,
         tabla_instituto_refinanciado=tabla_refinanciada,

@@ -1436,3 +1436,41 @@ def test_productos_de_remodelacion_en_el_catalogo():
 
     ids = {p.id for p in CATALOGO if p.destino is Destino.REMODELACION}
     assert len(ids) == 8 and all(i.startswith("scotiabank-credirenovacion-") for i in ids)
+
+
+# Modo 2, Compra + Renovación: compra 3,000,000, obra 500,000, enganche
+# 800,000 (crédito 2,700,000, aforo 77.1 % del valor proyectado). Valores de
+# la réplica de la hoja con el seguro de daños sobre 3,500,000.
+_CREDIRENOVACION_COMPRA = {
+    ("valora-ninguna", 120): (116, "40667", "15.4277"),
+    ("valora-ninguna", 240): (200, "31973", "15.0145"),
+    ("valora-vinculacion", 120): (118, "37130", "13.3208"),
+    ("valora-green", 240): (210, "27221", "12.6807"),
+    ("valora-premium", 240): (212, "25763", "11.8862"),
+    ("pagos-oportunos-ninguna", 120): (117, "43340", "15.8022"),
+    ("pagos-oportunos-vinculacion", 240): (215, "30434", "12.5753"),
+    ("pagos-oportunos-green", 120): (117, "39425", "12.4509"),
+    ("pagos-oportunos-premium", 240): (217, "28598", "11.3779"),
+}
+
+
+@pytest.mark.parametrize("clave, plazo", sorted(_CREDIRENOVACION_COMPRA))
+def test_credirenovacion_compra_con_remodelacion(clave, plazo):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    meses, pago1, cat = _CREDIRENOVACION_COMPRA[(clave, plazo)]
+    escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("800000"), plazo_meses=plazo,
+                          monto_remodelacion=D("500000"))
+    r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-compra-{clave}-2025-04"],
+                         momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == D("2700000") and r.remodelacion_financiada == D("500000")
+    assert len(r.tabla.renglones) == meses
+    assert abs(r.tabla.renglones[0].pago_total - D(pago1)) < D("0.005")
+    assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0001")   # reportado a 4 decimales
+    if "premium" not in clave:
+        assert r.avaluo == D("11000")                    # tabulador sobre 3,500,000
+

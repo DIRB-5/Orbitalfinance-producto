@@ -75,6 +75,8 @@ def test_cofinanciamiento_con_alternativas_sin_cofinanciamiento():
             assert not o["elegible"]  # con crédito Infonavit aplica Cofinavit
         elif o["productoId"].startswith("afirme-tu-casa-2"):
             assert not o["elegible"]  # sin garantía adicional ni gastos financiados
+        elif o["productoId"].startswith("scotiabank-credirenovacion-compra"):
+            assert not o["elegible"]  # sin presupuesto de obra
         elif o["productoId"].startswith("bx-cofinavit"):
             assert o["elegible"] and not o["alternativaSinCofinanciamiento"]
             assert o["montoCredito"] == "1400000.00"
@@ -221,4 +223,17 @@ def test_remodelacion_por_api():
     assert len(ids) == 8 and all("credirenovacion" in i for i in ids)
     ninguna = next(o for o in opciones if o["productoId"].startswith("scotiabank-credirenovacion-valora-ninguna"))
     assert ninguna["dictamenTecnico"] == "15000.00"
+
+
+def test_compra_con_remodelacion_por_api():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "800000", "plazoMeses": 240,
+              "montoRemodelacion": "500000"}
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    elegibles = [o for o in opciones if o["elegible"]]
+    assert len(elegibles) == 8
+    assert all(o["productoId"].startswith("scotiabank-credirenovacion-compra") for o in elegibles)
+    assert all(o["montoCredito"] == "2700000.00" and o["remodelacionFinanciada"] == "500000.00"
+               for o in elegibles)
+    hsbc = next(o for o in opciones if o["productoId"].startswith("hsbc"))
+    assert any("remodelación" in m for m in hsbc["motivosRechazo"])
 

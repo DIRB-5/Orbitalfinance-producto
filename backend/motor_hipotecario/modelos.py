@@ -395,6 +395,12 @@ class ProductoHipotecario:
     # ninguno es igual a otro producto del banco (Tu Casa 2 = Adquisición).
     requiere_garantia_o_gastos_financiados: bool = False
 
+    # Compra con remodelación en un solo crédito (Scotiabank Credirenovación
+    # modo 2): el crédito suma el presupuesto de obra y el aforo, el avalúo
+    # y el seguro de daños se miden sobre el valor proyectado (compra + obra).
+    # Solo aplica con presupuesto de obra en el escenario.
+    financia_remodelacion: bool = False
+
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).
@@ -559,6 +565,11 @@ class Escenario:
     # Valor de otro inmueble que el cliente ofrece en garantía. Solo el valor:
     # no se piden datos del inmueble (regla 7).
     valor_garantia_adicional: Dinero = Decimal("0")
+
+    # Presupuesto de obra para remodelar la vivienda que se compra. Solo lo
+    # financian los productos con `financia_remodelacion`; para los demás
+    # queda fuera y no son elegibles.
+    monto_remodelacion: Dinero = Decimal("0")
 
     # Ingreso mensual comprobable, para evaluar capacidad de pago
     ingreso_mensual: Optional[Dinero] = None

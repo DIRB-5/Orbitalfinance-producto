@@ -2051,6 +2051,7 @@ class Component extends DCLogic {
         gastosNotariales: Math.round((f.valorVivienda || 0) * (f.gastosNotarialesPct || 0)),
         financiarGastosNotariales: f.financiarGastos === "si",
         valorGarantiaAdicional: f.valorGarantiaAdicional || 0,
+        montoRemodelacion: f.montoRemodelacion || 0,
         cofinanciamiento: cofi,
       });
     }
@@ -3278,6 +3279,9 @@ class Component extends DCLogic {
       campos = [campoNumero("valorVivienda", "Valor de la vivienda")]
         .concat(parMontoEnganche("valorVivienda"))
         .concat([campoPct("Gastos notariales estimados", "Varían entre 6 % y 8 % según notaría y municipio."), campoFinanciarGastos,
+          campoNumero("montoRemodelacion", "Presupuesto de remodelación (opcional)", {
+            hayNota: true, nota: "Si el cliente va a remodelar lo que compra. Solo Scotiabank Credirenovación lo financia en el mismo crédito; los demás bancos quedan fuera con su motivo.",
+          }),
           campoNumero("valorGarantiaAdicional", "Inmueble adicional en garantía (opcional)", {
             hayNota: true, nota: "Solo el valor. Afirme Tu Casa 2 mide su aforo de 80 % sobre ambos inmuebles y con eso puede financiar los gastos.",
           }),
@@ -3899,7 +3903,7 @@ class Component extends DCLogic {
       detCat: det ? pct(det.catEstimado) : "—",
       detFuente: det ? det.producto.fuente : "",
       detDesglose: det ? [
-        { k: det.gastosFinanciados && !det.lineaGastos ? "Monto del crédito (incluye " + mxn(det.gastosFinanciados) + (det.gastosFinanciados > det.gastosNotariales ? " de notariales, avalúo y apertura financiados)" : " de gastos notariales financiados)") : "Monto del crédito", v: mxn(det.montoCredito) },
+        { k: det.remodelacionFinanciada ? "Monto del crédito (incluye " + mxn(det.remodelacionFinanciada) + " de obra)" : det.gastosFinanciados && !det.lineaGastos ? "Monto del crédito (incluye " + mxn(det.gastosFinanciados) + (det.gastosFinanciados > det.gastosNotariales ? " de notariales, avalúo y apertura financiados)" : " de gastos notariales financiados)") : "Monto del crédito", v: mxn(det.montoCredito) },
         { k: "Intereses del periodo", v: mxn(det.totalIntereses) },
         { k: det.subtipo === "terreno" ? "Seguro de daños del periodo (no aplica: un terreno baldío no tiene construcción que asegurar)" : "Seguros del periodo (vida y daños)",
           v: det.subtipo === "terreno" ? mxn(0) : mxn(det.totalSeguros) },

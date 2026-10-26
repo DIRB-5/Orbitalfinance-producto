@@ -442,6 +442,7 @@ function adaptarOpcion(o, escenario) {
     gastosNotariales: num(o.gastosNotariales),
     gastosFinanciados: num(o.gastosFinanciados) || 0,
     gastosDeContado: num(o.gastosDeContado),
+    remodelacionFinanciada: num(o.remodelacionFinanciada) || 0,
     // Segundo crédito con los gastos (Santander Sustitución)
     // Crédito del instituto refinanciado (Santander Mejora de Condiciones)
     lineaInstituto: o.lineaInstituto ? {
@@ -532,6 +533,7 @@ function cuerpoComparacion(escenario, escenarioRefId) {
     gastosNotariales: String(escenario.gastosNotariales || 0),
     financiarGastosNotariales: !!escenario.financiarGastosNotariales,
     valorGarantiaAdicional: String(destino === "adquisicion" ? escenario.valorGarantiaAdicional || 0 : 0),
+    montoRemodelacion: String(destino === "adquisicion" ? escenario.montoRemodelacion || 0 : 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
     escenarioTasa: escenarioRefId || "base",

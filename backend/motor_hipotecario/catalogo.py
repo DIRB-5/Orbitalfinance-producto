@@ -1496,3 +1496,28 @@ CATALOGO += [
     for clave, nombre, _, _, _, _, tasa_po, factores_po in _CAMPANAS_CREDIRENOVACION
 ]
 
+# Modo 2, Compra + Renovación: un solo crédito por compra + obra ('Simulador
+# Valora'!H31 = H29 + H30), mismas tasas y factores que el modo 1, aforo sobre
+# el valor proyectado C30 = compra + obra (H28). Avalúo sobre el valor
+# proyectado; apertura y dictamen sobre el total. RECA Valora 0319-138-007460,
+# PO 0319-138-007458.
+_RECA_COMPRA = {"valora": "0319-138-007460/25-00058-0124", "pagos-oportunos": "0319-138-007458/25-00057-0124"}
+CATALOGO += [
+    replace(
+        p,
+        id=p.id.replace("credirenovacion-", "credirenovacion-compra-"),
+        nombre=p.nombre.replace("Credirenovación", "Credirenovación Compra + Remodelación"),
+        destino=Destino.ADQUISICION,
+        financia_remodelacion=True,
+        fuente=p.fuente.replace("modo 1 Renovación (remodelar la vivienda propia)",
+                                "modo 2 Compra + Renovación")
+        + f" RECA {_RECA_COMPRA['valora' if '-valora-' in p.id else 'pagos-oportunos']}.",
+        notas=p.notas + " Compra y obra en un solo crédito, con el aforo sobre la "
+        "vivienda más la obra. CORRECCIÓN a la hoja: el seguro de daños se cobra sobre "
+        "ese valor proyectado; la hoja suma otra vez la obra (E60 = C30 + H30). No "
+        "financia gastos notariales ni acepta cofinanciamiento.",
+    )
+    for p in list(CATALOGO)
+    if p.id.startswith("scotiabank-credirenovacion-") and p.destino is Destino.REMODELACION
+]
+

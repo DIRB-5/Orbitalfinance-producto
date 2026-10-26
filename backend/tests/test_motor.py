@@ -2048,3 +2048,52 @@ def test_remodelacion_es_un_destino_aparte():
     adquisicion = producto_limpio()
     r = comparar(_remodelacion(), [adquisicion, producto_remodelacion()], momento=HOY)
     assert [o.producto.destino for o in r.opciones] == [Destino.REMODELACION]
+
+
+# --------------------------------------------------------------------------
+# Compra con remodelación (Scotiabank Credirenovación modo 2)
+# --------------------------------------------------------------------------
+# Un solo crédito por compra + obra; aforo, avalúo y daños sobre el valor
+# proyectado (compra + obra); apertura y dictamen sobre el total.
+
+
+def _compra_con_obra(obra="500000", enganche="800000"):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal(enganche), plazo_meses=240,
+        monto_remodelacion=Decimal(obra), gastos_notariales=Decimal("210000"),
+    )
+
+
+def producto_compra_obra(**kwargs):
+    base = dict(
+        aforo_max=Decimal("0.80"), financia_remodelacion=True,
+        comision_apertura=Decimal("0.01"), seguro_danos_anual=Decimal("0.00372"),
+        tarifa_avaluo=((Decimal("0"), Decimal("0"), Decimal("1")),),     # 1 al millar
+    )
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+def test_financia_compra_mas_obra_sobre_el_valor_proyectado():
+    r = evaluar_producto(_compra_con_obra(), producto_compra_obra(), momento=HOY)
+    assert r.elegible, r.motivos_rechazo
+    assert r.monto_credito == Decimal("2700000")                  # 2,200,000 + 500,000
+    assert r.remodelacion_financiada == Decimal("500000")
+    assert r.comision_apertura == Decimal("27000")
+    assert r.avaluo == Decimal("3500")                            # sobre 3,500,000
+    assert r.tabla.renglones[0].seguro_danos == Decimal("3500000") * Decimal("0.00372") / 12
+    assert r.desembolso_inicial == Decimal("800000") + Decimal("27000") + Decimal("3500") + Decimal("210000")
+    # Aforo 2.7 M / 3.5 M = 77.1 %; con 600,000 de enganche 2.9 M / 3.5 M = 82.9 %
+    assert not evaluar_producto(_compra_con_obra(enganche="600000"), producto_compra_obra(),
+                                momento=HOY).elegible
+
+
+def test_quien_no_financia_obra_no_es_elegible_con_remodelacion():
+    r = evaluar_producto(_compra_con_obra(), producto_limpio(), momento=HOY)
+    assert not r.elegible and "remodelación" in r.motivos_rechazo[0]
+    assert r.monto_credito == Decimal("2200000")                  # solo la compra
+
+
+def test_producto_de_compra_con_obra_requiere_presupuesto():
+    r = evaluar_producto(_compra_con_obra(obra="0"), producto_compra_obra(), momento=HOY)
+    assert not r.elegible and "presupuesto de obra" in r.motivos_rechazo[0]
