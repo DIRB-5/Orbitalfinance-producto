@@ -412,6 +412,13 @@ class ProductoHipotecario:
     # Solo para vivienda sin hipoteca (Credirenovación modo 1).
     excluye_vivienda_con_hipoteca: bool = False
 
+    # Regla de capacidad de pago del banco, si la publica: el pago inicial de
+    # capital e interés (sin seguros) no debe pasar de esta fracción del
+    # ingreso, en lugar de la del escenario (Scotiabank Credirenovación:
+    # 'Simulador Valora'!E66 = E56 / PTI, 35 % o 55 %). Más el ingreso mínimo.
+    factor_pago_ingreso_max: Optional[Decimal] = None
+    ingreso_minimo: Optional[Dinero] = None
+
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).

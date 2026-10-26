@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             376 pruebas. No deben bajar de ahí.
+  tests/             383 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -179,7 +179,11 @@ mensualidad" como un número único sin mostrar el rango.
 **La mensualidad que se presenta es el pago regular** (`pago_regular_inicial`
 / `pago_regular_final`): sin el primer periodo irregular (Banorte, Afirme) ni
 el pago de cierre (Banamex). El primer pago real se muestra aparte, con sus
-días. La capacidad de pago se mide con el pago regular.
+días. La capacidad de pago se mide con el pago regular y el factor del
+escenario, salvo que el banco publique su regla: `factor_pago_ingreso_max`
+(PTI sobre capital e interés, sin seguros) e `ingreso_minimo` (Scotiabank
+Credirenovación: 35 % o 55 %, mínimo $20,000). `ingreso_requerido` lo
+expone por opción.
 
 **El orden por defecto es costo total**, no tasa ni mensualidad.
 
@@ -490,7 +494,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 376 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 383 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

@@ -443,6 +443,7 @@ function adaptarOpcion(o, escenario) {
     gastosFinanciados: num(o.gastosFinanciados) || 0,
     gastosDeContado: num(o.gastosDeContado),
     remodelacionFinanciada: num(o.remodelacionFinanciada) || 0,
+    ingresoRequerido: num(o.ingresoRequerido),
     // Segundo crédito con los gastos (Santander Sustitución)
     // Crédito del instituto refinanciado (Santander Mejora de Condiciones)
     lineaInstituto: o.lineaInstituto ? {

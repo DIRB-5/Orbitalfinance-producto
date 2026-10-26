@@ -1412,6 +1412,10 @@ _CREDIRENOVACION = replace(
     dictamen_tecnico_minimo=Decimal("1500"),
     dictamen_tecnico_maximo=Decimal("18000"),
     aforo_max=Decimal("0.80"),                           # W9: 80 % del valor actual
+    # Ingresos requeridos = erogación inicial (capital + interés) / PTI (E66):
+    # 35 % (AC9:AC12), 55 % en Green y en Pasivo + Renovación; mínimo $20,000 (C31)
+    factor_pago_ingreso_max=Decimal("0.35"),
+    ingreso_minimo=Decimal("20000"),
     tasas_escalonadas=(),
     crecimiento_pago_anual=None,
     vigente_desde=date(2025, 4, 10),
@@ -1451,6 +1455,7 @@ def _credirenovacion(clave, nombre, esquema, **cambios):
         tarifa_avaluo=() if clave == "premium" else _CREDIRENOVACION.tarifa_avaluo,
         dictamen_tecnico_pct=Decimal("0") if green else Decimal("0.01"),
         aforo_max=Decimal("0.95") if green else Decimal("0.80"),
+        factor_pago_ingreso_max=Decimal("0.55") if green else Decimal("0.35"),
         fuente="Cotizador SCOTIABANK Credirenovación.xlsm, modo 1 Renovación (remodelar "
         f"la vivienda propia), hojas Simulador {'Valora' if esquema == 'valora' else 'Pagos Oportunos'} "
         "y Tabla, versión v2025.04 (guardado 2025-04-11); RECA expedidos 2024-01-15. SIN "
@@ -1537,6 +1542,7 @@ CATALOGO += [
         excluye_credito_actual_propio=True,
         aforo_max=Decimal("0.95"),
         remodelacion_max_pct_valor=Decimal("0.35"),
+        factor_pago_ingreso_max=Decimal("0.55"),         # AC11
         comision_apertura=Decimal("0"),
         tarifa_avaluo=(),
         avaluo=Decimal("0"),
@@ -1588,7 +1594,8 @@ CATALOGO += [
         "saldo vigente sobre la vivienda más la obra. Sin seguro de daños (lo cubre la "
         "primera hipoteca). CORRECCIONES a la hoja: su tabla, su CAT, la apertura y el "
         "dictamen toman saldo vigente + obra, contra el resto del archivo; aquí solo la "
-        "obra. Si saldo + obra rebasan el aforo no es elegible (la hoja solo avisa).",
+        "obra. Si saldo + obra rebasan el aforo no es elegible (la hoja solo avisa). "
+        "La capacidad de pago suma el pago de la hipoteca vigente (la hoja no lo pide).",
     )
     for p in list(CATALOGO)
     if p.id.startswith("scotiabank-credirenovacion-")

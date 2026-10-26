@@ -2180,3 +2180,44 @@ def test_segunda_hipoteca_requiere_hipoteca_propia_y_la_de_vivienda_libre_no_la_
     r = evaluar_producto(_remodelacion_con_hipoteca(), sin_hipoteca, momento=HOY)
     assert not r.elegible and "hipoteca vigente" in r.motivos_rechazo[0]
     assert evaluar_producto(_remodelacion(), sin_hipoteca, momento=HOY).elegible
+
+
+# --------------------------------------------------------------------------
+# Capacidad de pago con la regla del banco (Scotiabank Credirenovación)
+# --------------------------------------------------------------------------
+# 'Simulador Valora'!E66 = E56 / PTI: el pago inicial de capital e interés
+# (sin seguros) entre 35 % (55 % en Green y en Pasivo + Renovación); ingreso
+# mínimo de $20,000 (C31).
+
+
+def producto_pti(**kwargs):
+    base = dict(
+        seguro_vida_mensual=Decimal("0.0006"), factores_al_millar=((240, Decimal("10.84")),),
+        factor_pago_ingreso_max=Decimal("0.35"), ingreso_minimo=Decimal("20000"),
+    )
+    base.update(kwargs)
+    return producto_remodelacion(**base)
+
+
+def test_ingreso_requerido_con_el_pti_del_banco():
+    # 1,500,000 × 10.84 / 1000 = 16,260 de capital e interés → 46,457.14 de ingreso
+    r = evaluar_producto(_remodelacion(), producto_pti(), momento=HOY)
+    assert r.ingreso_requerido == Decimal("16260") / Decimal("0.35")
+    from dataclasses import replace as _r
+    justo = _r(_remodelacion(), ingreso_mensual=Decimal("46458"), factor_pago_ingreso=Decimal("0.10"))
+    assert evaluar_producto(justo, producto_pti(), momento=HOY).elegible   # el PTI del banco manda
+    corto = _r(justo, ingreso_mensual=Decimal("46457"))
+    r = evaluar_producto(corto, producto_pti(), momento=HOY)
+    assert not r.elegible and "35%" in r.motivos_rechazo[0]
+
+
+def test_ingreso_minimo_del_producto():
+    from dataclasses import replace as _r
+    p = producto_pti(factor_pago_ingreso_max=Decimal("0.99"))        # el PTI no estorba
+    r = evaluar_producto(_r(_remodelacion(), ingreso_mensual=Decimal("19999")), p, momento=HOY)
+    assert not r.elegible and "20,000" in r.motivos_rechazo[0]
+
+
+def test_sin_regla_del_banco_se_usa_la_del_escenario():
+    r = evaluar_producto(_remodelacion(), producto_remodelacion(), momento=HOY)
+    assert r.ingreso_requerido == r.pago_regular_inicial / Decimal("0.30")

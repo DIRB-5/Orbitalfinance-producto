@@ -266,3 +266,14 @@ def test_segunda_hipoteca_por_api():
     assert len(elegibles) == 6
     assert all("2a-hipoteca" in o["productoId"] and o["montoCredito"] == "500000.00" for o in elegibles)
     assert all(o["ahorroMensual"] is None for o in elegibles)
+
+
+def test_ingreso_requerido_por_api():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "800000", "plazoMeses": 240,
+              "montoRemodelacion": "500000"}
+    opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
+    assert opciones["scotiabank-credirenovacion-compra-valora-ninguna-2025-04"]["ingresoRequerido"] == "83622.86"
+    productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
+    green = productos["scotiabank-credirenovacion-valora-green-2025-04"]
+    assert green["factorPagoIngresoMax"] == "0.55" and green["ingresoMinimo"] == "20000.00"
+

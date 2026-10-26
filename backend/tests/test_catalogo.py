@@ -1601,3 +1601,32 @@ def test_credirenovacion_segun_si_la_vivienda_tiene_hipoteca():
     # La compra y el pasivo con remodelación no heredan la exclusión
     assert not POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].excluye_vivienda_con_hipoteca
 
+
+@pytest.mark.parametrize("producto_id, escenario, ingreso", [
+    # Compra + Renovación, 2,700,000: E66 = 2.7 M × factor / 1000 / PTI
+    ("scotiabank-credirenovacion-compra-valora-ninguna-2025-04", "compra", "83622.857142857142857142857"),
+    ("scotiabank-credirenovacion-compra-valora-green-2025-04", "compra", "44574.545454545454545454545"),
+    # Pasivo + Renovación sin gastos, 2,000,000 a 10 años: 28,120 / 55 %
+    ("scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04", "pasivo", "51127.272727272727272727273"),
+])
+def test_credirenovacion_ingreso_requerido(producto_id, escenario, ingreso):
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Escenario
+
+    if escenario == "compra":
+        e = Escenario(valor_vivienda=D("3000000"), enganche=D("800000"), plazo_meses=240,
+                      monto_remodelacion=D("500000"))
+    else:
+        e = replace(_escenario_sustitucion(D("3000000"), D("1500000"), 120), monto_remodelacion=D("500000"))
+        e = replace(e, credito_actual=replace(e.credito_actual, institucion="Banorte"))
+    r = evaluar_producto(e, POR_ID[producto_id], momento=date(2024, 3, 22))
+    assert abs(r.ingreso_requerido - D(ingreso)) < D("0.000001")
+    # Con ese ingreso es elegible; con un peso menos, no
+    assert evaluar_producto(replace(e, ingreso_mensual=D(ingreso) + 1), POR_ID[producto_id],
+                            momento=date(2024, 3, 22)).elegible
+    assert not evaluar_producto(replace(e, ingreso_mensual=D(ingreso) - 1), POR_ID[producto_id],
+                                momento=date(2024, 3, 22)).elegible
+

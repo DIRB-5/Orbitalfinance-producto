@@ -96,6 +96,10 @@ class ResultadoOpcion:
     # Presupuesto de obra incluido en `monto_credito` (Credirenovación modo 2)
     remodelacion_financiada: Dinero = Decimal("0")
 
+    # Ingreso mensual que pide la opción: pago inicial entre el PTI (el del
+    # banco si lo publica, si no el del escenario), y al menos el mínimo.
+    ingreso_requerido: Optional[Dinero] = None
+
     # Segundo crédito con los gastos (Santander) y su CAT, si lo hay. Sus
     # pagos se suman a la mensualidad y su costo al costo total.
     tabla_gastos: Optional[TablaAmortizacion] = None
@@ -823,20 +827,36 @@ def evaluar_producto(
     cat = calcular_cat(tabla_cat, producto, monto_comision=monto_comision)
 
     # --- Capacidad de pago -------------------------------------------------
+    # Con el pago regular (no un primer mes irregular) y, con crédito del
+    # instituto, línea de gastos o hipoteca vigente, con todos los pagos. Si el
+    # banco publica su regla, con su PTI sobre capital e interés.
+    pago_otras_lineas = (vigente.pago_mensual if vigente else 0) + (
+        tabla_instituto.pago_regular_inicial if tabla_instituto is not None else 0
+    ) + (tabla_gastos.pago_regular_inicial if tabla_gastos is not None else 0) + (
+        tabla_refinanciada.pago_regular_inicial if tabla_refinanciada is not None else 0
+    )
+    if producto.factor_pago_ingreso_max is not None:
+        factor_pti = producto.factor_pago_ingreso_max
+        pago_inicial = tabla.pago_capital_interes + pago_otras_lineas
+        regla = f"{factor_pti:.0%} del ingreso que acepta {producto.institucion} (capital e interés)"
+    else:
+        factor_pti = escenario.factor_pago_ingreso
+        pago_inicial = tabla.pago_regular_inicial + pago_otras_lineas
+        regla = f"{factor_pti:.0%} del ingreso comprobable"
+    ingreso_requerido = pago_inicial / factor_pti
+    if producto.ingreso_minimo is not None:
+        ingreso_requerido = max(ingreso_requerido, producto.ingreso_minimo)
     if escenario.ingreso_mensual:
-        tope = escenario.ingreso_mensual * escenario.factor_pago_ingreso
-        # Con el pago regular (no un primer mes irregular) y, con crédito del
-        # instituto, con ambos pagos.
-        pago_inicial = (vigente.pago_mensual if vigente else 0) + tabla.pago_regular_inicial + (
-            tabla_instituto.pago_regular_inicial if tabla_instituto is not None else 0
-        ) + (tabla_gastos.pago_regular_inicial if tabla_gastos is not None else 0) + (
-            tabla_refinanciada.pago_regular_inicial if tabla_refinanciada is not None else 0
-        )
+        tope = escenario.ingreso_mensual * factor_pti
+        if producto.ingreso_minimo is not None and escenario.ingreso_mensual < producto.ingreso_minimo:
+            motivos.append(
+                f"El ingreso está por debajo del mínimo del producto "
+                f"(${producto.ingreso_minimo:,.0f} al mes)."
+            )
         if pago_inicial > tope:
             motivos.append(
-                f"El pago inicial (${pago_inicial:,.2f}) supera el "
-                f"{escenario.factor_pago_ingreso:.0%} del ingreso comprobable "
-                f"(${tope:,.2f})."
+                f"El pago inicial (${pago_inicial:,.2f}) supera el {regla} "
+                f"(${tope:,.2f}); requiere un ingreso de ${ingreso_requerido:,.2f}."
             )
         elif pago_inicial > tope * Decimal("0.85"):
             advertencias.append(
@@ -872,6 +892,7 @@ def evaluar_producto(
         enganche=escenario.enganche if escenario.destino in DESTINOS_CON_ENGANCHE else Decimal("0"),
         gastos_financiados=financiado,
         remodelacion_financiada=obra,
+        ingreso_requerido=ingreso_requerido,
         tabla_gastos=tabla_gastos,
         cat_gastos_estimado=cat_gastos,
         tabla_instituto_refinanciado=tabla_refinanciada,

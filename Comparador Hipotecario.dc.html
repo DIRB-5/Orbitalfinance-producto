@@ -759,7 +759,7 @@
           <span style="font-size:10.5px; letter-spacing:0.09em; text-transform:uppercase; color:#1B3A5C; border:1px solid #1B3A5C; padding:3px 8px;">Condición negociada</span>
         </sc-if>
       </div>
-      <div style="font-size:13.5px; color:#7A756C; margin-top:6px; font-variant-numeric:tabular-nums;">Tasa {{ detTasa }} · CAT {{ detCat }} estimado · plazo efectivo {{ detPlazoEfectivo }} · suma de mensualidades {{ detSumaMensualidades }} · {{ detFuente }}</div>
+      <div style="font-size:13.5px; color:#7A756C; margin-top:6px; font-variant-numeric:tabular-nums;">Tasa {{ detTasa }} · CAT {{ detCat }} estimado · plazo efectivo {{ detPlazoEfectivo }} · suma de mensualidades {{ detSumaMensualidades }} · ingreso requerido {{ detIngresoRequerido }} · {{ detFuente }}</div>
 
       <div style="{{ gridDetalle }}">
         <div style="border:1px solid #E4E1DC; background:#FFFDFB; padding:26px 28px;">
@@ -3984,6 +3984,7 @@ class Component extends DCLogic {
 
       detPlazoEfectivo: det ? (det.plazoEfectivoMeses || esc.plazoMeses) + " meses" : "—",
       detSumaMensualidades: det ? mxn(det.sumaMensualidades) : "—",
+      detIngresoRequerido: det && det.ingresoRequerido ? mxn(det.ingresoRequerido) : "—",
 
       plazosDistintos: (function () {
         const ps = seleccionadasOpts.map((o) => o.plazoEfectivoMeses || esc.plazoMeses);

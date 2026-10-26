@@ -139,6 +139,8 @@ class ProductoSalida(ModeloBase):
     financiamiento_gastos: Optional[FinanciamientoGastosSalida]
     acepta_garantia_adicional: bool
     financia_remodelacion: bool
+    factor_pago_ingreso_max: Optional[str]
+    ingreso_minimo: Optional[str]
     # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
     dictamen_tecnico_pct: str
     dictamen_tecnico_minimo: str
@@ -256,6 +258,8 @@ class OpcionSalida(ModeloBase):
     gastos_financiados: str
     gastos_de_contado: str
     remodelacion_financiada: str
+    # Ingreso mensual que pide la opción (pago inicial / PTI, y el mínimo)
+    ingreso_requerido: Optional[str]
     linea_gastos: Optional[LineaGastosSalida]
     linea_instituto: Optional[LineaInstitutoSalida]
     cat_estimado: str
