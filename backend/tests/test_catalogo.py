@@ -601,18 +601,21 @@ def _escenario_sustitucion(valor, monto, plazo):
 def test_productos_de_sustitucion_en_el_catalogo():
     from motor_hipotecario.modelos import Destino
 
-    ids = {p.id for p in CATALOGO if p.destino is Destino.SUSTITUCION}
+    # Versiones vigentes (las cerradas siguen en el catálogo para reproducir
+    # propuestas anteriores)
+    ids = {p.id for p in CATALOGO if p.destino is Destino.SUSTITUCION and p.vigente_hasta is None}
     assert ids == {
         "banregio-mejora-hipoteca-2023-12",
         "banamex-cambia-tu-hipoteca-mercado-abierto-2026-08",
         "bx-mejora-tu-hipoteca-2026-01",
         "banorte-mejora-hipoteca-2026-06",
-        "scotiabank-7x5-pasivo-hipotecario-2024-01",
-        "scotiabank-pasivos-pagos-oportunos-2024-01",
-        "scotiabank-pasivos-valora-2024-01",
+        "scotiabank-7x5-pasivo-hipotecario-2026-07",
+        "scotiabank-pasivos-pagos-oportunos-2026-07",
+        "scotiabank-pasivos-valora-2026-07",
         "santander-sustitucion-2025-12",
         "santander-mejora-condiciones-2025-12",
-    } | {p.id for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-pasivo-")}
+    } | {p.id for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-pasivo-")
+         and p.vigente_hasta is None}
 
 
 def test_banregio_mejora_reproduce_su_cotizador():
@@ -1759,7 +1762,8 @@ def test_credirenovacion_2026_reemplaza_a_la_version_del_cotizador():
     from datetime import date
 
     viejos = [p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-") and p.id.endswith("-2025-04")]
-    nuevos = [p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-") and p.id.endswith("-2026-07")]
+    nuevos = [p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-")
+              and ("-2026-07" in p.id) and p.vigente_hasta is None]
     assert len(viejos) == len(nuevos) == 28
     assert all(p.vigente_en(date(2026, 10, 25)) and not p.vigente_en(date(2026, 10, 26)) for p in viejos)
     assert all(p.vigente_en(date(2026, 10, 26)) and not p.vigente_en(date(2026, 10, 25)) for p in nuevos)
@@ -1800,12 +1804,13 @@ def test_credirenovacion_2026_avaluo_de_pasivo_y_entregas_al_50():
 
     from motor_hipotecario.modelos import Destino, Escenario
 
-    # Pasivo + Renovación: tarifa propia sobre el valor proyectado (3.5 M → 5,000)
+    # Pasivo + Renovación: tarifa normal del documento de comisiones sobre el
+    # valor proyectado (3.5 M → 11,000)
     e = replace(_escenario_sustitucion(D("3000000"), D("1500000"), 240), monto_remodelacion=D("500000"))
     e = replace(e, credito_actual=replace(e.credito_actual, institucion="Banorte"))
-    r = _evaluar_con_condiciones(e, POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07"],
+    r = _evaluar_con_condiciones(e, POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v2"],
                                  momento=date(2026, 10, 26))
-    assert r.elegible and r.avaluo == D("5000")
+    assert r.elegible and r.avaluo == D("11000")
     # Entregas: 50 % a la firma; la segunda cuando haya 80 % de avance
     remo = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
                      destino=Destino.REMODELACION)
@@ -1814,3 +1819,35 @@ def test_credirenovacion_2026_avaluo_de_pasivo_y_entregas_al_50():
     assert _evaluar_con_condiciones(mitad, producto, momento=date(2026, 10, 26)).elegible
     tres = replace(remo, ministraciones=((1, D("500000")), (3, D("500000")), (5, D("500000"))))
     assert not _evaluar_con_condiciones(tres, producto, momento=date(2026, 10, 26)).elegible
+
+
+# ---------------------------------------------------------------------------
+# Avalúo de Pago de pasivos (documento de comisiones, julio 2026)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("producto, valor, avaluo", [
+    ("scotiabank-7x5-pasivo-hipotecario-2026-07", "3000000", "4663"),
+    ("scotiabank-pasivos-valora-2026-07", "800000", "1750"),
+    ("scotiabank-pasivos-pagos-oportunos-2026-07", "4000000", "5000"),
+])
+def test_pago_de_pasivos_cobra_el_avaluo_reducido(producto, valor, avaluo):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    e = _escenario_sustitucion(D(valor), D(valor) * D("0.5"), 240)
+    r = evaluar_producto(e, POR_ID[producto], momento=date(2026, 10, 26))
+    assert r.avaluo == D(avaluo)
+
+
+def test_avaluo_de_pasivos_versiones():
+    from datetime import date
+
+    hoy, ayer = date(2026, 10, 26), date(2026, 10, 25)
+    retirada = POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07"]
+    assert not retirada.vigente_en(hoy) and not retirada.vigente_en(ayer)
+    assert POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v2"].vigente_en(hoy)
+    viejo = POR_ID["scotiabank-pasivos-valora-2024-01"]
+    assert viejo.vigente_en(ayer) and not viejo.vigente_en(hoy)
+    assert POR_ID["scotiabank-pasivos-valora-2026-07"].vigente_en(hoy)
+

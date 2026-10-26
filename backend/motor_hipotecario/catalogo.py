@@ -1705,3 +1705,88 @@ CATALOGO[:] = [
     if p in _CREDIRENOVACION_2025 else p
     for p in CATALOGO
 ] + [_credirenovacion_2026(p) for p in _CREDIRENOVACION_2025]
+
+
+# ---------------------------------------------------------------------------
+# Avalúo de Pago de pasivos según el documento de comisiones (julio 2026)
+# ---------------------------------------------------------------------------
+# El documento oficial de comisiones hipotecarias de Scotiabank (julio 2026,
+# p. 4) pone la tarifa reducida de avalúo en la columna "Pago de Pasivos,
+# Liquidez Libre" y a "Renovación + Pago de Pasivos" en la tarifa normal. El
+# folleto "Renovación" (p. 18) rotula la reducida como "Pago de pasivos +
+# Renovación" y los cotizadores no cobran avalúo. Se toma el documento de
+# comisiones (la divulgación formal) mientras Scotiabank lo confirma:
+#   - Credirenovación Pasivo + Remodelación: tarifa normal ($1,900 a $27,000).
+#     Su versión -2026-07 con la reducida se retira el mismo día que se publicó.
+#   - Pago de pasivos 7x5, Valora y Pagos Oportunos: tarifa reducida (antes $0).
+_COMISIONES_HIPOTECARIO = (
+    "Documento Scotiabank de comisiones de crédito hipotecario (julio 2026; "
+    "cdn.aglty.io/scotia-bank-mexico/pdf/personas/creditos/comisiones-hipotecario.pdf), p. 4"
+)
+_AVALUO_PAGO_DE_PASIVOS = (                              # comisiones p. 4
+    (Decimal("0"), Decimal("1253"), Decimal("0")),
+    (Decimal("500000.01"), Decimal("1750"), Decimal("0")),
+    (Decimal("1000000.01"), Decimal("2784"), Decimal("0")),
+    (Decimal("2000000.01"), Decimal("4663"), Decimal("0")),
+    (Decimal("3000000.01"), Decimal("5000"), Decimal("0")),
+)
+_TARIFA_NORMAL_SCOTIABANK = next(
+    p for p in CATALOGO if p.id == "scotiabank-7x5-adquisicion-2024-01"
+).tarifa_avaluo
+_PASIVO_RENOVACION_RETIRADO = [
+    p for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-pasivo-") and p.id.endswith("-2026-07")
+]
+_PAGO_DE_PASIVOS_2024 = [
+    p for p in CATALOGO if p.id in (
+        "scotiabank-7x5-pasivo-hipotecario-2024-01",
+        "scotiabank-pasivos-pagos-oportunos-2024-01",
+        "scotiabank-pasivos-valora-2024-01",
+    )
+]
+_NOTA_AVALUO = (
+    " Avalúo: el documento de comisiones de julio 2026 y el folleto 'Renovación' "
+    "no coinciden para Pago de pasivos + Renovación; confirmar con Scotiabank."
+)
+CATALOGO[:] = [
+    replace(p, vigente_hasta=date(2026, 10, 25),
+            notas=p.notas + " RETIRADA el día de su publicación (2026-10-26): el documento "
+            "de comisiones pone a Renovación + Pago de Pasivos en la tarifa normal de avalúo.")
+    if p in _PASIVO_RENOVACION_RETIRADO
+    else replace(p, vigente_hasta=date(2026, 10, 25),
+                 notas=p.notas + " VERSIÓN CERRADA el 2026-10-25: la sustituye la -2026-07 "
+                 "con el avalúo del documento de comisiones de julio 2026.")
+    if p in _PAGO_DE_PASIVOS_2024
+    else p
+    for p in CATALOGO
+] + [
+    replace(
+        p,
+        id=p.id.replace("-2026-07", "-2026-07-v2"),
+        tarifa_avaluo=_TARIFA_NORMAL_SCOTIABANK,
+        vigente_desde=date(2026, 10, 26),
+        vigente_hasta=None,
+        fuente=p.fuente + " Avalúo con la tarifa normal de " + _COMISIONES_HIPOTECARIO + ".",
+        notas=p.notas.replace(
+            " SUPUESTO: avalúo con la columna de Pago de pasivos + Renovación del folleto "
+            "sobre el valor proyectado; el cotizador no lo cobra.",
+            " Avalúo con la tarifa normal sobre el valor proyectado.",
+        ) + _NOTA_AVALUO,
+    )
+    for p in _PASIVO_RENOVACION_RETIRADO
+] + [
+    replace(
+        p,
+        id=p.id.replace("-2024-01", "-2026-07"),
+        tarifa_avaluo=_AVALUO_PAGO_DE_PASIVOS,
+        avaluo=Decimal("0"),
+        vigente_desde=date(2026, 10, 26),
+        vigente_hasta=None,
+        fuente=p.fuente + " Avalúo de " + _COMISIONES_HIPOTECARIO + ".",
+        notas=p.notas.replace("Sin apertura ni avalúo.", "Sin apertura.")
+        .replace("sin avalúo;", "")
+        + " Avalúo con la tarifa reducida de Pago de pasivos del documento de comisiones "
+        "de julio 2026 ($1,253 a $5,000; arriba de 11 millones, SUPUESTO $5,000); el "
+        "cotizador no lo cobraba.",
+    )
+    for p in _PAGO_DE_PASIVOS_2024
+]

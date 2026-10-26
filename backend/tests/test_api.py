@@ -152,8 +152,8 @@ def test_sustitucion_sin_credito_actual_es_invalida():
 
 def test_catalogo_expone_el_crecimiento_anual_del_pago():
     productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
-    assert productos["scotiabank-pasivos-valora-2024-01"]["crecimientoPagoAnual"] == "0.026"
-    assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["crecimientoPagoAnual"] is None
+    assert productos["scotiabank-pasivos-valora-2026-07"]["crecimientoPagoAnual"] == "0.026"
+    assert productos["scotiabank-pasivos-pagos-oportunos-2026-07"]["crecimientoPagoAnual"] is None
 
 
 
@@ -165,12 +165,12 @@ def test_gastos_notariales_financiados_por_api():
                           "plazoRemanenteMeses": 240},
     }
     opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
-    scotia = opciones["scotiabank-pasivos-pagos-oportunos-2024-01"]
+    scotia = opciones["scotiabank-pasivos-pagos-oportunos-2026-07"]
     assert scotia["gastosFinanciados"] == "90000.00"
     assert scotia["gastosDeContado"] == "30000.00"
     assert scotia["montoCredito"] == "1590000.00"
     productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
-    assert productos["scotiabank-pasivos-pagos-oportunos-2024-01"]["financiamientoGastos"] == {
+    assert productos["scotiabank-pasivos-pagos-oportunos-2026-07"]["financiamientoGastos"] == {
         "tope": "0.06", "baseTope": "monto_credito", "aperturaYAforoSobreTotal": False,
         "incluyeAperturaYAvaluo": False, "lineaSeparada": False,
     }
