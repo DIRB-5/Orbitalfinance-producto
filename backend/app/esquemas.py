@@ -136,6 +136,10 @@ class ProductoSalida(ModeloBase):
     regla_aportaciones: Optional[ReglaAportacionesSalida]
     financiamiento_gastos: Optional[FinanciamientoGastosSalida]
     acepta_garantia_adicional: bool
+    # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
+    dictamen_tecnico_pct: str
+    dictamen_tecnico_minimo: str
+    dictamen_tecnico_maximo: Optional[str]
     requiere_cofinanciamiento: bool
     dia_de_pago: Optional[int]
     primer_periodo_dias_reales: bool
@@ -243,6 +247,7 @@ class OpcionSalida(ModeloBase):
     plazo_efectivo_meses: int
     comision_apertura: str
     comision_investigacion: str
+    dictamen_tecnico: str
     avaluo: str
     gastos_notariales: str
     gastos_financiados: str

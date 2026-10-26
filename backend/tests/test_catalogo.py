@@ -1366,3 +1366,73 @@ def test_santander_mejoras_cofis_reproduce_sus_formulas():
     assert abs(r.cat_instituto_refinanciado_estimado - D("0.13530042878267")) < D("0.0000001")
     assert abs(r.pago_regular_inicial - D("21820.624417237018437134239924")) < D("0.000001")
 
+
+
+# ---------------------------------------------------------------------------
+# Scotiabank Credirenovación (remodelación de la vivienda propia)
+# ---------------------------------------------------------------------------
+# Sin escenario capturado: valores de una réplica de las hojas Valora y Pagos
+# Oportunos (v2025.04) con valor 3,000,000, crédito 1,500,000 y cotización
+# 2024-03-22. (meses en que se liquida, pago del mes 1, del mes 13, CAT en %)
+
+_CREDIRENOVACION = {
+    ("valora-ninguna", 120): (116, "22920.00", "23238.49", "15.987"),
+    ("valora-ninguna", 240): (200, "18090.00", "18363.25", "15.464"),
+    ("valora-vinculacion", 180): (169, "17325.00", "17682.73", "13.636"),
+    ("valora-green", 120): (117, "20730.00", "21160.23", "13.301"),
+    ("valora-premium", 240): (212, "14640.00", "14969.66", "12.286"),
+    ("pagos-oportunos-ninguna", 84): (83, "29400.00", "29315.15", "16.821"),
+    ("pagos-oportunos-ninguna", 180): (168, "21015.00", "20994.29", "16.013"),
+    ("pagos-oportunos-vinculacion", 120): (117, "22425.00", "22372.25", "13.492"),
+    ("pagos-oportunos-green", 84): (83, "27255.00", "27163.39", "13.152"),
+    ("pagos-oportunos-premium", 120): (117, "21570.00", "21514.38", "12.214"),
+    # 20 años con los valores de la campaña (la hoja usa los de Ninguna, W36:X37)
+    ("pagos-oportunos-vinculacion", 240): (215, None, None, "13.034"),
+    ("pagos-oportunos-premium", 240): (217, None, None, "11.810"),
+}
+
+
+@pytest.mark.parametrize("clave, plazo", sorted(_CREDIRENOVACION))
+def test_credirenovacion_reproduce_sus_formulas(clave, plazo):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    meses, pago1, pago13, cat = _CREDIRENOVACION[(clave, plazo)]
+    escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=plazo,
+                          destino=Destino.REMODELACION)
+    producto = POR_ID[f"scotiabank-credirenovacion-{clave}-2025-04"]
+    r = evaluar_producto(escenario, producto, momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert len(r.tabla.renglones) == meses
+    if pago1:
+        assert abs(r.tabla.renglones[0].pago_total - D(pago1)) < D("0.005")
+        assert abs(r.tabla.renglones[12].pago_total - D(pago13)) < D("0.005")
+    assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0005")
+
+
+def test_credirenovacion_costos_iniciales_por_campana():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
+                          destino=Destino.REMODELACION)
+    costos = {}
+    for campana in ("ninguna", "vinculacion", "green", "premium"):
+        r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-valora-{campana}-2025-04"],
+                             momento=date(2024, 3, 22))
+        costos[campana] = (r.comision_apertura, r.avaluo, r.dictamen_tecnico)
+    assert costos["ninguna"] == (D("15000"), D("8200"), D("15000"))
+    assert costos["vinculacion"] == (0, D("8200"), D("15000"))
+    assert costos["green"] == (0, D("8200"), 0)
+    assert costos["premium"] == (0, 0, D("15000"))
+
+
+def test_productos_de_remodelacion_en_el_catalogo():
+    from motor_hipotecario.modelos import Destino
+
+    ids = {p.id for p in CATALOGO if p.destino is Destino.REMODELACION}
+    assert len(ids) == 8 and all(i.startswith("scotiabank-credirenovacion-") for i in ids)

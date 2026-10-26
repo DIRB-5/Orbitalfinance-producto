@@ -39,6 +39,7 @@ export const FAMILIAS = [
       { id: "sustitucion", nombre: "Sustitución", disponible: true },
       { id: "liquidez", nombre: "Liquidez", disponible: true },
       { id: "terreno", nombre: "Adquisición de terreno", disponible: true },
+      { id: "remodelacion", nombre: "Remodelación", disponible: true },
       { id: "construccion", nombre: "Construcción", disponible: false },
       { id: "terreno-const", nombre: "Terreno + construcción", disponible: false },
     ],
@@ -179,6 +180,7 @@ export const escenariosBase = {
   sustitucion: { familia: "hipotecario", subtipo: "sustitucion", etiqueta: "", montoCredito: 0, plazoMeses: 0, financiarGastos: "no", institutoActual: "no" },
   liquidez: { familia: "hipotecario", subtipo: "liquidez", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   terreno: { familia: "hipotecario", subtipo: "terreno", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
+  remodelacion: { familia: "hipotecario", subtipo: "remodelacion", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
   pyme: { familia: "pyme", subtipo: "pyme", etiqueta: "", montoCredito: 0, plazoMeses: 0 },
 };
 
@@ -186,7 +188,7 @@ export const valorGarantiaDe = (e) => {
   if (e.subtipo === "adquisicion") return e.valorVivienda || 0;
   if (e.subtipo === "liquidez") return e.valorInmuebleGarantia || 0;
   if (e.subtipo === "terreno") return e.valorTerreno || 0;
-  if (e.subtipo === "sustitucion") return e.valorInmueble || 0;
+  if (e.subtipo === "sustitucion" || e.subtipo === "remodelacion") return e.valorInmueble || 0;
   return e.valorGarantia || 0;
 };
 export const aforo = (e) => {
@@ -267,6 +269,9 @@ function adaptarProducto(p) {
       lineaSeparada: p.financiamientoGastos.lineaSeparada,
     } : null,
     aceptaGarantiaAdicional: !!p.aceptaGarantiaAdicional,
+    dictamenTecnico: num(p.dictamenTecnicoPct) ? {
+      pct: num(p.dictamenTecnicoPct), minimo: num(p.dictamenTecnicoMinimo), maximo: num(p.dictamenTecnicoMaximo),
+    } : null,
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),
     vigenteDesde: p.vigenteDesde,
@@ -423,6 +428,7 @@ function adaptarOpcion(o, escenario) {
     aforo: num(o.aforo),
     comisionApertura: num(o.comisionApertura),
     comisionInvestigacion: num(o.comisionInvestigacion) || 0,
+    dictamenTecnico: num(o.dictamenTecnico) || 0,
     totalComisionMensual: v(o.totalComisionMensual),
     totalAportaciones: v(o.totalAportaciones),
     creditoInstituto: o.creditoInstituto ? {
@@ -487,7 +493,7 @@ function adaptarOpcion(o, escenario) {
 const resultados = new Map();
 
 // Subtipos que compara el motor, con su destino en la API.
-const DESTINO_API = { adquisicion: "adquisicion", sustitucion: "sustitucion", liquidez: "liquidez", terreno: "terreno" };
+const DESTINO_API = { adquisicion: "adquisicion", sustitucion: "sustitucion", liquidez: "liquidez", terreno: "terreno", remodelacion: "remodelacion" };
 
 function cuerpoComparacion(escenario, escenarioRefId) {
   const destino = DESTINO_API[escenario.subtipo];

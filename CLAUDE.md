@@ -20,10 +20,10 @@ suscripción es la brokerage, y el asesor rota.
 /backend
   motor_hipotecario/ Núcleo de cálculo. Puro, sin dependencias externas.
     catalogo.py      Catálogo real por destino (adquisición, sustitución, terreno,
-                     liquidez) de 8 instituciones.
+                     liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             321 pruebas. No deben bajar de ahí.
+  tests/             340 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -184,7 +184,7 @@ días. La capacidad de pago se mide con el pago regular.
 **El orden por defecto es costo total**, no tasa ni mensualidad.
 
 **Cada producto tiene un destino** (`Destino`: adquisición, sustitución,
-liquidez, terreno) y el comparador solo compara productos del destino del
+liquidez, terreno, remodelación) y el comparador solo compara productos del destino del
 escenario. En sustitución el escenario trae `CreditoActual` y cada opción
 calcula ahorro mensual, costo de cambiarse, punto de equilibrio y ahorro neto
 contra quedarse. Solo adquisición y terreno llevan enganche en el desembolso
@@ -201,6 +201,16 @@ crédito INFONAVIT/FOVISSSTE. Un producto con `refinanciamiento_instituto`
 suman los dos créditos, y el ahorro se mide contra banco + instituto. Los
 demás productos solo sustituyen el bancario y el pago al instituto queda
 igual en ambos lados.
+
+**Remodelación** (Scotiabank Credirenovación, modo 1): obra en la vivienda
+propia sin hipoteca; `valor_vivienda` es el valor actual y el monto es el
+presupuesto de obra. Sin enganche. El dictamen técnico de la obra
+(`dictamen_tecnico_pct` con mínimo y máximo) es un cargo único que entra
+completo al desembolso, al costo total y al CAT. Se supone el crédito
+disponible desde el mes 1 (el banco lo entrega por avance de obra). Compra +
+remodelación, pasivo + remodelación y segunda hipoteca no se modelan. Las
+campañas de Credirenovación (Ninguna, Vinculación, Green, Premium) van como
+productos separados con su requisito en `notas`.
 
 **En liquidez el banco cobra IVA sobre los intereses** (no hay exención por
 casa habitación). `iva_sobre_intereses` lo suma al pago; con
@@ -469,7 +479,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 321 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 340 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

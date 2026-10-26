@@ -61,6 +61,10 @@ class ResultadoOpcion:
         return self.producto.comision_investigacion
 
     @property
+    def dictamen_tecnico(self) -> Dinero:
+        return self.producto.dictamen_tecnico_para(self.monto_credito)
+
+    @property
     def gastos_de_contado(self) -> Dinero:
         """Gastos notariales que el cliente paga el día de la firma."""
         return max(Decimal("0"), self.gastos_notariales - self.gastos_financiados)
@@ -75,7 +79,7 @@ class ResultadoOpcion:
         """Apertura, avalúo, notaría e investigación menos lo financiado."""
         return (
             self.comision_apertura + self.avaluo + self.gastos_notariales
-            + self.comision_investigacion - self.gastos_financiados
+            + self.comision_investigacion + self.dictamen_tecnico - self.gastos_financiados
         )
 
     @property
@@ -708,6 +712,7 @@ def evaluar_producto(
             comision_apertura=Decimal("0"),
             comision_apertura_monto=None,
             comision_investigacion=Decimal("0"),
+            dictamen_tecnico_pct=Decimal("0"),
             iva_sobre_intereses=True,
             iva_intereses_en_cat=False,
             financiamiento_gastos=None,
@@ -734,6 +739,7 @@ def evaluar_producto(
             comision_apertura=Decimal("0"),
             comision_apertura_monto=None,
             comision_investigacion=Decimal("0"),
+            dictamen_tecnico_pct=Decimal("0"),
             iva_sobre_intereses=False,
             iva_intereses_en_cat=False,
             financiamiento_gastos=None,

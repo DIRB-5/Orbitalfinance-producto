@@ -212,3 +212,13 @@ def test_credito_del_instituto_no_puede_ser_bancario():
                                                      "pagoMensual": "1", "plazoRemanenteMeses": 1}}}
     assert cliente.post("/api/comparar", json=cuerpo).status_code == 422
 
+
+def test_remodelacion_por_api():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
+              "destino": "remodelacion"}
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    ids = {o["productoId"] for o in opciones}
+    assert len(ids) == 8 and all("credirenovacion" in i for i in ids)
+    ninguna = next(o for o in opciones if o["productoId"].startswith("scotiabank-credirenovacion-valora-ninguna"))
+    assert ninguna["dictamenTecnico"] == "15000.00"
+

@@ -85,6 +85,7 @@ class Destino(str, Enum):
     SUSTITUCION = "sustitucion"   # liquidar una hipoteca con otro banco
     LIQUIDEZ = "liquidez"         # efectivo con la vivienda en garantía
     TERRENO = "terreno"
+    REMODELACION = "remodelacion"  # obra en la vivienda propia, sin hipoteca
 
 
 @dataclass(frozen=True)
@@ -419,6 +420,13 @@ class ProductoHipotecario:
     # Terreno y Liquidez). Entra al desembolso, al costo total y al CAT.
     comision_investigacion: Dinero = Decimal("0")
 
+    # Dictamen técnico (Scotiabank Credirenovación): cargo único por verificar
+    # la obra, fracción del crédito con mínimo y máximo. Entra completo al
+    # desembolso, al costo total y al CAT.
+    dictamen_tecnico_pct: Decimal = Decimal("0")
+    dictamen_tecnico_minimo: Dinero = Decimal("0")
+    dictamen_tecnico_maximo: Optional[Dinero] = None
+
     # Comisión mensual fija: cargo recurrente que no es interés ni seguro.
     # Entra al pago, al costo total y al CAT.
     comision_mensual: Dinero = Decimal("0")
@@ -488,6 +496,14 @@ class ProductoHipotecario:
     def __post_init__(self):
         if self.destino is None:
             object.__setattr__(self, "destino", Destino.ADQUISICION)
+
+    def dictamen_tecnico_para(self, monto: Dinero) -> Dinero:
+        if not self.dictamen_tecnico_pct:
+            return Decimal("0")
+        dictamen = max(self.dictamen_tecnico_pct * monto, self.dictamen_tecnico_minimo)
+        if self.dictamen_tecnico_maximo is not None:
+            dictamen = min(dictamen, self.dictamen_tecnico_maximo)
+        return dictamen
 
     def comision_apertura_para(self, monto: Dinero) -> Dinero:
         if self.comision_apertura_monto is not None:

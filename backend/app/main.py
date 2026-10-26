@@ -121,6 +121,9 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
             else None
         ),
         acepta_garantia_adicional=p.acepta_garantia_adicional,
+        dictamen_tecnico_pct=_tasa(p.dictamen_tecnico_pct),
+        dictamen_tecnico_minimo=_dinero(p.dictamen_tecnico_minimo),
+        dictamen_tecnico_maximo=_dinero_opcional(p.dictamen_tecnico_maximo),
         requiere_cofinanciamiento=p.requiere_cofinanciamiento,
         dia_de_pago=p.dia_de_pago,
         primer_periodo_dias_reales=p.primer_periodo_dias_reales,
@@ -234,6 +237,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
         plazo_efectivo_meses=t.plazo_efectivo_meses,
         comision_apertura=_dinero(o.comision_apertura),
         comision_investigacion=_dinero(o.comision_investigacion),
+        dictamen_tecnico=_dinero(o.dictamen_tecnico),
         avaluo=_dinero(o.avaluo),
         gastos_notariales=_dinero(o.gastos_notariales),
         gastos_financiados=_dinero(o.gastos_financiados),

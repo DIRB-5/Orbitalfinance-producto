@@ -1389,3 +1389,110 @@ CATALOGO.append(
     )
 )
 
+
+# ---------------------------------------------------------------------------
+# Scotiabank Credirenovación: remodelación de la vivienda propia (modo 1)
+# ---------------------------------------------------------------------------
+# Mismo motor que Valora y Pagos Oportunos de Pago de pasivos: interés con días
+# del mes / 360, pago al millar que no se recalcula (se liquida antes del
+# plazo), cortes 3 y 17, vida 0.6 y daños 0.31 al millar mensual sobre el valor
+# actual. Sin IVA de intereses. Costos iniciales completos en el CAT: apertura
+# 1 % (solo campaña Ninguna), avalúo por el tabulador del 7x5 (no en Premium) y
+# dictamen técnico de 1 % con mínimo 1,500 y máximo 18,000 (no en Green).
+# Compra + remodelación, pasivo + remodelación y segunda hipoteca no se modelan.
+
+_CREDIRENOVACION = replace(
+    next(p for p in CATALOGO if p.id == "scotiabank-pasivos-valora-2024-01"),
+    destino=Destino.REMODELACION,
+    financiamiento_gastos=None,                          # solo en el modo 3
+    tarifa_avaluo=_POR_ID["scotiabank-7x5-adquisicion-2024-01"].tarifa_avaluo,  # S74:U95
+    avaluo=Decimal("0"),
+    comision_apertura=Decimal("0"),
+    dictamen_tecnico_pct=Decimal("0.01"),                # E72, Y88:AA88
+    dictamen_tecnico_minimo=Decimal("1500"),
+    dictamen_tecnico_maximo=Decimal("18000"),
+    aforo_max=Decimal("0.80"),                           # W9: 80 % del valor actual
+    tasas_escalonadas=(),
+    crecimiento_pago_anual=None,
+    vigente_desde=date(2025, 4, 10),
+)
+
+# (clave, nombre, tasa Valora, piso, factores 10/15/20, crecimiento,
+#  tasa PO, factores PO 7/10/15/20)
+_CAMPANAS_CREDIRENOVACION = (
+    ("ninguna", "Ninguna", "0.125", "0.12", ("14.06", "11.78", "10.84"), "0.017",
+     "0.13", ("18.38", "15.05", "12.79", "11.86")),
+    ("vinculacion", "Vinculación", "0.1075", "0.1075", ("12.75", "10.33", "9.30"), "0.024",
+     "0.1075", ("17.10", "13.73", "11.32", "10.27")),
+    ("green", "Hipoteca Green", "0.105", "0.105", ("12.60", "10.13", "9.08"), "0.025",
+     "0.105", ("16.95", "13.60", "11.16", "10.10")),
+    ("premium", "Premium / WM", "0.0975", "0.0975", ("12.12", "9.64", "8.54"), "0.026",
+     "0.0975", ("16.55", "13.16", "10.70", "9.59")),
+)
+
+_REQUISITO_CAMPANA = {
+    "ninguna": "Condición pública, sin vinculación. Apertura de 1 %. SUPUESTO: la "
+    "opción de tasa de calificación \"1\" (12.50 %, baja a 12 % desde el año 4); "
+    "con calificación \"1+\" es 12 % fija.",
+    "vinculacion": "Requiere vinculación con el banco (nómina, productos). Sin apertura.",
+    "green": "Para remodelaciones con ecotecnologías: aforo de 95 %, sin dictamen "
+    "técnico ni apertura.",
+    "premium": "Para clientes Premium o Wealth Management: sin apertura ni avalúo.",
+}
+
+
+def _credirenovacion(clave, nombre, esquema, **cambios):
+    green = clave == "green"
+    return replace(
+        _CREDIRENOVACION,
+        id=f"scotiabank-credirenovacion-{esquema}-{clave}-2025-04",
+        nombre=f"Credirenovación {'Valora' if esquema == 'valora' else 'Pagos Oportunos'} — {nombre}",
+        comision_apertura=Decimal("0.01") if clave == "ninguna" else Decimal("0"),
+        tarifa_avaluo=() if clave == "premium" else _CREDIRENOVACION.tarifa_avaluo,
+        dictamen_tecnico_pct=Decimal("0") if green else Decimal("0.01"),
+        aforo_max=Decimal("0.95") if green else Decimal("0.80"),
+        fuente="Cotizador SCOTIABANK Credirenovación.xlsm, modo 1 Renovación (remodelar "
+        f"la vivienda propia), hojas Simulador {'Valora' if esquema == 'valora' else 'Pagos Oportunos'} "
+        "y Tabla, versión v2025.04 (guardado 2025-04-11); RECA expedidos 2024-01-15. SIN "
+        "escenario capturado: validado contra sus fórmulas.",
+        notas="TASAS DE ABRIL DE 2025: confirmar vigencia con Scotiabank. Crédito para "
+        "remodelar, entregado por avance de obra (aquí se supone disponible desde el mes "
+        "1). La tasa baja suponiendo pagos puntuales, como en el cotizador. "
+        + _REQUISITO_CAMPANA[clave],
+        **cambios,
+    )
+
+
+CATALOGO += [
+    _credirenovacion(
+        clave, nombre, "valora",
+        tasa_anual=Decimal(tasa),
+        # 'Tabla Valora'!AH56: −0.25 pp cada año desde el mes 37 hasta el piso
+        tasas_escalonadas=tuple(
+            (37 + 12 * k, max(Decimal(tasa) - Decimal("0.0025") * (k + 1), Decimal(piso)))
+            for k in range(int((Decimal(tasa) - Decimal(piso)) / Decimal("0.0025")))
+        ),
+        factores_al_millar=tuple(zip((120, 180, 240), (Decimal(f) for f in factores))),
+        crecimiento_pago_anual=Decimal(crec),
+        plazos_meses=(120, 180, 240),
+    )
+    for clave, nombre, tasa, piso, factores, crec, _, _ in _CAMPANAS_CREDIRENOVACION
+] + [
+    _credirenovacion(
+        clave, nombre, "pagos-oportunos",
+        tasa_anual=Decimal(tasa_po),
+        # Tabla Pagos Oportunos!AH32:AH68: −0.20 pp en los meses 13, 25 y 37,
+        # −0.15 pp en el 49. SUPUESTO: a 15 y 20 años se usan los valores de la
+        # campaña; la hoja usa por error los de Ninguna (W36:X37 constantes).
+        tasas_escalonadas=(
+            (13, Decimal(tasa_po) - Decimal("0.002")),
+            (25, Decimal(tasa_po) - Decimal("0.004")),
+            (37, Decimal(tasa_po) - Decimal("0.006")),
+            (49, Decimal(tasa_po) - Decimal("0.0075")),
+        ),
+        factores_al_millar=tuple(zip((84, 120, 180, 240), (Decimal(f) for f in factores_po))),
+        plazos_meses=(84, 120, 180, 240),
+    )
+    for clave, nombre, _, _, _, _, tasa_po, factores_po in _CAMPANAS_CREDIRENOVACION
+]
+

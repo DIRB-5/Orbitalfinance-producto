@@ -2002,3 +2002,49 @@ def test_sin_regla_el_credito_del_instituto_se_queda_igual():
     r = evaluar_producto(_mejora_cofis(), producto_limpio(), momento=HOY)
     assert r.tabla_instituto_refinanciado is None
     assert r.ahorro_mensual == Decimal("16000") - r.pago_regular_inicial
+
+
+# --------------------------------------------------------------------------
+# Remodelación y dictamen técnico (Scotiabank Credirenovación)
+# --------------------------------------------------------------------------
+# Crédito para remodelar la vivienda propia: sin enganche; el banco cobra un
+# dictamen técnico de 1 % del crédito con mínimo y máximo ('Simulador
+# Valora'!E72, Y88:AA88) que entra completo al CAT.
+
+
+def _remodelacion(monto="1500000"):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal("3000000") - Decimal(monto),
+        plazo_meses=240, destino=Destino.REMODELACION,
+    )
+
+
+def producto_remodelacion(**kwargs):
+    base = dict(
+        destino=Destino.REMODELACION, aforo_max=Decimal("0.80"),
+        dictamen_tecnico_pct=Decimal("0.01"), dictamen_tecnico_minimo=Decimal("1500"),
+        dictamen_tecnico_maximo=Decimal("18000"),
+    )
+    base.update(kwargs)
+    return producto_limpio(**base)
+
+
+@pytest.mark.parametrize("monto, dictamen", [
+    ("1500000", "15000"), ("100000", "1500"), ("2400000", "18000"),
+])
+def test_dictamen_tecnico_con_minimo_y_maximo(monto, dictamen):
+    from motor_hipotecario.cat import flujos_cat
+
+    r = evaluar_producto(_remodelacion(monto), producto_remodelacion(), momento=HOY)
+    assert r.elegible, r.motivos_rechazo
+    assert r.dictamen_tecnico == Decimal(dictamen)
+    assert r.desembolso_inicial == Decimal(dictamen)          # sin enganche
+    neto, _ = flujos_cat(r.tabla, r.producto)
+    assert neto == Decimal(monto) - Decimal(dictamen)
+    assert r.costo_total == r.tabla.total_pagado + Decimal(dictamen)
+
+
+def test_remodelacion_es_un_destino_aparte():
+    adquisicion = producto_limpio()
+    r = comparar(_remodelacion(), [adquisicion, producto_remodelacion()], momento=HOY)
+    assert [o.producto.destino for o in r.opciones] == [Destino.REMODELACION]
