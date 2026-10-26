@@ -2031,6 +2031,7 @@ class Component extends DCLogic {
     const base = {
       familia: subtipo === "pyme" ? "pyme" : "hipotecario",
       subtipo,
+      condicionesCliente: f.condicionesCliente || [],
       etiqueta: f.etiqueta,
       montoCredito: f.montoCredito || 0,
       plazoMeses: f.plazoMeses,
@@ -3184,6 +3185,25 @@ class Component extends DCLogic {
       nota: "Banamex, BX+ Mejora y Scotiabank Pago de pasivos los suman al crédito hasta su tope; en los demás se pagan de contado.",
       wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
     });
+    // Casillas de opción múltiple: cada opción entra o sale de la lista
+    const campoCondiciones = Object.assign(campoNumero("condicionesCliente", "Condiciones especiales del cliente (opcional)"), {
+      esNumero: false, esSegmentado: true,
+      opciones: m.requisitosCliente.map((r) => {
+        const marcada = (s.form.condicionesCliente || []).includes(r.id);
+        return {
+          label: (marcada ? "✓ " : "") + r.descripcion,
+          set: () => this.setState((st) => {
+            const actuales = st.form.condicionesCliente || [];
+            const nuevas = actuales.includes(r.id) ? actuales.filter((x) => x !== r.id) : actuales.concat([r.id]);
+            return { form: Object.assign({}, st.form, { condicionesCliente: nuevas }) };
+          }),
+          style: marcada ? segOn : segBase,
+        };
+      }),
+      hayNota: true,
+      nota: "Las ofertas que exigen una condición solo aparecen como elegibles si la marcas.",
+      wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
+    });
     const campoSelect = (k, label, opts, extra) => Object.assign(campoNumero(k, label), {
       esNumero: false, esSelect: true, valor: s.form[k], onChange: setSel(k),
       opciones: opts.map((o) => ({ label: o })),
@@ -3291,7 +3311,8 @@ class Component extends DCLogic {
           campoNumero("valorGarantiaAdicional", "Inmueble adicional en garantía (opcional)", {
             hayNota: true, nota: "Solo el valor. Afirme Tu Casa 2 mide su aforo de 80 % sobre ambos inmuebles y con eso puede financiar los gastos.",
           }),
-          campoPlazo([60, 120, 180, 240])]);
+          campoPlazo([60, 120, 180, 240]),
+          campoCondiciones]);
     } else if (subtipo === "sustitucion") {
       tituloCampos = "Crédito actual";
       campos = [
@@ -3335,6 +3356,7 @@ class Component extends DCLogic {
             wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
           }),
           campoFinanciarGastos,
+          campoCondiciones,
         ],
       };
     } else if (subtipo === "liquidez") {
@@ -3370,7 +3392,7 @@ class Component extends DCLogic {
         campoNumero("saldoVigente", "Saldo de la hipoteca vigente"),
         campoNumero("pagoVigente", "Pago mensual de la hipoteca vigente"),
         campoNumero("plazoVigenteMeses", "Plazo remanente (meses)"),
-      ] : []);
+      ] : []).concat([campoCondiciones]);
     } else if (subtipo === "terreno") {
       tituloCampos = "Terreno y crédito";
       campos = [campoNumero("valorTerreno", "Valor del terreno")]
@@ -4256,6 +4278,7 @@ class Component extends DCLogic {
           { k: "Avalúo", v: p.tieneTarifaAvaluo ? "Según tabulador por valor del inmueble" : (p.avaluo ? mxn(p.avaluo) : "No aplica") },
           { k: "Plazos disponibles", v: p.plazosMeses.join(", ") + " meses" },
           { k: "Monto mínimo", v: p.montoMinimo != null ? mxn(p.montoMinimo) : "Sin mínimo" },
+          { k: "Requisitos del cliente", v: (p.requisitosCliente || []).length ? p.requisitosCliente.map((id) => (m.requisitosCliente.find((r) => r.id === id) || { descripcion: id }).descripcion).join("; ") : "Ninguno (oferta pública)" },
           { k: "Dictamen técnico", v: p.dictamenTecnico ? pct(p.dictamenTecnico.pct) + " del crédito (mínimo " + mxn(p.dictamenTecnico.minimo) + (p.dictamenTecnico.maximo ? ", máximo " + mxn(p.dictamenTecnico.maximo) : "") + ")" : "No aplica" },
           { k: "Gastos notariales financiados", v: m.descripcionFinanciamientoGastos(p) },
           { k: "Vigente desde", v: this.fecha(p.vigenteDesde) },

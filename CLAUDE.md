@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             383 pruebas. No deben bajar de ahí.
+  tests/             386 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -255,6 +255,14 @@ gastos financiados: validado contra sus fórmulas. Dos variantes más:
   garantía (`Escenario.valor_garantia_adicional`, solo el valor) y el crédito
   cubre notariales, avalúos y la propia apertura: total = (base + notariales +
   avalúo) / (1 − apertura).
+
+**Ofertas con condiciones del cliente** (`requisitos_cliente`: vinculación,
+segmento, ecotecnologías) solo son elegibles si el escenario las marca en
+`condiciones_cliente`; si no, salen como no elegibles con el requisito. Así
+una campaña especial no gana un comparativo que el cliente no puede tomar.
+Hoy las usan las campañas de Credirenovación (Vinculación, Premium/WM,
+Green). Agregar una condición nueva es un valor de `RequisitoCliente` con su
+descripción, no un campo del escenario.
 
 **Las opciones no elegibles se muestran con su motivo**, no se ocultan. El
 asesor necesita poder decirle al cliente qué enganche adicional le abriría esa
@@ -494,7 +502,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 383 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 386 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

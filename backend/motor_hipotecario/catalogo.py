@@ -49,6 +49,7 @@ from .modelos import (
     ProductoHipotecario,
     ReglaAportaciones,
     RefinanciamientoInstituto,
+    RequisitoCliente,
     TasaVariable,
     TipoLinea,
 )
@@ -1438,10 +1439,20 @@ _REQUISITO_CAMPANA = {
     "ninguna": "Condición pública, sin vinculación. Apertura de 1 %. SUPUESTO: la "
     "opción de tasa de calificación \"1\" (12.50 %, baja a 12 % desde el año 4); "
     "con calificación \"1+\" es 12 % fija.",
-    "vinculacion": "Requiere vinculación con el banco (nómina, productos). Sin apertura.",
-    "green": "Para remodelaciones con ecotecnologías: aforo de 95 %, sin dictamen "
-    "técnico ni apertura.",
+    "vinculacion": "Requiere vinculación con el banco; el cotizador no define el "
+    "criterio (nómina, productos): confirmarlo con el ejecutivo. Sin apertura.",
+    "green": "Para obra con ecotecnologías: aforo de 95 %, sin dictamen técnico ni "
+    "apertura.",
     "premium": "Para clientes Premium o Wealth Management: sin apertura ni avalúo.",
+}
+
+# Campañas con condición: solo elegibles si el escenario la marca ('Simulador
+# Valora'!AB18, 'Simulador Pagos Oportunos'!T25)
+_REQUISITOS_CAMPANA = {
+    "ninguna": frozenset(),
+    "vinculacion": frozenset({RequisitoCliente.VINCULACION_SCOTIABANK}),
+    "green": frozenset({RequisitoCliente.ECOTECNOLOGIAS}),
+    "premium": frozenset({RequisitoCliente.PREMIUM_SCOTIABANK}),
 }
 
 
@@ -1456,6 +1467,7 @@ def _credirenovacion(clave, nombre, esquema, **cambios):
         dictamen_tecnico_pct=Decimal("0") if green else Decimal("0.01"),
         aforo_max=Decimal("0.95") if green else Decimal("0.80"),
         factor_pago_ingreso_max=Decimal("0.55") if green else Decimal("0.35"),
+        requisitos_cliente=_REQUISITOS_CAMPANA[clave],
         fuente="Cotizador SCOTIABANK Credirenovación.xlsm, modo 1 Renovación (remodelar "
         f"la vivienda propia), hojas Simulador {'Valora' if esquema == 'valora' else 'Pagos Oportunos'} "
         "y Tabla, versión v2025.04 (guardado 2025-04-11); RECA expedidos 2024-01-15. SIN "

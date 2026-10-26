@@ -18,6 +18,7 @@ from .cat import calcular_cat
 from .instituto import COFINAVIT, aportaciones_despues_de, tabla_credito_instituto
 from .referencias import TIIE_BASE
 from .modelos import (
+    DESCRIPCION_REQUISITO,
     BaseTopeGastos,
     ConceptoIVA,
     CreditoActual,
@@ -592,6 +593,14 @@ def evaluar_producto(
         advertencias.append(
             f"El crédito nuevo incluye ${obra:,.0f} de obra: el ahorro contra quedarse "
             "mezcla el refinanciamiento con el costo de la remodelación."
+        )
+
+    faltan = producto.requisitos_cliente - escenario.condiciones_cliente
+    if faltan:
+        motivos.append(
+            "Requiere: "
+            + "; ".join(sorted(DESCRIPCION_REQUISITO[r] for r in faltan))
+            + ". Márcalo en el escenario si el cliente lo cumple."
         )
 
     if plazo not in producto.plazos_meses:

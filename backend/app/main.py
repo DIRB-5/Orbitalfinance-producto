@@ -22,11 +22,13 @@ from motor_hipotecario.comparador import (
     primer_pago_por_defecto,
 )
 from motor_hipotecario.modelos import (
+    DESCRIPCION_REQUISITO,
     Cofinanciamiento,
     CreditoActual,
     CreditoInstitutoActual,
     Escenario,
     ProductoHipotecario,
+    RequisitoCliente,
 )
 
 from .esquemas import (
@@ -39,6 +41,7 @@ from .esquemas import (
     FinanciamientoGastosSalida,
     LineaGastosSalida,
     LineaInstitutoSalida,
+    RequisitoSalida,
     EscenarioEntrada,
     OpcionSalida,
     ProductoSalida,
@@ -126,6 +129,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
             _tasa(p.factor_pago_ingreso_max) if p.factor_pago_ingreso_max is not None else None
         ),
         ingreso_minimo=_dinero_opcional(p.ingreso_minimo),
+        requisitos_cliente=sorted(r.value for r in p.requisitos_cliente),
         dictamen_tecnico_pct=_tasa(p.dictamen_tecnico_pct),
         dictamen_tecnico_minimo=_dinero(p.dictamen_tecnico_minimo),
         dictamen_tecnico_maximo=_dinero_opcional(p.dictamen_tecnico_maximo),
@@ -303,6 +307,9 @@ def catalogo() -> CatalogoSalida:
     hoy = date.today()
     return CatalogoSalida(
         productos=[_producto(p) for p in CATALOGO if p.vigente_en(hoy)],
+        requisitos_cliente=[
+            RequisitoSalida(id=r.value, descripcion=DESCRIPCION_REQUISITO[r]) for r in RequisitoCliente
+        ],
         escenarios_tiie=[
             EscenarioTasaSalida(id=k, nombre=NOMBRES_ESCENARIO[k], tiie=_tasa(v))
             for k, v in ESCENARIOS_TIIE.items()
@@ -321,6 +328,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         financiar_gastos_notariales=entrada.financiar_gastos_notariales,
         valor_garantia_adicional=entrada.valor_garantia_adicional,
         monto_remodelacion=entrada.monto_remodelacion,
+        condiciones_cliente=frozenset(entrada.condiciones_cliente),
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,

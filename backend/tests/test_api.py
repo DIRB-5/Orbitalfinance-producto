@@ -21,6 +21,12 @@ ESCENARIO = {
 }
 
 
+# Cumple todas las condiciones de campaña (Credirenovación Vinculación,
+# Premium y Green): para probar el cálculo, no la regla de requisitos.
+TODAS_LAS_CONDICIONES = {
+    "condicionesCliente": ["vinculacion_scotiabank", "premium_scotiabank", "ecotecnologias"],
+}
+
 def test_catalogo_en_camel_case_y_decimales_como_texto():
     productos = cliente.get("/api/catalogo").json()["productos"]
     assert {p["institucion"] for p in productos} == {"HSBC", "Santander", "Banregio", "Banorte", "BX+", "Banamex", "Scotiabank", "Afirme"}
@@ -216,7 +222,7 @@ def test_credito_del_instituto_no_puede_ser_bancario():
 
 
 def test_remodelacion_por_api():
-    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
+    cuerpo = {**TODAS_LAS_CONDICIONES, "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
               "destino": "remodelacion"}
     opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
     ids = {o["productoId"] for o in opciones if o["elegible"]}
@@ -227,7 +233,7 @@ def test_remodelacion_por_api():
 
 
 def test_compra_con_remodelacion_por_api():
-    cuerpo = {"valorVivienda": "3000000", "enganche": "800000", "plazoMeses": 240,
+    cuerpo = {**TODAS_LAS_CONDICIONES, "valorVivienda": "3000000", "enganche": "800000", "plazoMeses": 240,
               "montoRemodelacion": "500000"}
     opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
     elegibles = [o for o in opciones if o["elegible"]]
@@ -242,7 +248,7 @@ def test_compra_con_remodelacion_por_api():
 def test_pasivo_con_remodelacion_por_api():
     cuerpo = {
         "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 240,
-        "destino": "sustitucion", "montoRemodelacion": "500000",
+        **TODAS_LAS_CONDICIONES, "destino": "sustitucion", "montoRemodelacion": "500000",
         "creditoActual": {"saldoInsoluto": "1500000", "pagoMensual": "21000",
                           "plazoRemanenteMeses": 240, "institucion": "Banorte"},
     }
@@ -257,7 +263,7 @@ def test_pasivo_con_remodelacion_por_api():
 def test_segunda_hipoteca_por_api():
     cuerpo = {
         "valorVivienda": "3000000", "enganche": "2500000", "plazoMeses": 120,
-        "destino": "remodelacion",
+        **TODAS_LAS_CONDICIONES, "destino": "remodelacion",
         "creditoActual": {"saldoInsoluto": "1000000", "pagoMensual": "12000",
                           "plazoRemanenteMeses": 180, "institucion": "Scotiabank"},
     }
@@ -276,4 +282,18 @@ def test_ingreso_requerido_por_api():
     productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
     green = productos["scotiabank-credirenovacion-valora-green-2025-04"]
     assert green["factorPagoIngresoMax"] == "0.55" and green["ingresoMinimo"] == "20000.00"
+
+
+def test_requisitos_del_cliente_por_api():
+    catalogo = cliente.get("/api/catalogo").json()
+    assert {r["id"] for r in catalogo["requisitosCliente"]} == {
+        "vinculacion_scotiabank", "premium_scotiabank", "ecotecnologias"}
+    premium = next(p for p in catalogo["productos"]
+                   if p["id"] == "scotiabank-credirenovacion-valora-premium-2025-04")
+    assert premium["requisitosCliente"] == ["premium_scotiabank"]
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
+              "destino": "remodelacion"}
+    elegibles = [o["productoId"] for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+                 if o["elegible"]]
+    assert len(elegibles) == 2 and all("ninguna" in i for i in elegibles)
 

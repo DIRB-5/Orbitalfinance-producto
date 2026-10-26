@@ -2221,3 +2221,21 @@ def test_ingreso_minimo_del_producto():
 def test_sin_regla_del_banco_se_usa_la_del_escenario():
     r = evaluar_producto(_remodelacion(), producto_remodelacion(), momento=HOY)
     assert r.ingreso_requerido == r.pago_regular_inicial / Decimal("0.30")
+
+
+# --------------------------------------------------------------------------
+# Requisitos del cliente (campañas de Scotiabank Credirenovación)
+# --------------------------------------------------------------------------
+
+from motor_hipotecario.modelos import RequisitoCliente  # noqa: E402
+
+
+def test_producto_con_requisito_solo_si_el_cliente_lo_cumple():
+    premium = producto_remodelacion(requisitos_cliente=frozenset({RequisitoCliente.PREMIUM_SCOTIABANK}))
+    r = evaluar_producto(_remodelacion(), premium, momento=HOY)
+    assert not r.elegible and "Premium" in r.motivos_rechazo[0]
+    from dataclasses import replace as _r
+    cumple = _r(_remodelacion(), condiciones_cliente=frozenset({RequisitoCliente.PREMIUM_SCOTIABANK}))
+    assert evaluar_producto(cumple, premium, momento=HOY).elegible
+    # Sin requisitos, aplica con o sin condiciones
+    assert evaluar_producto(cumple, producto_remodelacion(), momento=HOY).elegible

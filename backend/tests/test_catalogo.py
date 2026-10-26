@@ -1403,7 +1403,7 @@ def test_credirenovacion_reproduce_sus_formulas(clave, plazo):
     escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=plazo,
                           destino=Destino.REMODELACION)
     producto = POR_ID[f"scotiabank-credirenovacion-{clave}-2025-04"]
-    r = evaluar_producto(escenario, producto, momento=date(2024, 3, 22))
+    r = _evaluar_con_condiciones(escenario, producto, momento=date(2024, 3, 22))
     assert r.elegible, r.motivos_rechazo
     assert len(r.tabla.renglones) == meses
     if pago1:
@@ -1422,7 +1422,7 @@ def test_credirenovacion_costos_iniciales_por_campana():
                           destino=Destino.REMODELACION)
     costos = {}
     for campana in ("ninguna", "vinculacion", "green", "premium"):
-        r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-valora-{campana}-2025-04"],
+        r = _evaluar_con_condiciones(escenario, POR_ID[f"scotiabank-credirenovacion-valora-{campana}-2025-04"],
                              momento=date(2024, 3, 22))
         costos[campana] = (r.comision_apertura, r.avaluo, r.dictamen_tecnico)
     assert costos["ninguna"] == (D("15000"), D("8200"), D("15000"))
@@ -1464,7 +1464,7 @@ def test_credirenovacion_compra_con_remodelacion(clave, plazo):
     meses, pago1, cat = _CREDIRENOVACION_COMPRA[(clave, plazo)]
     escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("800000"), plazo_meses=plazo,
                           monto_remodelacion=D("500000"))
-    r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-compra-{clave}-2025-04"],
+    r = _evaluar_con_condiciones(escenario, POR_ID[f"scotiabank-credirenovacion-compra-{clave}-2025-04"],
                          momento=date(2024, 3, 22))
     assert r.elegible, r.motivos_rechazo
     assert r.monto_credito == D("2700000") and r.remodelacion_financiada == D("500000")
@@ -1502,7 +1502,7 @@ def test_credirenovacion_pasivo_con_remodelacion(clave, plazo, con_gastos):
     escenario = replace(escenario, credito_actual=replace(escenario.credito_actual, institucion="Banorte"))
     if con_gastos:
         escenario = _con_gastos(escenario, "120000")
-    r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-pasivo-{clave}-2025-04"],
+    r = _evaluar_con_condiciones(escenario, POR_ID[f"scotiabank-credirenovacion-pasivo-{clave}-2025-04"],
                          momento=date(2024, 3, 22))
     assert r.elegible, r.motivos_rechazo
     assert r.gastos_financiados == (D("120000") if con_gastos else 0)
@@ -1524,13 +1524,13 @@ def test_credirenovacion_pasivo_reglas():
     momento = date(2024, 3, 22)
     # Hipoteca que ya es de Scotiabank: no aplica
     propia = replace(base, credito_actual=replace(base.credito_actual, institucion="Scotiabank"))
-    assert not evaluar_producto(propia, producto, momento=momento).elegible
+    assert not _evaluar_con_condiciones(propia, producto, momento=momento).elegible
     # Obra arriba de 35 % del valor actual (1,050,000)
-    assert not evaluar_producto(replace(base, monto_remodelacion=D("1100000")), producto,
+    assert not _evaluar_con_condiciones(replace(base, monto_remodelacion=D("1100000")), producto,
                                 momento=momento).elegible
     # PO no financia gastos; Green no existe en el modo 3
     po = POR_ID["scotiabank-credirenovacion-pasivo-pagos-oportunos-ninguna-2025-04"]
-    assert evaluar_producto(_con_gastos(base, "120000"), po, momento=momento).gastos_financiados == 0
+    assert _evaluar_con_condiciones(_con_gastos(base, "120000"), po, momento=momento).gastos_financiados == 0
     assert "scotiabank-credirenovacion-pasivo-valora-green-2025-04" not in POR_ID
 
 
@@ -1565,7 +1565,7 @@ def test_credirenovacion_segunda_hipoteca(clave, plazo):
     from motor_hipotecario.comparador import evaluar_producto
 
     meses, pago1, cat = _CREDIRENOVACION_SEGUNDA[(clave, plazo)]
-    r = evaluar_producto(_segunda_hipoteca(plazo),
+    r = _evaluar_con_condiciones(_segunda_hipoteca(plazo),
                          POR_ID[f"scotiabank-credirenovacion-2a-hipoteca-{clave}-2025-04"],
                          momento=date(2024, 3, 22))
     assert r.elegible, r.motivos_rechazo
@@ -1587,16 +1587,16 @@ def test_credirenovacion_segun_si_la_vivienda_tiene_hipoteca():
     segunda = POR_ID["scotiabank-credirenovacion-2a-hipoteca-valora-ninguna-2025-04"]
     libre = POR_ID["scotiabank-credirenovacion-valora-ninguna-2025-04"]
     con_hipoteca = _segunda_hipoteca(240)
-    assert evaluar_producto(con_hipoteca, segunda, momento=momento).elegible
-    assert not evaluar_producto(con_hipoteca, libre, momento=momento).elegible
+    assert _evaluar_con_condiciones(con_hipoteca, segunda, momento=momento).elegible
+    assert not _evaluar_con_condiciones(con_hipoteca, libre, momento=momento).elegible
     sin_hipoteca = Escenario(valor_vivienda=D("3000000"), enganche=D("2500000"), plazo_meses=240,
                              destino=Destino.REMODELACION)
-    assert evaluar_producto(sin_hipoteca, libre, momento=momento).elegible
-    assert not evaluar_producto(sin_hipoteca, segunda, momento=momento).elegible
+    assert _evaluar_con_condiciones(sin_hipoteca, libre, momento=momento).elegible
+    assert not _evaluar_con_condiciones(sin_hipoteca, segunda, momento=momento).elegible
     # Hipoteca con otro banco: ninguna de las dos (aplica pasivo + remodelación)
-    assert not evaluar_producto(_segunda_hipoteca(240, "BBVA"), segunda, momento=momento).elegible
+    assert not _evaluar_con_condiciones(_segunda_hipoteca(240, "BBVA"), segunda, momento=momento).elegible
     # Aforo combinado: (2,500,000 + 500,000) / 3,500,000 = 85.7 %
-    assert not evaluar_producto(_segunda_hipoteca(240, saldo="2500000"), segunda,
+    assert not _evaluar_con_condiciones(_segunda_hipoteca(240, saldo="2500000"), segunda,
                                 momento=momento).elegible
     # La compra y el pasivo con remodelación no heredan la exclusión
     assert not POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].excluye_vivienda_con_hipoteca
@@ -1622,11 +1622,46 @@ def test_credirenovacion_ingreso_requerido(producto_id, escenario, ingreso):
     else:
         e = replace(_escenario_sustitucion(D("3000000"), D("1500000"), 120), monto_remodelacion=D("500000"))
         e = replace(e, credito_actual=replace(e.credito_actual, institucion="Banorte"))
-    r = evaluar_producto(e, POR_ID[producto_id], momento=date(2024, 3, 22))
+    r = _evaluar_con_condiciones(e, POR_ID[producto_id], momento=date(2024, 3, 22))
     assert abs(r.ingreso_requerido - D(ingreso)) < D("0.000001")
     # Con ese ingreso es elegible; con un peso menos, no
-    assert evaluar_producto(replace(e, ingreso_mensual=D(ingreso) + 1), POR_ID[producto_id],
+    assert _evaluar_con_condiciones(replace(e, ingreso_mensual=D(ingreso) + 1), POR_ID[producto_id],
                             momento=date(2024, 3, 22)).elegible
-    assert not evaluar_producto(replace(e, ingreso_mensual=D(ingreso) - 1), POR_ID[producto_id],
+    assert not _evaluar_con_condiciones(replace(e, ingreso_mensual=D(ingreso) - 1), POR_ID[producto_id],
                                 momento=date(2024, 3, 22)).elegible
+
+
+def _evaluar_con_condiciones(escenario, producto, **kwargs):
+    """Evalúa con todas las condiciones de campaña marcadas (Vinculación,
+    Premium, ecotecnologías): estas pruebas validan las fórmulas, no la regla."""
+    from dataclasses import replace
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import RequisitoCliente
+
+    return evaluar_producto(
+        replace(escenario, condiciones_cliente=frozenset(RequisitoCliente)), producto, **kwargs
+    )
+
+
+def test_campanas_de_credirenovacion_segun_las_condiciones_del_cliente():
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import comparar
+    from motor_hipotecario.modelos import Destino, Escenario, RequisitoCliente
+
+    escenario = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
+                          destino=Destino.REMODELACION)
+    momento = date(2026, 10, 26)                  # comparar filtra por vigencia
+
+    def elegibles(e):
+        return {o.producto.id.split("-")[-3] for o in comparar(e, CATALOGO, momento=momento).elegibles}
+
+    assert elegibles(escenario) == {"ninguna"}
+    con_premium = replace(escenario, condiciones_cliente=frozenset({RequisitoCliente.PREMIUM_SCOTIABANK}))
+    assert elegibles(con_premium) == {"ninguna", "premium"}
+    motivo = next(o for o in comparar(escenario, CATALOGO, momento=momento).opciones
+                  if "valora-green" in o.producto.id).motivos_rechazo[0]
+    assert "ecotecnologías" in motivo
 

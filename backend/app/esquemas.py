@@ -14,7 +14,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from motor_hipotecario.modelos import Destino, TipoLinea
+from motor_hipotecario.modelos import Destino, RequisitoCliente, TipoLinea
 from pydantic.alias_generators import to_camel
 
 
@@ -66,6 +66,8 @@ class EscenarioEntrada(ModeloBase):
     valor_garantia_adicional: Decimal = Field(default=Decimal("0"), ge=0)
     # Presupuesto de obra para remodelar la vivienda que se compra
     monto_remodelacion: Decimal = Field(default=Decimal("0"), ge=0)
+    # Condiciones especiales que cumple el cliente (campañas que las exigen)
+    condiciones_cliente: List[RequisitoCliente] = []
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
@@ -141,6 +143,7 @@ class ProductoSalida(ModeloBase):
     financia_remodelacion: bool
     factor_pago_ingreso_max: Optional[str]
     ingreso_minimo: Optional[str]
+    requisitos_cliente: List[str]
     # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
     dictamen_tecnico_pct: str
     dictamen_tecnico_minimo: str
@@ -179,8 +182,14 @@ class EscenarioTasaSalida(ModeloBase):
     tiie: str
 
 
+class RequisitoSalida(ModeloBase):
+    id: str
+    descripcion: str
+
+
 class CatalogoSalida(ModeloBase):
     productos: List[ProductoSalida]
+    requisitos_cliente: List[RequisitoSalida]
     escenarios_tiie: List[EscenarioTasaSalida]
     fuente_tiie: str
 

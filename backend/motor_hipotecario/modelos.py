@@ -78,6 +78,25 @@ class ConceptoIVA(str, Enum):
     INVESTIGACION = "investigacion"
 
 
+class RequisitoCliente(str, Enum):
+    """
+    Condición que una oferta exige del cliente y que el asesor marca en el
+    escenario si la cumple. Sin marcarla, la oferta no es elegible: así una
+    condición especial no gana un comparativo que el cliente no puede tomar.
+    """
+
+    VINCULACION_SCOTIABANK = "vinculacion_scotiabank"
+    PREMIUM_SCOTIABANK = "premium_scotiabank"
+    ECOTECNOLOGIAS = "ecotecnologias"
+
+
+DESCRIPCION_REQUISITO = {
+    RequisitoCliente.VINCULACION_SCOTIABANK: "Vinculación con Scotiabank (campaña Vinculación)",
+    RequisitoCliente.PREMIUM_SCOTIABANK: "Cliente Scotiabank Premium o Wealth Management",
+    RequisitoCliente.ECOTECNOLOGIAS: "Obra con ecotecnologías (Hipoteca Green)",
+}
+
+
 class Destino(str, Enum):
     """Para qué es el crédito. El comparador solo compara productos del mismo destino."""
 
@@ -419,6 +438,10 @@ class ProductoHipotecario:
     factor_pago_ingreso_max: Optional[Decimal] = None
     ingreso_minimo: Optional[Dinero] = None
 
+    # Condiciones que la oferta exige del cliente (campañas especiales). Solo
+    # es elegible si el escenario las marca todas.
+    requisitos_cliente: FrozenSet[RequisitoCliente] = frozenset()
+
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).
@@ -588,6 +611,10 @@ class Escenario:
     # financian los productos con `financia_remodelacion`; para los demás
     # queda fuera y no son elegibles.
     monto_remodelacion: Dinero = Decimal("0")
+
+    # Condiciones especiales que el cliente cumple (vinculación, segmento,
+    # tipo de obra). Las ofertas que las exigen solo aplican si están aquí.
+    condiciones_cliente: FrozenSet[RequisitoCliente] = frozenset()
 
     # Ingreso mensual comprobable, para evaluar capacidad de pago
     ingreso_mensual: Optional[Dinero] = None

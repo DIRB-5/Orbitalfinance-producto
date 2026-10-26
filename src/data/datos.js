@@ -212,6 +212,9 @@ export function suscribir(fn) {
 }
 
 export let estadoApi = { catalogo: "pendiente", error: null };
+// Condiciones especiales que el asesor puede marcar (vinculación, segmento,
+// ecotecnologías): las ofertas que las exigen solo aplican si están marcadas.
+export let requisitosCliente = [];
 export let fuenteTiie = "";
 
 const num = (x) => (x === null || x === undefined ? null : Number(x));
@@ -269,6 +272,7 @@ function adaptarProducto(p) {
       lineaSeparada: p.financiamientoGastos.lineaSeparada,
     } : null,
     aceptaGarantiaAdicional: !!p.aceptaGarantiaAdicional,
+    requisitosCliente: p.requisitosCliente || [],
     dictamenTecnico: num(p.dictamenTecnicoPct) ? {
       pct: num(p.dictamenTecnicoPct), minimo: num(p.dictamenTecnicoMinimo), maximo: num(p.dictamenTecnicoMaximo),
     } : null,
@@ -305,6 +309,7 @@ export async function cargarCatalogo() {
       if (ref) ref.TIIE_28 = num(e.tiie);
     });
     fuenteTiie = datos.fuenteTiie || "";
+    requisitosCliente = datos.requisitosCliente || [];
     estadoApi = { catalogo: "listo", error: null };
   } catch (e) {
     estadoApi = { catalogo: "error", error: String(e.message || e) };
@@ -543,6 +548,7 @@ function cuerpoComparacion(escenario, escenarioRefId) {
     plazoMeses: escenario.plazoMeses,
     gastosNotariales: String(escenario.gastosNotariales || 0),
     financiarGastosNotariales: !!escenario.financiarGastosNotariales,
+    condicionesCliente: escenario.condicionesCliente || [],
     valorGarantiaAdicional: String(destino === "adquisicion" ? escenario.valorGarantiaAdicional || 0 : 0),
     montoRemodelacion: String(destino === "adquisicion" || destino === "sustitucion" ? escenario.montoRemodelacion || 0 : 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
