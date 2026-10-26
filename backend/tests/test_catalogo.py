@@ -610,8 +610,8 @@ def test_productos_de_sustitucion_en_el_catalogo():
         "bx-mejora-tu-hipoteca-2026-01",
         "banorte-mejora-hipoteca-2026-06",
         "scotiabank-7x5-pasivo-hipotecario-2026-07",
-        "scotiabank-pasivos-pagos-oportunos-2026-07",
-        "scotiabank-pasivos-valora-2026-07",
+        "scotiabank-pasivos-pagos-oportunos-2026-07-v2",
+        "scotiabank-pasivos-valora-2026-07-v2",
         "santander-sustitucion-2025-12",
         "santander-mejora-condiciones-2025-12",
     } | {p.id for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-pasivo-")
@@ -1849,5 +1849,31 @@ def test_avaluo_de_pasivos_versiones():
     assert POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v2"].vigente_en(hoy)
     viejo = POR_ID["scotiabank-pasivos-valora-2024-01"]
     assert viejo.vigente_en(ayer) and not viejo.vigente_en(hoy)
-    assert POR_ID["scotiabank-pasivos-valora-2026-07"].vigente_en(hoy)
+    # La -2026-07 (avalúo, tasas 2024) se retiró el mismo día; rige la -v2
+    assert not POR_ID["scotiabank-pasivos-valora-2026-07"].vigente_en(hoy)
+    assert POR_ID["scotiabank-pasivos-valora-2026-07-v2"].vigente_en(hoy)
 
+
+
+@pytest.mark.parametrize("producto, plazo, meses, pago1, pago13", [
+    # Mismas tasas y factores que Credirenovación (documento de comisiones de
+    # julio 2026): los pagos son los de su réplica de fórmulas
+    ("scotiabank-pasivos-valora-2026-07-v2", 120, 116, "22920.00", "23238.49"),
+    ("scotiabank-pasivos-pagos-oportunos-2026-07-v2", 120, 117, "24405.00", "24358.36"),
+    ("scotiabank-pasivos-pagos-oportunos-2026-07-v2", 84, 83, "29400.00", "29315.15"),
+])
+def test_pago_de_pasivos_con_tasas_de_julio_2026(producto, plazo, meses, pago1, pago13):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    e = _escenario_sustitucion(D("3000000"), D("1500000"), plazo)
+    r = evaluar_producto(e, POR_ID[producto], momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert len(r.tabla.renglones) == meses
+    assert abs(r.tabla.renglones[0].pago_total - D(pago1)) < D("0.005")
+    assert abs(r.tabla.renglones[12].pago_total - D(pago13)) < D("0.005")
+    assert r.comision_apertura == 0 and r.avaluo == D("4663")
+    hoy = date(2026, 10, 26)
+    assert POR_ID[producto].vigente_en(hoy)
+    assert not POR_ID[producto.replace("-v2", "")].vigente_en(hoy)

@@ -1790,3 +1790,75 @@ CATALOGO[:] = [
     )
     for p in _PAGO_DE_PASIVOS_2024
 ]
+
+
+# ---------------------------------------------------------------------------
+# Pago de pasivos Valora y Pagos Oportunos con las tasas de julio 2026
+# ---------------------------------------------------------------------------
+# El documento de comisiones de julio 2026 (pp. 1–2) publica para "Pago de
+# Pasivos" la misma tabla que Renovación: Valora de 12 % a 14 % con factores
+# 13.63–15.30 (10 años), 11.32–13.04 (15) y 10.36–12.13 (20); Pagos Oportunos
+# 13.00 / 12.80 / 12.60 / 12.40 / 12.25 % con factores 18.38 / 15.05 / 12.79 /
+# 11.86. Coinciden con Credirenovación (cotizador v2025.04), así que se toman
+# su mecánica y su opción de tasa: Valora 12.50 % (la conservadora, como en
+# Credirenovación), bajando 0.25 pp por año desde el mes 37 hasta 12 %, pago
+# +1.7 % anual. Las -2026-07 de hoy (tasas de enero 2024) se retiran el mismo
+# día. Comisión 0 %, aforo 95 %, gastos financiados 6 % y avalúo reducido igual.
+_PASIVOS_TASAS_2024 = [
+    p for p in CATALOGO
+    if p.id in ("scotiabank-pasivos-valora-2026-07", "scotiabank-pasivos-pagos-oportunos-2026-07")
+]
+_TASAS_PASIVOS_2026 = (
+    "Tasas y factores de " + _COMISIONES_HIPOTECARIO.replace("p. 4", "pp. 1–2")
+    + "; mecánica de Valora y Pagos Oportunos validada contra las fórmulas de Credirenovación."
+)
+
+
+def _pasivos_2026(p):
+    valora = "-valora-" in p.id
+    if valora:
+        cambios = dict(
+            tasa_anual=Decimal("0.125"),
+            tasas_escalonadas=((37, Decimal("0.1225")), (49, Decimal("0.12"))),
+            factores_al_millar=((120, Decimal("14.06")), (180, Decimal("11.78")), (240, Decimal("10.84"))),
+            crecimiento_pago_anual=Decimal("0.017"),
+        )
+        tasa = ("Tasa inicial 12.50 % (SUPUESTO: el documento da un rango de 12 % a 14 % según "
+                "el estudio de crédito; se toma la opción conservadora de Credirenovación), "
+                "baja a 12 % desde el año 4 con pagos puntuales; el pago sube 1.7 % cada "
+                "aniversario y el crédito se liquida antes del plazo.")
+    else:
+        cambios = dict(
+            tasa_anual=Decimal("0.13"),
+            tasas_escalonadas=(
+                (13, Decimal("0.128")), (25, Decimal("0.126")),
+                (37, Decimal("0.124")), (49, Decimal("0.1225")),
+            ),
+            factores_al_millar=(
+                (84, Decimal("18.38")), (120, Decimal("15.05")),
+                (180, Decimal("12.79")), (240, Decimal("11.86")),
+            ),
+        )
+        tasa = ("La tasa baja cada año de 13 % a 12.25 % suponiendo pagos puntuales, como "
+                "en el cotizador; el crédito se liquida antes del plazo.")
+    return replace(
+        p,
+        id=p.id + "-v2",
+        vigente_desde=date(2026, 10, 26),
+        vigente_hasta=None,
+        fuente=p.fuente + " " + _TASAS_PASIVOS_2026,
+        notas="TASAS DE JULIO DE 2026 (documento de comisiones). " + tasa + " Sin apertura. "
+        "Financia gastos notariales hasta 6 % del saldo dentro del 95 % (cotizador "
+        "v2024.01). Avalúo con la tarifa reducida de Pago de pasivos del documento de "
+        "comisiones ($1,253 a $5,000; arriba de 11 millones, SUPUESTO $5,000)." + _NOTA_AVALUO,
+        **cambios,
+    )
+
+
+CATALOGO[:] = [
+    replace(p, vigente_hasta=date(2026, 10, 25),
+            notas=p.notas + " RETIRADA el día de su publicación (2026-10-26): conservaba las "
+            "tasas de enero 2024; la sustituye la -v2 con las de julio 2026.")
+    if p in _PASIVOS_TASAS_2024 else p
+    for p in CATALOGO
+] + [_pasivos_2026(p) for p in _PASIVOS_TASAS_2024]
