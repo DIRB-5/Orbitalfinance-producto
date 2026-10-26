@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             409 pruebas. No deben bajar de ahí.
+  tests/             418 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -249,6 +249,12 @@ julio 2026 de ese documento (`-2026-07-v2`: misma tabla y mecánica que
 Credirenovación; Valora en 12.50 %, la opción conservadora del rango 12–14 %).
 Liquidez Libre (`-2026-07`): el documento confirma sus tasas y comisión; solo
 cambia el avalúo de $500,001 a $1 millón ($1,750 en vez de $1,740).
+Las versiones vigentes de Scotiabank citan en `fuente` su contrato vigente en
+el RECA de CONDUSEF (`_RECA_VIGENTE`, todos registrados el 19-01-2026); las
+cerradas conservan el registro de 2024 que cita su cotizador. Los contratos
+dejan en blanco tasas y montos de comisiones (van en la carátula): el de
+Renovación y Pago de Pasivos pacta el avalúo como gasto de preoriginación sin
+monto, así que confirma que se cobra pero no resuelve qué tarifa.
 
 **En liquidez el banco cobra IVA sobre los intereses** (no hay exención por
 casa habitación). `iva_sobre_intereses` lo suma al pago; con
@@ -525,7 +531,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 409 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 418 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

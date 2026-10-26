@@ -1900,3 +1900,33 @@ def test_liquidez_libre_con_avaluo_del_documento_de_comisiones():
         assert a.avaluo == b.avaluo and a.cat_estimado == b.cat_estimado
         assert [r.pago_total for r in a.tabla.renglones] == [r.pago_total for r in b.tabla.renglones]
 
+
+
+@pytest.mark.parametrize("producto, registro", [
+    ("scotiabank-credirenovacion-valora-ninguna-2026-07", "0319-138-007452/29-03310-1225"),
+    ("scotiabank-credirenovacion-compra-pagos-oportunos-green-2026-07", "0319-138-007458/28-03313-1225"),
+    ("scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v2", "0319-138-007463/27-03317-1225"),
+    ("scotiabank-credirenovacion-2a-hipoteca-pagos-oportunos-premium-2026-07", "0319-138-007454/27-03311-1225"),
+    ("scotiabank-pasivos-valora-2026-07-v2", "0319-138-007481/26-03331-1225"),
+    ("scotiabank-7x5-pasivo-hipotecario-2026-07", "0319-138-038243/05-03345-1225"),
+    ("scotiabank-7x5-adquisicion-2024-01", "0319-138-020519/18-03342-1225"),
+    ("scotiabank-liquidez-libre-7x5-2026-07", "0319-138-027733/16-03350-1225"),
+])
+def test_scotiabank_vigente_cita_su_contrato_reca(producto, registro):
+    assert f"{registro}, registrado 2026-01-19" in POR_ID[producto].fuente
+
+
+def test_reca_vigente_solo_en_versiones_vigentes():
+    scotia = [p for p in CATALOGO if p.institucion.startswith("Scotiabank")]
+    for p in scotia:
+        cita = "Contrato vigente en el RECA" in p.fuente
+        assert cita == (p.vigente_hasta is None), p.id
+    # Las versiones cerradas conservan la cita del cotizador de su tiempo
+    assert "0319-138-007463/25-00060-0124" in POR_ID[
+        "scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].fuente
+    assert "Contrato vigente" not in POR_ID[
+        "scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].fuente
+    # Pasivo + Remodelación anota lo que el contrato dice del avalúo
+    for p in scotia:
+        if p.vigente_hasta is None and p.id.startswith("scotiabank-credirenovacion-pasivo-"):
+            assert "«gastos de preoriginación - avalúo hipotecario» con el monto en blanco" in p.notas

@@ -1900,3 +1900,58 @@ CATALOGO[:] = [
     )
     for p in _LIQUIDEZ_LIBRE_2024
 ]
+
+
+# ---------------------------------------------------------------------------
+# Contratos de adhesión vigentes en el RECA (CONDUSEF), consultados 2026-10-26
+# ---------------------------------------------------------------------------
+# Los cotizadores citan los registros de enero 2024; todos los contratos
+# hipotecarios de Scotiabank se volvieron a registrar el 19-01-2026
+# (registros.condusef.gob.mx/reca). Solo se agrega la cita a las versiones
+# vigentes: es procedencia, no condición, y las cerradas conservan la de su
+# tiempo. Los contratos dejan en blanco tasas y montos de comisiones (se llenan
+# en la carátula), así que no cambian ningún parámetro. El orden importa: el
+# primer prefijo que coincide gana.
+_RECA_VIGENTE = (
+    ("scotiabank-credirenovacion-compra-valora-", "0319-138-007460/28-03314-1225", "Renovación y Adquisición Valora"),
+    ("scotiabank-credirenovacion-compra-pagos-oportunos-", "0319-138-007458/28-03313-1225", "Renovación y Adquisición Pagos Oportunos"),
+    ("scotiabank-credirenovacion-pasivo-valora-", "0319-138-007463/27-03317-1225", "Renovación y Pago de Pasivos Valora"),
+    ("scotiabank-credirenovacion-pasivo-pagos-oportunos-", "0319-138-007462/26-03315-1225", "Renovación y Pago de Pasivos Pagos Oportunos"),
+    ("scotiabank-credirenovacion-2a-hipoteca-valora-", "0319-138-007456/27-03312-1225", "Renovación 2° Hipoteca Valora"),
+    ("scotiabank-credirenovacion-2a-hipoteca-pagos-oportunos-", "0319-138-007454/27-03311-1225", "Renovación 2° Hipoteca Pagos Oportunos"),
+    ("scotiabank-credirenovacion-valora-", "0319-138-007452/29-03310-1225", "Renovación Valora"),
+    ("scotiabank-credirenovacion-pagos-oportunos-", "0319-138-007450/29-03309-1225", "Renovación Pagos Oportunos"),
+    ("scotiabank-pasivos-valora-", "0319-138-007481/26-03331-1225", "Pago de Pasivos Valora"),
+    ("scotiabank-pasivos-pagos-oportunos-", "0319-138-007480/26-03330-1225", "Pago de Pasivos Pagos Oportunos"),
+    ("scotiabank-7x5-pasivo-hipotecario-", "0319-138-038243/05-03345-1225", "Pago de Pasivo Hipoteca 7 x 5"),
+    ("scotiabank-7x5-adquisicion-", "0319-138-020519/18-03342-1225", "Adquisición Hipoteca 7 x 5"),
+    ("scotiabank-liquidez-libre-valora-", "0319-138-027732/16-03349-1225", "Crediliquidez Libre Valora"),
+    ("scotiabank-liquidez-libre-pagos-oportunos-", "0319-138-027734/16-03351-1225", "Crediliquidez Libre Pagos Oportunos"),
+    ("scotiabank-liquidez-libre-7x5-", "0319-138-027733/16-03350-1225", "Crediliquidez Libre Hipoteca 7x5"),
+)
+
+
+def _reca_vigente(producto_id):
+    return next(((r, n) for prefijo, r, n in _RECA_VIGENTE if producto_id.startswith(prefijo)), None)
+
+
+def _con_reca_vigente(p):
+    registro, nombre = _reca_vigente(p.id)
+    notas = p.notas
+    if p.id.startswith("scotiabank-credirenovacion-pasivo-"):
+        # Cláusula Décima Tercera c) del contrato, leída en el RECA.
+        notas += (" El contrato RECA pacta el avalúo como «gastos de preoriginación - "
+                  "avalúo hipotecario» con el monto en blanco: confirma que se cobra, no "
+                  "cuánto.")
+    return replace(
+        p,
+        fuente=p.fuente + f" Contrato vigente en el RECA: «{nombre}» {registro}, "
+        "registrado 2026-01-19 (consultado 2026-10-26).",
+        notas=notas,
+    )
+
+
+CATALOGO[:] = [
+    _con_reca_vigente(p) if p.vigente_hasta is None and _reca_vigente(p.id) else p
+    for p in CATALOGO
+]
