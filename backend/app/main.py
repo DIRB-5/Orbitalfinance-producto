@@ -130,6 +130,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         ),
         ingreso_minimo=_dinero_opcional(p.ingreso_minimo),
         requisitos_cliente=sorted(r.value for r in p.requisitos_cliente),
+        max_ministraciones=p.max_ministraciones,
         dictamen_tecnico_pct=_tasa(p.dictamen_tecnico_pct),
         dictamen_tecnico_minimo=_dinero(p.dictamen_tecnico_minimo),
         dictamen_tecnico_maximo=_dinero_opcional(p.dictamen_tecnico_maximo),
@@ -289,6 +290,7 @@ def _opcion(o: ResultadoOpcion, escenario: Escenario) -> OpcionSalida:
                 aportacion=_dinero(r.aportacion),
                 seguro_desempleo=_dinero(r.seguro_desempleo),
                 iva_intereses=_dinero(r.iva_intereses),
+                disposicion=_dinero(r.disposicion),
                 pago_total=_dinero(r.pago_total),
                 saldo_final=_dinero(r.saldo_final),
             )
@@ -329,6 +331,7 @@ def comparar_escenario(entrada: EscenarioEntrada) -> ComparacionSalida:
         valor_garantia_adicional=entrada.valor_garantia_adicional,
         monto_remodelacion=entrada.monto_remodelacion,
         condiciones_cliente=frozenset(entrada.condiciones_cliente),
+        ministraciones=tuple((m.mes, m.monto) for m in entrada.ministraciones),
         ingreso_mensual=entrada.ingreso_mensual,
         factor_pago_ingreso=entrada.factor_pago_ingreso,
         fecha_primer_pago=entrada.fecha_primer_pago,

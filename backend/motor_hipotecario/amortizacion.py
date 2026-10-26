@@ -57,6 +57,9 @@ class Renglon:
     seguro_desempleo: Dinero = Decimal("0")
     # IVA sobre intereses (liquidez), incluido en pago_total.
     iva_intereses: Dinero = Decimal("0")
+    # Entrega por avance de obra al inicio del mes (incluida en saldo_inicial).
+    # La del mes 1 es `TablaAmortizacion.disposicion_inicial`.
+    disposicion: Dinero = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -71,6 +74,10 @@ class TablaAmortizacion:
     # intereses); dias_primer_periodo dice cuántos días cubrió.
     primer_renglon_irregular: bool = False
     dias_primer_periodo: Optional[int] = None
+    # Con entregas por avance de obra: lo dispuesto en el mes 1 y el mes de la
+    # última entrega (desde ahí el pago es el completo).
+    disposicion_inicial: Optional[Dinero] = None
+    mes_ultima_disposicion: int = 1
 
     @property
     def total_intereses(self) -> Dinero:
@@ -124,6 +131,7 @@ class TablaAmortizacion:
         se presenta como mensualidad y con el que se mide la capacidad de pago.
         """
         indice = 1 if self.primer_renglon_irregular and len(self.renglones) > 1 else 0
+        indice = min(max(indice, self.mes_ultima_disposicion - 1), len(self.renglones) - 1)
         return self.renglones[indice].pago_total
 
     @property
@@ -343,6 +351,7 @@ def construir_tabla(
     fecha_primer_pago: Optional[date] = None,
     cofinanciamiento: Optional[Cofinanciamiento] = None,
     fecha_disposicion: Optional[date] = None,
+    ministraciones: tuple = (),
 ) -> TablaAmortizacion:
     """
     Construye la tabla completa, con precisión completa en cada renglón.
@@ -464,11 +473,29 @@ def construir_tabla(
     pago_fijo = anualidad + seguros_en_pago
     pago_fijo_inicial = pago_fijo
 
+    # Entregas por avance de obra ('Tabla Valora'!B11:F13): el saldo crece con
+    # cada entrega y el pago se reinicia sobre lo acumulado (factor al millar
+    # proporcional), con el crecimiento anual cumplido desde la firma.
+    entregas = dict(ministraciones)
+    if entregas and (
+        crece or factores_anuales or producto.reamortizar_mensual_desde
+        or producto.recalcular_pago_al_cambiar_tasa or producto.primer_pago_solo_intereses
+    ):
+        raise ValueError(
+            "Las entregas por avance de obra solo se modelan con pago fijo o al millar."
+        )
+    pago_por_peso = anualidad / monto
+    dispuesto = entregas.get(1, monto)
+    if entregas:
+        anualidad = pago_por_peso * dispuesto
+        pago_fijo = anualidad + seguros_en_pago
+
     renglones: list[Renglon] = []
-    saldo = monto
+    saldo = dispuesto
 
     for mes in range(1, plazo + 1):
-        saldo_inicial = saldo
+        disposicion = entregas.get(mes, Decimal("0")) if mes > 1 else Decimal("0")
+        saldo_inicial = saldo + disposicion
         fecha = _sumar_meses(fecha_primer_pago, mes - 1) if fecha_primer_pago else None
         dias = calendar.monthrange(fecha.year, fecha.month)[1] if dias_reales else None
         if entre_pagos:
@@ -523,6 +550,14 @@ def construir_tabla(
 
         if producto.crecimiento_pago_anual and mes > 1 and (mes - 1) % 12 == 0:
             anualidad *= Decimal(1) + producto.crecimiento_pago_anual
+            pago_fijo = anualidad + seguros_en_pago
+
+        if disposicion:
+            dispuesto += disposicion
+            anualidad = pago_por_peso * dispuesto * (
+                (Decimal(1) + producto.crecimiento_pago_anual) ** ((mes - 1) // 12)
+                if producto.crecimiento_pago_anual else Decimal(1)
+            )
             pago_fijo = anualidad + seguros_en_pago
 
         pago_del_mes = pago_fijo
@@ -603,10 +638,11 @@ def construir_tabla(
                 aportacion=aportacion,
                 seguro_desempleo=desempleo,
                 iva_intereses=iva_intereses,
+                disposicion=disposicion,
             )
         )
         saldo = saldo_final
-        if saldo == 0:
+        if saldo == 0 and dispuesto >= monto:
             break  # se liquidó antes del plazo (tasa escalonada o aportaciones)
 
     periodo_irregular = producto.primer_periodo_dias_reales and fecha_disposicion is not None
@@ -623,4 +659,6 @@ def construir_tabla(
         plazo_meses=plazo,
         primer_renglon_irregular=periodo_irregular or producto.primer_pago_solo_intereses,
         dias_primer_periodo=dias_primero,
+        disposicion_inicial=entregas.get(1) if entregas else None,
+        mes_ultima_disposicion=max(entregas) if entregas else 1,
     )

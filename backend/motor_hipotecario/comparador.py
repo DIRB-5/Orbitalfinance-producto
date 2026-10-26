@@ -595,6 +595,34 @@ def evaluar_producto(
             "mezcla el refinanciamiento con el costo de la remodelación."
         )
 
+    # Entregas por avance de obra: solo si el producto las admite y cuadran
+    ministraciones = ()
+    if escenario.ministraciones:
+        meses = [m for m, _ in escenario.ministraciones]
+        if not producto.max_ministraciones:
+            motivos.append(
+                "El producto entrega el crédito completo al firmar: no admite entregas "
+                "por avance de obra."
+            )
+        elif (
+            meses[0] != 1
+            or any(b <= a for a, b in zip(meses, meses[1:]))
+            or len(meses) > producto.max_ministraciones
+            or sum((d for _, d in escenario.ministraciones), Decimal("0")) != monto
+        ):
+            motivos.append(
+                f"Las entregas por avance de obra deben empezar en el mes 1, ir en meses "
+                f"crecientes, ser hasta {producto.max_ministraciones} y sumar el monto del "
+                f"crédito (${monto:,.2f})."
+            )
+        else:
+            ministraciones = escenario.ministraciones
+            advertencias.append(
+                f"El crédito se entrega en {len(meses)} partes (meses "
+                f"{', '.join(str(m) for m in meses)}): los primeros pagos son parciales y la "
+                "mensualidad que se muestra es la de después de la última entrega."
+            )
+
     faltan = producto.requisitos_cliente - escenario.condiciones_cliente
     if faltan:
         motivos.append(
@@ -713,7 +741,8 @@ def evaluar_producto(
         linea_banco = replace(linea, producto=replace(producto, regla_aportaciones=regla_banco))
 
     tabla = construir_tabla(
-        linea_banco, valor_tabla, fecha, cofinanciamiento, fecha_disposicion=disposicion
+        linea_banco, valor_tabla, fecha, cofinanciamiento, fecha_disposicion=disposicion,
+        ministraciones=ministraciones,
     )
 
     # El CAT de los cotizadores excluye las aportaciones y usa un primer
@@ -725,6 +754,7 @@ def evaluar_producto(
             valor_tabla,
             fecha,
             fecha_disposicion=None if producto.primer_periodo_dias_reales else disposicion,
+            ministraciones=ministraciones,
         )
 
     if producto.tasa_variable is not None:

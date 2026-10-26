@@ -2239,3 +2239,14 @@ def test_producto_con_requisito_solo_si_el_cliente_lo_cumple():
     assert evaluar_producto(cumple, premium, momento=HOY).elegible
     # Sin requisitos, aplica con o sin condiciones
     assert evaluar_producto(cumple, producto_remodelacion(), momento=HOY).elegible
+
+
+def test_una_sola_entrega_al_firmar_es_igual_a_no_tener_entregas():
+    from motor_hipotecario.cat import calcular_cat
+
+    p = producto_pti(crecimiento_pago_anual=Decimal("0.02"))
+    linea = LineaCredito(p, Decimal("1500000"), 240)
+    sin = construir_tabla(linea, Decimal("3000000"))
+    con = construir_tabla(linea, Decimal("3000000"), ministraciones=((1, Decimal("1500000")),))
+    assert [r.pago_total for r in sin.renglones] == [r.pago_total for r in con.renglones]
+    assert calcular_cat(sin, p) == calcular_cat(con, p)

@@ -2032,6 +2032,10 @@ class Component extends DCLogic {
       familia: subtipo === "pyme" ? "pyme" : "hipotecario",
       subtipo,
       condicionesCliente: f.condicionesCliente || [],
+      entrega2Mes: f.entrega2Mes || 0,
+      entrega2Monto: f.entrega2Monto || 0,
+      entrega3Mes: f.entrega3Mes || 0,
+      entrega3Monto: f.entrega3Monto || 0,
       etiqueta: f.etiqueta,
       montoCredito: f.montoCredito || 0,
       plazoMeses: f.plazoMeses,
@@ -3204,6 +3208,16 @@ class Component extends DCLogic {
       nota: "Las ofertas que exigen una condición solo aparecen como elegibles si la marcas.",
       wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
     });
+    // Entrega por avance de obra: segunda y tercera (mes y monto); la primera,
+    // al firmar, es el resto del crédito
+    const camposEntregas = [
+      campoNumero("entrega2Monto", "Segunda entrega por avance de obra (opcional)", {
+        hayNota: true, nota: "La primera entrega, al firmar, es el resto del crédito. Solo Credirenovación entrega por avance de obra.",
+      }),
+      campoNumero("entrega2Mes", "Mes de la segunda entrega"),
+      campoNumero("entrega3Monto", "Tercera entrega (opcional)"),
+      campoNumero("entrega3Mes", "Mes de la tercera entrega"),
+    ];
     const campoSelect = (k, label, opts, extra) => Object.assign(campoNumero(k, label), {
       esNumero: false, esSelect: true, valor: s.form[k], onChange: setSel(k),
       opciones: opts.map((o) => ({ label: o })),
@@ -3312,7 +3326,8 @@ class Component extends DCLogic {
             hayNota: true, nota: "Solo el valor. Afirme Tu Casa 2 mide su aforo de 80 % sobre ambos inmuebles y con eso puede financiar los gastos.",
           }),
           campoPlazo([60, 120, 180, 240]),
-          campoCondiciones]);
+          campoCondiciones])
+        .concat((s.form.montoRemodelacion || 0) > 0 ? camposEntregas : []);
     } else if (subtipo === "sustitucion") {
       tituloCampos = "Crédito actual";
       campos = [
@@ -3392,7 +3407,7 @@ class Component extends DCLogic {
         campoNumero("saldoVigente", "Saldo de la hipoteca vigente"),
         campoNumero("pagoVigente", "Pago mensual de la hipoteca vigente"),
         campoNumero("plazoVigenteMeses", "Plazo remanente (meses)"),
-      ] : []).concat([campoCondiciones]);
+      ] : []).concat([campoCondiciones]).concat(camposEntregas);
     } else if (subtipo === "terreno") {
       tituloCampos = "Terreno y crédito";
       campos = [campoNumero("valorTerreno", "Valor del terreno")]

@@ -297,3 +297,15 @@ def test_requisitos_del_cliente_por_api():
                  if o["elegible"]]
     assert len(elegibles) == 2 and all("ninguna" in i for i in elegibles)
 
+
+def test_entregas_por_avance_de_obra_por_api():
+    cuerpo = {"valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 120,
+              "destino": "remodelacion",
+              "ministraciones": [{"mes": 1, "monto": "500000"}, {"mes": 3, "monto": "500000"},
+                                 {"mes": 5, "monto": "500000"}]}
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    valora = next(o for o in opciones if o["productoId"] == "scotiabank-credirenovacion-valora-ninguna-2025-04")
+    assert valora["elegible"]
+    assert [r["disposicion"] for r in valora["tabla"][:5]] == ["0.00", "0.00", "500000.00", "0.00", "500000.00"]
+    assert valora["catEstimado"].startswith("0.1604")
+

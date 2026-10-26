@@ -77,8 +77,11 @@ def flujos_cat(
     def flujo(concepto: ConceptoIVA, monto: Decimal) -> Decimal:
         return monto / FACTOR_IVA if concepto in netos else monto
 
+    # Con entregas por avance de obra, el cliente recibe la primera al firmar
+    # y las demás en su mes (se restan del pago de ese mes)
+    recibido = tabla.disposicion_inicial if tabla.disposicion_inicial is not None else tabla.monto
     neto = (
-        tabla.monto
+        recibido
         - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(monto_comision))
         - flujo(ConceptoIVA.AVALUO, producto.avaluo)
         - flujo(ConceptoIVA.INVESTIGACION, producto.comision_investigacion)
@@ -94,6 +97,11 @@ def flujos_cat(
         + flujo(ConceptoIVA.SEGURO_DESEMPLEO, r.seguro_desempleo)
         for r in tabla.renglones
     ]
+    # Una entrega al inicio del mes k ocurre al cierre del mes k − 1: se resta
+    # del flujo de ese momento (el pago del mes anterior)
+    for k, r in enumerate(tabla.renglones):
+        if r.disposicion and k > 0:
+            pagos[k - 1] -= r.disposicion
     return neto, pagos
 
 

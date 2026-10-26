@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             386 pruebas. No deben bajar de ahí.
+  tests/             393 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -210,8 +210,14 @@ igual en ambos lados.
 propia sin hipoteca; `valor_vivienda` es el valor actual y el monto es el
 presupuesto de obra. Sin enganche. El dictamen técnico de la obra
 (`dictamen_tecnico_pct` con mínimo y máximo) es un cargo único que entra
-completo al desembolso, al costo total y al CAT. Se supone el crédito
-disponible desde el mes 1 (el banco lo entrega por avance de obra). Compra +
+completo al desembolso, al costo total y al CAT. El crédito puede
+entregarse por avance de obra (`Escenario.ministraciones`, hasta
+`max_ministraciones` del producto): el saldo crece con cada entrega, el pago
+se reinicia sobre lo acumulado (factor al millar, con el crecimiento anual
+cumplido) y el plazo cuenta desde la firma. En el CAT cada entrega entra en
+su momento (la del mes k al cierre del mes k − 1); el CAT de la hoja de
+Scotiabank las cuenta todas al inicio y omite la tercera. La mensualidad que
+se presenta es la de después de la última entrega. Compra +
 remodelación (modo 2) va en adquisición: `Escenario.monto_remodelacion` y los
 productos con `financia_remodelacion` suman la obra al crédito, con aforo,
 avalúo y seguro de daños sobre el valor proyectado (compra + obra); quien no
@@ -502,7 +508,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 386 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 393 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

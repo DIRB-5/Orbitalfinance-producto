@@ -29,6 +29,13 @@ class CofinanciamientoEntrada(ModeloBase):
     saldo_subcuenta: Decimal = Field(default=Decimal("0"), ge=0)
 
 
+class MinistracionEntrada(ModeloBase):
+    """Entrega por avance de obra: mes desde la firma y monto en pesos."""
+
+    mes: int = Field(ge=1, le=480)
+    monto: Decimal = Field(gt=0)
+
+
 class CreditoInstitutoActualEntrada(ModeloBase):
     """Crédito INFONAVIT/FOVISSSTE de la hipoteca actual. Saldo en pesos."""
 
@@ -68,6 +75,8 @@ class EscenarioEntrada(ModeloBase):
     monto_remodelacion: Decimal = Field(default=Decimal("0"), ge=0)
     # Condiciones especiales que cumple el cliente (campañas que las exigen)
     condiciones_cliente: List[RequisitoCliente] = []
+    # Entrega del crédito por avance de obra; vacío = todo al firmar
+    ministraciones: List[MinistracionEntrada] = []
     ingreso_mensual: Optional[Decimal] = Field(default=None, ge=0)
     factor_pago_ingreso: Decimal = Field(default=Decimal("0.30"), gt=0, le=1)
     fecha_primer_pago: Optional[date] = None
@@ -144,6 +153,7 @@ class ProductoSalida(ModeloBase):
     factor_pago_ingreso_max: Optional[str]
     ingreso_minimo: Optional[str]
     requisitos_cliente: List[str]
+    max_ministraciones: int
     # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
     dictamen_tecnico_pct: str
     dictamen_tecnico_minimo: str
@@ -206,6 +216,7 @@ class RenglonSalida(ModeloBase):
     aportacion: str
     seguro_desempleo: str
     iva_intereses: str
+    disposicion: str
     pago_total: str
     saldo_final: str
 

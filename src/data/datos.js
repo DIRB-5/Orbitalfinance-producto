@@ -540,9 +540,19 @@ function cuerpoComparacion(escenario, escenarioRefId) {
       institucion: escenario.institucionVigente || "",
     };
   }
+  // Entrega por avance de obra: la primera (al firmar) es el resto del crédito
+  let ministraciones = [];
+  const conObra = destino === "remodelacion" || (destino === "adquisicion" && (escenario.montoRemodelacion || 0) > 0);
+  if (conObra && (escenario.entrega2Monto || 0) > 0) {
+    const total = monto + (destino === "adquisicion" ? escenario.montoRemodelacion || 0 : 0);
+    const e2 = escenario.entrega2Monto, e3 = escenario.entrega3Monto || 0;
+    ministraciones = [{ mes: 1, monto: String(total - e2 - e3) }, { mes: escenario.entrega2Mes || 2, monto: String(e2) }];
+    if (e3 > 0) ministraciones.push({ mes: escenario.entrega3Mes || 3, monto: String(e3) });
+  }
   return {
     destino,
     creditoActual,
+    ministraciones,
     valorVivienda: String(valor),
     enganche: String(enganche),
     plazoMeses: escenario.plazoMeses,

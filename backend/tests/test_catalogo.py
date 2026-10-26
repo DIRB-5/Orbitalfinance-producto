@@ -1665,3 +1665,70 @@ def test_campanas_de_credirenovacion_segun_las_condiciones_del_cliente():
                   if "valora-green" in o.producto.id).motivos_rechazo[0]
     assert "ecotecnologías" in motivo
 
+
+
+# ---------------------------------------------------------------------------
+# Entrega por avance de obra (ministraciones), Credirenovación
+# ---------------------------------------------------------------------------
+# 'Tabla Valora'!B11:F13: hasta 3 entregas; el pago se reinicia en cada una
+# (factor al millar sobre lo acumulado) y el plazo cuenta desde la firma.
+# Réplica de la hoja con 3 entregas de 500,000 en los meses 1, 3 y 5. El CAT
+# es el correcto (cada entrega en su mes): el de la hoja (M13) las cuenta en
+# t0 y omite la tercera.
+_MINISTRACIONES = {
+    ("valora", 120): ({1: "8260.00", 2: "8258.91", 3: "15587.91", 4: "15585.70", 5: "22913.67",
+                       6: "22910.64", 7: "22907.26", 13: "23245.42"}, 118, "2797551.40", "16.040"),
+    ("valora", 240): ({1: "6650.00", 3: "12369.85", 5: "18089.54", 13: "18363.75"}, 201,
+                      "4009237.88", "15.500"),
+    ("pagos-oportunos", 120): ({1: "8755.00", 3: "16577.56", 5: "24397.64", 13: "24366.45"}, 118,
+                               "2791453.02", "16.412"),
+    ("pagos-oportunos", 240): ({1: "7160.00", 3: "13389.49", 5: "19618.46", 13: "19611.66"}, 213,
+                               "4069388.11", "15.856"),
+}
+
+
+@pytest.mark.parametrize("esquema, plazo", sorted(_MINISTRACIONES))
+def test_credirenovacion_con_entregas_por_avance_de_obra(esquema, plazo):
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    pagos, meses, total, cat = _MINISTRACIONES[(esquema, plazo)]
+    escenario = Escenario(
+        valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=plazo,
+        destino=Destino.REMODELACION,
+        ministraciones=((1, D("500000")), (3, D("500000")), (5, D("500000"))),
+    )
+    r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-{esquema}-ninguna-2025-04"],
+                         momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    for mes, pago in pagos.items():
+        assert abs(r.tabla.renglones[mes - 1].pago_total - D(pago)) < D("0.005"), mes
+    assert len(r.tabla.renglones) == meses
+    assert abs(r.tabla.total_pagado - D(total)) < D("0.005")
+    assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0005")
+    # La mensualidad que se presenta es la de después de la última entrega
+    assert r.pago_regular_inicial == r.tabla.renglones[4].pago_total
+    assert r.comision_apertura == D("15000")              # sobre el crédito completo
+
+
+def test_entregas_por_avance_de_obra_invalidas_o_no_admitidas():
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+    from motor_hipotecario.modelos import Destino, Escenario
+
+    def con(ministraciones, producto="scotiabank-credirenovacion-valora-ninguna-2025-04"):
+        e = Escenario(valor_vivienda=D("3000000"), enganche=D("1500000"), plazo_meses=120,
+                      destino=Destino.REMODELACION, ministraciones=ministraciones)
+        return evaluar_producto(e, POR_ID[producto], momento=date(2024, 3, 22))
+
+    # No suman el crédito, no empiezan en el mes 1, más de 3
+    for m in (((1, D("500000")), (3, D("500000"))),
+              ((2, D("1500000")),),
+              ((1, D("300000")), (2, D("300000")), (3, D("300000")), (4, D("600000")))):
+        r = con(m)
+        assert not r.elegible and "entregas" in r.motivos_rechazo[0]
+    # Pasivo + remodelación liquida el saldo al firmar: no admite entregas
+    assert POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].max_ministraciones == 0

@@ -442,6 +442,10 @@ class ProductoHipotecario:
     # es elegible si el escenario las marca todas.
     requisitos_cliente: FrozenSet[RequisitoCliente] = frozenset()
 
+    # Cuántas entregas por avance de obra admite (Credirenovación: 3). 0 = el
+    # crédito se entrega completo al firmar.
+    max_ministraciones: int = 0
+
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de
     # Condiciones) o solo para traerlas de otro (Santander Sustitución).
@@ -615,6 +619,12 @@ class Escenario:
     # Condiciones especiales que el cliente cumple (vinculación, segmento,
     # tipo de obra). Las ofertas que las exigen solo aplican si están aquí.
     condiciones_cliente: FrozenSet[RequisitoCliente] = frozenset()
+
+    # Entrega del crédito por avance de obra: ((mes, monto), ...) desde la
+    # firma; la primera en el mes 1 y la suma igual al crédito. Vacío = todo
+    # al firmar. Del escenario, para comparar todas las opciones con el mismo
+    # calendario de obra.
+    ministraciones: Tuple[Tuple[int, Dinero], ...] = ()
 
     # Ingreso mensual comprobable, para evaluar capacidad de pago
     ingreso_mensual: Optional[Dinero] = None

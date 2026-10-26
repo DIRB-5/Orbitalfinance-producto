@@ -1417,6 +1417,7 @@ _CREDIRENOVACION = replace(
     # 35 % (AC9:AC12), 55 % en Green y en Pasivo + Renovación; mínimo $20,000 (C31)
     factor_pago_ingreso_max=Decimal("0.35"),
     ingreso_minimo=Decimal("20000"),
+    max_ministraciones=3,                                # 'Tabla Valora'!B11:B13
     tasas_escalonadas=(),
     crecimiento_pago_anual=None,
     vigente_desde=date(2025, 4, 10),
@@ -1555,6 +1556,7 @@ CATALOGO += [
         aforo_max=Decimal("0.95"),
         remodelacion_max_pct_valor=Decimal("0.35"),
         factor_pago_ingreso_max=Decimal("0.55"),         # AC11
+        max_ministraciones=0,                            # liquida el saldo al firmar
         comision_apertura=Decimal("0"),
         tarifa_avaluo=(),
         avaluo=Decimal("0"),
