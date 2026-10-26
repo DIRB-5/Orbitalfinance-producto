@@ -533,7 +533,7 @@ function cuerpoComparacion(escenario, escenarioRefId) {
     gastosNotariales: String(escenario.gastosNotariales || 0),
     financiarGastosNotariales: !!escenario.financiarGastosNotariales,
     valorGarantiaAdicional: String(destino === "adquisicion" ? escenario.valorGarantiaAdicional || 0 : 0),
-    montoRemodelacion: String(destino === "adquisicion" ? escenario.montoRemodelacion || 0 : 0),
+    montoRemodelacion: String(destino === "adquisicion" || destino === "sustitucion" ? escenario.montoRemodelacion || 0 : 0),
     ingresoMensual: escenario.ingresoMensual ? String(escenario.ingresoMensual) : null,
     factorPagoIngreso: String(escenario.factorPagoIngreso || 0.3),
     escenarioTasa: escenarioRefId || "base",

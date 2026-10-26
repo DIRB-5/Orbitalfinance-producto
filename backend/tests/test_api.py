@@ -237,3 +237,17 @@ def test_compra_con_remodelacion_por_api():
     hsbc = next(o for o in opciones if o["productoId"].startswith("hsbc"))
     assert any("remodelación" in m for m in hsbc["motivosRechazo"])
 
+
+def test_pasivo_con_remodelacion_por_api():
+    cuerpo = {
+        "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 240,
+        "destino": "sustitucion", "montoRemodelacion": "500000",
+        "creditoActual": {"saldoInsoluto": "1500000", "pagoMensual": "21000",
+                          "plazoRemanenteMeses": 240, "institucion": "Banorte"},
+    }
+    opciones = cliente.post("/api/comparar", json=cuerpo).json()["opciones"]
+    elegibles = [o for o in opciones if o["elegible"]]
+    assert len(elegibles) == 6
+    assert all(o["productoId"].startswith("scotiabank-credirenovacion-pasivo") for o in elegibles)
+    assert all(o["montoCredito"] == "2000000.00" for o in elegibles)
+

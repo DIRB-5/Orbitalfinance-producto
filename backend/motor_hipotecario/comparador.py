@@ -558,6 +558,21 @@ def evaluar_producto(
         motivos.append(
             "El producto es para compra con remodelación: captura el presupuesto de obra."
         )
+    if (
+        obra
+        and producto.remodelacion_max_pct_valor is not None
+        and obra > producto.remodelacion_max_pct_valor * escenario.valor_vivienda
+    ):
+        motivos.append(
+            f"La obra (${obra:,.0f}) supera el {producto.remodelacion_max_pct_valor:.0%} del "
+            f"valor actual del inmueble que financia el producto "
+            f"(${producto.remodelacion_max_pct_valor * escenario.valor_vivienda:,.0f})."
+        )
+    if obra and escenario.credito_actual is not None:
+        advertencias.append(
+            f"El crédito nuevo incluye ${obra:,.0f} de obra: el ahorro contra quedarse "
+            "mezcla el refinanciamiento con el costo de la remodelación."
+        )
 
     if plazo not in producto.plazos_meses:
         motivos.append(

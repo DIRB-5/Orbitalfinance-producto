@@ -400,6 +400,9 @@ class ProductoHipotecario:
     # y el seguro de daños se miden sobre el valor proyectado (compra + obra).
     # Solo aplica con presupuesto de obra en el escenario.
     financia_remodelacion: bool = False
+    # Tope de la obra como fracción del valor actual del inmueble
+    # (Credirenovación Pasivo + Renovación: 35 %, validación de H30).
+    remodelacion_max_pct_valor: Optional[Decimal] = None
 
     # Sustitución según el banco del crédito actual (`CreditoActual.institucion`):
     # solo para hipotecas que ya son del mismo banco (Santander Mejora de

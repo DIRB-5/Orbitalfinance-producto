@@ -2097,3 +2097,28 @@ def test_quien_no_financia_obra_no_es_elegible_con_remodelacion():
 def test_producto_de_compra_con_obra_requiere_presupuesto():
     r = evaluar_producto(_compra_con_obra(obra="0"), producto_compra_obra(), momento=HOY)
     assert not r.elegible and "presupuesto de obra" in r.motivos_rechazo[0]
+
+
+def _sustitucion_con_obra(obra="500000"):
+    return Escenario(
+        valor_vivienda=Decimal("3000000"), enganche=Decimal("1500000"), plazo_meses=240,
+        destino=Destino.SUSTITUCION, monto_remodelacion=Decimal(obra),
+        credito_actual=CreditoActual(saldo_insoluto=Decimal("1500000"), pago_mensual=Decimal("21000"),
+                                     plazo_remanente_meses=240, institucion="Banorte"),
+    )
+
+
+def test_tope_de_obra_sobre_el_valor_actual():
+    """Credirenovación modo 3: obra ≤ 35 % del valor actual (validación de H30)."""
+    p = producto_compra_obra(destino=Destino.SUSTITUCION, aforo_max=Decimal("0.95"),
+                             remodelacion_max_pct_valor=Decimal("0.35"))
+    assert evaluar_producto(_sustitucion_con_obra("1050000"), p, momento=HOY).elegible
+    r = evaluar_producto(_sustitucion_con_obra("1050001"), p, momento=HOY)
+    assert not r.elegible and "35" in r.motivos_rechazo[0]
+
+
+def test_sustitucion_con_obra_avisa_que_el_ahorro_incluye_la_obra():
+    p = producto_compra_obra(destino=Destino.SUSTITUCION, aforo_max=Decimal("0.95"))
+    r = evaluar_producto(_sustitucion_con_obra(), p, momento=HOY)
+    assert r.monto_credito == Decimal("2000000")
+    assert any("obra" in a and "ahorro" in a for a in r.advertencias)

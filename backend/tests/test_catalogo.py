@@ -612,7 +612,7 @@ def test_productos_de_sustitucion_en_el_catalogo():
         "scotiabank-pasivos-valora-2024-01",
         "santander-sustitucion-2025-12",
         "santander-mejora-condiciones-2025-12",
-    }
+    } | {p.id for p in CATALOGO if p.id.startswith("scotiabank-credirenovacion-pasivo-")}
 
 
 def test_banregio_mejora_reproduce_su_cotizador():
@@ -1473,4 +1473,63 @@ def test_credirenovacion_compra_con_remodelacion(clave, plazo):
     assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0001")   # reportado a 4 decimales
     if "premium" not in clave:
         assert r.avaluo == D("11000")                    # tabulador sobre 3,500,000
+
+
+# Modo 3, Pasivo + Renovación: valor 3,000,000, saldo con otro banco 1,500,000,
+# obra 500,000 (crédito 2,000,000; con gastos 2,120,000). Valores de la réplica
+# de la hoja con el seguro de daños sobre 3,500,000.
+_CREDIRENOVACION_PASIVO = {
+    ("valora-ninguna", 120, False): (116, "30405.00", "15.0706"),
+    ("valora-ninguna", 240, True): (200, "25337.80", "14.7640"),
+    ("valora-vinculacion", 120, True): (118, "29387.00", "13.2290"),
+    ("valora-premium", 240, False): (212, "19365.00", "11.9921"),
+    ("pagos-oportunos-ninguna", 120, False): (117, "32385.00", "15.4297"),
+    ("pagos-oportunos-vinculacion", 240, False): (215, "22825.00", "12.6080"),
+    ("pagos-oportunos-premium", 120, False): (117, "28605.00", "11.7784"),
+}
+
+
+@pytest.mark.parametrize("clave, plazo, con_gastos", sorted(_CREDIRENOVACION_PASIVO))
+def test_credirenovacion_pasivo_con_remodelacion(clave, plazo, con_gastos):
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    meses, pago1, cat = _CREDIRENOVACION_PASIVO[(clave, plazo, con_gastos)]
+    escenario = replace(_escenario_sustitucion(D("3000000"), D("1500000"), plazo),
+                        monto_remodelacion=D("500000"))
+    escenario = replace(escenario, credito_actual=replace(escenario.credito_actual, institucion="Banorte"))
+    if con_gastos:
+        escenario = _con_gastos(escenario, "120000")
+    r = evaluar_producto(escenario, POR_ID[f"scotiabank-credirenovacion-pasivo-{clave}-2025-04"],
+                         momento=date(2024, 3, 22))
+    assert r.elegible, r.motivos_rechazo
+    assert r.gastos_financiados == (D("120000") if con_gastos else 0)
+    assert r.monto_credito == D("2000000") + r.gastos_financiados
+    assert r.comision_apertura == 0 and r.avaluo == 0 and r.dictamen_tecnico == 0
+    assert len(r.tabla.renglones) == meses
+    assert abs(r.tabla.renglones[0].pago_total - D(pago1)) < D("0.005")
+    assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0001")
+
+
+def test_credirenovacion_pasivo_reglas():
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.comparador import evaluar_producto
+
+    producto = POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"]
+    base = replace(_escenario_sustitucion(D("3000000"), D("1500000"), 240), monto_remodelacion=D("500000"))
+    momento = date(2024, 3, 22)
+    # Hipoteca que ya es de Scotiabank: no aplica
+    propia = replace(base, credito_actual=replace(base.credito_actual, institucion="Scotiabank"))
+    assert not evaluar_producto(propia, producto, momento=momento).elegible
+    # Obra arriba de 35 % del valor actual (1,050,000)
+    assert not evaluar_producto(replace(base, monto_remodelacion=D("1100000")), producto,
+                                momento=momento).elegible
+    # PO no financia gastos; Green no existe en el modo 3
+    po = POR_ID["scotiabank-credirenovacion-pasivo-pagos-oportunos-ninguna-2025-04"]
+    assert evaluar_producto(_con_gastos(base, "120000"), po, momento=momento).gastos_financiados == 0
+    assert "scotiabank-credirenovacion-pasivo-valora-green-2025-04" not in POR_ID
 

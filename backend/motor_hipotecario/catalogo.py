@@ -1521,3 +1521,47 @@ CATALOGO += [
     if p.id.startswith("scotiabank-credirenovacion-") and p.destino is Destino.REMODELACION
 ]
 
+# Modo 3, Pasivo + Renovación: sustituye la hipoteca de otro banco y financia
+# la obra en el mismo crédito (H31 = saldo + obra). Aforo de 95 % sobre el
+# valor proyectado (X11, H28), obra hasta 35 % del valor actual (validación de
+# H30). Sin apertura, avalúo ni dictamen (E68, E70, E72). Green no aplica.
+# Valora financia gastos notariales hasta 6 % de saldo + obra dentro del 95 %
+# (L35); Pagos Oportunos no (H50 = H31).
+_RECA_PASIVO = {"valora": "0319-138-007463/25-00060-0124", "pagos-oportunos": "0319-138-007462/24-00059-0124"}
+CATALOGO += [
+    replace(
+        p,
+        id=p.id.replace("credirenovacion-compra-", "credirenovacion-pasivo-"),
+        nombre=p.nombre.replace("Compra + Remodelación", "Pasivo + Remodelación"),
+        destino=Destino.SUSTITUCION,
+        excluye_credito_actual_propio=True,
+        aforo_max=Decimal("0.95"),
+        remodelacion_max_pct_valor=Decimal("0.35"),
+        comision_apertura=Decimal("0"),
+        tarifa_avaluo=(),
+        avaluo=Decimal("0"),
+        dictamen_tecnico_pct=Decimal("0"),
+        financiamiento_gastos=(
+            FinanciamientoGastos(tope=Decimal("0.06"), apertura_y_aforo_sobre_total=False)
+            if "-valora-" in p.id else None
+        ),
+        fuente=p.fuente.replace("modo 2 Compra + Renovación", "modo 3 Pasivo + Renovación")
+        .split(" RECA 0319")[0]
+        + f" RECA {_RECA_PASIVO['valora' if '-valora-' in p.id else 'pagos-oportunos']}.",
+        notas="TASAS DE ABRIL DE 2025: confirmar vigencia con Scotiabank. Trae la hipoteca "
+        "de otro banco y financia la obra en el mismo crédito (hasta 35 % del valor "
+        "actual), con aforo de 95 % sobre la vivienda más la obra. Sin apertura, avalúo "
+        "ni dictamen. La tasa baja suponiendo pagos puntuales. "
+        + ("Financia gastos notariales hasta 6 % de saldo + obra; SUPUESTO: el mínimo "
+           "entre los gastos del escenario y ese 6 % (la hoja financia siempre el 6 %). "
+           if "-valora-" in p.id else "No financia gastos notariales. ")
+        + "CORRECCIONES a la hoja: el seguro de daños se cobra sobre el valor proyectado "
+        "(la hoja suma otra vez la obra) y si saldo + obra rebasan el aforo no es "
+        "elegible (la hoja recorta el crédito y puede no cubrir el saldo). "
+        + p.notas.split("La tasa baja suponiendo pagos puntuales, como en el cotizador. ")[1]
+        .split(" Compra y obra")[0].replace(" Apertura de 1 %.", ""),
+    )
+    for p in list(CATALOGO)
+    if p.id.startswith("scotiabank-credirenovacion-compra-") and "-green-" not in p.id
+]
+

@@ -2064,6 +2064,7 @@ class Component extends DCLogic {
         plazoRemanenteMeses: f.plazoRemanenteMeses || 0,
         penalizacionPrepago: f.penalizacionPrepago || 0,
         penalizacionPrepagoMonto: Math.round((f.saldoInsoluto || 0) * (f.penalizacionPrepago || 0) * 100) / 100,
+        montoRemodelacion: f.montoRemodelacion || 0,
         institutoActual: f.institutoActual || "no",
         saldoInstituto: f.saldoInstituto || 0,
         pagoInstituto: f.pagoInstituto || 0,
@@ -3322,6 +3323,10 @@ class Component extends DCLogic {
           }),
           campoNumero("gastosNotariales", "Gastos notariales estimados", {
             hayNota: true, nota: "Escrituración de la nueva hipoteca.",
+            wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
+          }),
+          campoNumero("montoRemodelacion", "Presupuesto de remodelación (opcional)", {
+            hayNota: true, nota: "Si además va a remodelar. Solo Scotiabank Credirenovación lo financia junto con el saldo (hasta 35 % del valor actual).",
             wrapStyle: { display: "flex", flexDirection: "column", gap: "6px", gridColumn: "span 2" },
           }),
           campoFinanciarGastos,
