@@ -63,7 +63,8 @@ class ResultadoOpcion:
 
     @property
     def dictamen_tecnico(self) -> Dinero:
-        return self.producto.dictamen_tecnico_para(self.monto_credito)
+        base = self.remodelacion_financiada if self.producto.dictamen_sobre_obra else self.monto_credito
+        return self.producto.dictamen_tecnico_para(base)
 
     @property
     def gastos_de_contado(self) -> Dinero:
@@ -863,7 +864,10 @@ def evaluar_producto(
             "crédito y vuelven a la subcuenta de vivienda."
         )
     comision = redondear(producto.comision_apertura_para(monto_comision))
-    cat = calcular_cat(tabla_cat, producto, monto_comision=monto_comision)
+    cat = calcular_cat(
+        tabla_cat, producto, monto_comision=monto_comision,
+        monto_dictamen=obra if producto.dictamen_sobre_obra else None,
+    )
 
     # --- Capacidad de pago -------------------------------------------------
     # Con el pago regular (no un primer mes irregular) y, con crédito del

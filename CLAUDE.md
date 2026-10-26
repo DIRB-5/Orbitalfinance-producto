@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             393 pruebas. No deben bajar de ahí.
+  tests/             394 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -221,7 +221,10 @@ se presenta es la de después de la última entrega. Compra +
 remodelación (modo 2) va en adquisición: `Escenario.monto_remodelacion` y los
 productos con `financia_remodelacion` suman la obra al crédito, con aforo,
 avalúo y seguro de daños sobre el valor proyectado (compra + obra); quien no
-financia obra no es elegible, con su motivo. Pasivo + remodelación (modo 3)
+financia obra no es elegible, con su motivo. El dictamen se cobra sobre la
+obra (`dictamen_sobre_obra`), máximo $6,600, según el folleto oficial
+"Renovación" de Scotiabank (julio 2026); la fórmula del cotizador lo cobra
+sobre compra + obra. Pasivo + remodelación (modo 3)
 va en sustitución con la misma mecánica, tope de obra
 (`remodelacion_max_pct_valor`, 35 % del valor actual) y aviso de que el
 ahorro contra quedarse incluye la obra. La segunda hipoteca con el mismo
@@ -508,7 +511,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 393 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 394 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

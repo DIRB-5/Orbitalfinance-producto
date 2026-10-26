@@ -58,6 +58,7 @@ def flujos_cat(
     tabla: TablaAmortizacion,
     producto: ProductoHipotecario,
     monto_comision: Optional[Dinero] = None,
+    monto_dictamen: Optional[Dinero] = None,
 ) -> tuple[Decimal, list[Decimal]]:
     """
     (neto recibido, pagos mensuales) tal como entran al CAT.
@@ -85,7 +86,7 @@ def flujos_cat(
         - flujo(ConceptoIVA.COMISION_APERTURA, producto.comision_apertura_para(monto_comision))
         - flujo(ConceptoIVA.AVALUO, producto.avaluo)
         - flujo(ConceptoIVA.INVESTIGACION, producto.comision_investigacion)
-        - producto.dictamen_tecnico_para(tabla.monto)
+        - producto.dictamen_tecnico_para(tabla.monto if monto_dictamen is None else monto_dictamen)
     )
     pagos = [
         r.capital
@@ -110,6 +111,7 @@ def calcular_cat(
     producto: ProductoHipotecario,
     comision_financiada: bool = False,
     monto_comision: Optional[Dinero] = None,
+    monto_dictamen: Optional[Dinero] = None,
 ) -> Decimal:
     """
     Devuelve el CAT como fracción anual (0.1234 == 12.34 %).
@@ -121,7 +123,7 @@ def calcular_cat(
     """
     # En ambos casos el neto en manos del cliente es el monto menos lo que se
     # le retuvo; si la comisión está financiada, el monto ya la incluye.
-    neto, pagos = flujos_cat(tabla, producto, monto_comision)
+    neto, pagos = flujos_cat(tabla, producto, monto_comision, monto_dictamen)
 
     if neto <= 0:
         raise ValueError(

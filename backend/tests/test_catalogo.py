@@ -1441,16 +1441,18 @@ def test_productos_de_remodelacion_en_el_catalogo():
 # Modo 2, Compra + Renovación: compra 3,000,000, obra 500,000, enganche
 # 800,000 (crédito 2,700,000, aforo 77.1 % del valor proyectado). Valores de
 # la réplica de la hoja con el seguro de daños sobre 3,500,000.
+# El dictamen técnico se cobra sobre la obra (1 % de 500,000 = 5,000), con
+# máximo de 6,600 (folleto 'Renovación' de Scotiabank, julio 2026, p. 18).
 _CREDIRENOVACION_COMPRA = {
-    ("valora-ninguna", 120): (116, "40667", "15.4277"),
-    ("valora-ninguna", 240): (200, "31973", "15.0145"),
-    ("valora-vinculacion", 120): (118, "37130", "13.3208"),
+    ("valora-ninguna", 120): (116, "40667", "15.2819"),
+    ("valora-ninguna", 240): (200, "31973", "14.9148"),
+    ("valora-vinculacion", 120): (118, "37130", "13.1867"),
     ("valora-green", 240): (210, "27221", "12.6807"),
-    ("valora-premium", 240): (212, "25763", "11.8862"),
-    ("pagos-oportunos-ninguna", 120): (117, "43340", "15.8022"),
-    ("pagos-oportunos-vinculacion", 240): (215, "30434", "12.5753"),
+    ("valora-premium", 240): (212, "25763", "11.8043"),
+    ("pagos-oportunos-ninguna", 120): (117, "43340", "15.6510"),
+    ("pagos-oportunos-vinculacion", 240): (215, "30434", "12.4842"),
     ("pagos-oportunos-green", 120): (117, "39425", "12.4509"),
-    ("pagos-oportunos-premium", 240): (217, "28598", "11.3779"),
+    ("pagos-oportunos-premium", 240): (217, "28598", "11.2918"),
 }
 
 
@@ -1473,6 +1475,7 @@ def test_credirenovacion_compra_con_remodelacion(clave, plazo):
     assert abs(r.cat_estimado * 100 - D(cat)) < D("0.0001")   # reportado a 4 decimales
     if "premium" not in clave:
         assert r.avaluo == D("11000")                    # tabulador sobre 3,500,000
+    assert r.dictamen_tecnico == (0 if "green" in clave else D("5000"))
 
 
 # Modo 3, Pasivo + Renovación: valor 3,000,000, saldo con otro banco 1,500,000,
@@ -1732,3 +1735,17 @@ def test_entregas_por_avance_de_obra_invalidas_o_no_admitidas():
         assert not r.elegible and "entregas" in r.motivos_rechazo[0]
     # Pasivo + remodelación liquida el saldo al firmar: no admite entregas
     assert POR_ID["scotiabank-credirenovacion-pasivo-valora-ninguna-2025-04"].max_ministraciones == 0
+
+
+def test_credirenovacion_compra_dictamen_con_tope():
+    """Obra de 800,000: 1 % = 8,000, topado en 6,600 para Adquisición + Renovación."""
+    from datetime import date
+
+    from motor_hipotecario.modelos import Escenario
+
+    e = Escenario(valor_vivienda=D("3000000"), enganche=D("800000"), plazo_meses=240,
+                  monto_remodelacion=D("800000"))
+    r = _evaluar_con_condiciones(e, POR_ID["scotiabank-credirenovacion-compra-valora-ninguna-2025-04"],
+                                 momento=date(2024, 3, 22))
+    assert r.dictamen_tecnico == D("6600")
+

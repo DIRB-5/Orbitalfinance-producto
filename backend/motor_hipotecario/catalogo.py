@@ -1527,13 +1527,21 @@ CATALOGO += [
         nombre=p.nombre.replace("Credirenovación", "Credirenovación Compra + Remodelación"),
         destino=Destino.ADQUISICION,
         financia_remodelacion=True,
+        # Supervisión de uso de recursos (dictamen) sobre la obra, máximo
+        # $6,600 en Adquisición + Renovación (folleto 'Renovación', julio 2026,
+        # p. 18; tarifa AC94 "sobre el monto del presupuesto de obra"). La
+        # fórmula E72 lo cobra sobre compra + obra: se corrige.
+        dictamen_sobre_obra=True,
+        dictamen_tecnico_maximo=Decimal("6600"),
         fuente=p.fuente.replace("modo 1 Renovación (remodelar la vivienda propia)",
                                 "modo 2 Compra + Renovación")
         + f" RECA {_RECA_COMPRA['valora' if '-valora-' in p.id else 'pagos-oportunos']}.",
         notas=p.notas + " Compra y obra en un solo crédito, con el aforo sobre la "
         "vivienda más la obra. CORRECCIÓN a la hoja: el seguro de daños se cobra sobre "
-        "ese valor proyectado; la hoja suma otra vez la obra (E60 = C30 + H30). No "
-        "financia gastos notariales ni acepta cofinanciamiento.",
+        "ese valor proyectado; la hoja suma otra vez la obra (E60 = C30 + H30). El "
+        "dictamen técnico se cobra sobre la obra con máximo de $6,600, como dice el folleto "
+        "'Renovación' de julio 2026 (la hoja lo cobra sobre compra + obra). No financia "
+        "gastos notariales ni acepta cofinanciamiento.",
     )
     for p in list(CATALOGO)
     if p.id.startswith("scotiabank-credirenovacion-") and p.destino is Destino.REMODELACION

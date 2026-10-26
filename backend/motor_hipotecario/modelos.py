@@ -477,6 +477,9 @@ class ProductoHipotecario:
     dictamen_tecnico_pct: Decimal = Decimal("0")
     dictamen_tecnico_minimo: Dinero = Decimal("0")
     dictamen_tecnico_maximo: Optional[Dinero] = None
+    # True: el dictamen se cobra sobre la obra financiada, no sobre todo el
+    # crédito (Compra + Renovación: la compra no se supervisa).
+    dictamen_sobre_obra: bool = False
 
     # Comisión mensual fija: cargo recurrente que no es interés ni seguro.
     # Entra al pago, al costo total y al CAT.
