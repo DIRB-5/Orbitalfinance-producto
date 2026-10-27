@@ -154,10 +154,12 @@ class ProductoSalida(ModeloBase):
     ingreso_minimo: Optional[str]
     requisitos_cliente: List[str]
     max_ministraciones: int
-    # Dictamen técnico de la obra (remodelación): fracción con mínimo y máximo
+    # Supervisión de uso de recursos (dictamen técnico) de la obra:
+    # fracción con mínimo y máximo, sobre la obra o sobre todo el crédito
     dictamen_tecnico_pct: str
     dictamen_tecnico_minimo: str
     dictamen_tecnico_maximo: Optional[str]
+    dictamen_sobre_obra: bool
     requiere_cofinanciamiento: bool
     dia_de_pago: Optional[int]
     primer_periodo_dias_reales: bool

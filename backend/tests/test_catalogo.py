@@ -1766,7 +1766,9 @@ def test_credirenovacion_2026_reemplaza_a_la_version_del_cotizador():
               and ("-2026-07" in p.id) and p.vigente_hasta is None]
     assert len(viejos) == len(nuevos) == 28
     assert all(p.vigente_en(date(2026, 10, 25)) and not p.vigente_en(date(2026, 10, 26)) for p in viejos)
-    assert all(p.vigente_en(date(2026, 10, 26)) and not p.vigente_en(date(2026, 10, 25)) for p in nuevos)
+    # Desde el 26; Pasivo + Remodelación desde el 27 (-v3, con supervisión)
+    assert all(p.vigente_desde >= date(2026, 10, 26) and p.vigente_en(date(2026, 10, 27))
+               and not p.vigente_en(date(2026, 10, 25)) for p in nuevos)
     assert all("FES_Renovacion" in p.fuente for p in nuevos)
 
 
@@ -1905,7 +1907,7 @@ def test_liquidez_libre_con_avaluo_del_documento_de_comisiones():
 @pytest.mark.parametrize("producto, registro", [
     ("scotiabank-credirenovacion-valora-ninguna-2026-07", "0319-138-007452/29-03310-1225"),
     ("scotiabank-credirenovacion-compra-pagos-oportunos-green-2026-07", "0319-138-007458/28-03313-1225"),
-    ("scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v2", "0319-138-007463/27-03317-1225"),
+    ("scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v3", "0319-138-007463/27-03317-1225"),
     ("scotiabank-credirenovacion-2a-hipoteca-pagos-oportunos-premium-2026-07", "0319-138-007454/27-03311-1225"),
     ("scotiabank-pasivos-valora-2026-07-v2", "0319-138-007481/26-03331-1225"),
     ("scotiabank-7x5-pasivo-hipotecario-2026-07", "0319-138-038243/05-03345-1225"),
@@ -1930,3 +1932,58 @@ def test_reca_vigente_solo_en_versiones_vigentes():
     for p in scotia:
         if p.vigente_hasta is None and p.id.startswith("scotiabank-credirenovacion-pasivo-"):
             assert "«gastos de preoriginación - avalúo hipotecario» con el monto en blanco" in p.notas
+
+
+# ---------------------------------------------------------------------------
+# Supervisión de uso de recursos en Pasivo + Remodelación (julio 2026)
+# ---------------------------------------------------------------------------
+# Documento de comisiones (p. 4): 1 %, máximo $18,000, en toda la columna de
+# Renovación, incluida Renovación + Pago de Pasivos. La tarifa del cotizador
+# (AC92:AD96) dice "Renovación todas sus modalidades", 1 % del presupuesto de
+# obra con mínimo 1,500; solo su fórmula E72 lo deja en 0 para el modo 3.
+
+@pytest.mark.parametrize("valor, saldo, obra, supervision", [
+    ("3000000", "1500000", "500000", "5000"),      # 1 % de la obra
+    ("3000000", "1500000", "100000", "1500"),      # mínimo
+    ("8000000", "3000000", "2000000", "18000"),    # máximo (no el de 6,600 de Compra)
+])
+def test_pasivo_remodelacion_cobra_supervision_de_uso_de_recursos(valor, saldo, obra, supervision):
+    from dataclasses import replace
+    from datetime import date
+
+    from motor_hipotecario.cat import flujos_cat
+
+    e = replace(_escenario_sustitucion(D(valor), D(saldo), 240), monto_remodelacion=D(obra))
+    e = replace(e, credito_actual=replace(e.credito_actual, institucion="Banorte"))
+    hoy = date(2026, 10, 27)
+    for clave in ("valora-ninguna", "pagos-oportunos-premium"):
+        nuevo = POR_ID[f"scotiabank-credirenovacion-pasivo-{clave}-2026-07-v3"]
+        anterior = POR_ID[f"scotiabank-credirenovacion-pasivo-{clave}-2026-07-v2"]
+        r = _evaluar_con_condiciones(e, nuevo, momento=hoy)
+        a = _evaluar_con_condiciones(e, anterior, momento=hoy)
+        assert r.elegible, r.motivos_rechazo
+        assert r.dictamen_tecnico == D(supervision) and a.dictamen_tecnico == 0
+        # Mismo crédito y tabla; la supervisión se paga de contado a la firma
+        assert r.monto_credito == a.monto_credito
+        assert [x.pago_total for x in r.tabla.renglones] == [x.pago_total for x in a.tabla.renglones]
+        assert r.desembolso_inicial - a.desembolso_inicial == D(supervision)
+        assert r.costo_total - a.costo_total == D(supervision)
+        # Entra al CAT como en los otros modos (AN7 del cotizador), sobre la obra
+        assert r.cat_estimado > a.cat_estimado
+        neto, _ = flujos_cat(r.tabla, r.producto, monto_dictamen=D(obra))
+        assert neto == r.monto_credito - r.avaluo - D(supervision)
+
+
+def test_pasivo_remodelacion_supervision_versiones():
+    from datetime import date
+
+    ayer, hoy = date(2026, 10, 26), date(2026, 10, 27)
+    for p in CATALOGO:
+        if p.id.startswith("scotiabank-credirenovacion-pasivo-") and p.id.endswith("-2026-07-v2"):
+            nuevo = POR_ID[p.id.replace("-v2", "-v3")]
+            assert p.vigente_en(ayer) and not p.vigente_en(hoy)
+            assert nuevo.vigente_en(hoy) and not nuevo.vigente_en(ayer)
+            # Solo cambia la supervisión: tasas, avalúo y seguros siguen igual
+            assert nuevo.tarifa_avaluo == p.tarifa_avaluo
+            assert (nuevo.tasa_anual, nuevo.tasas_escalonadas) == (p.tasa_anual, p.tasas_escalonadas)
+            assert nuevo.dictamen_sobre_obra and nuevo.dictamen_tecnico_maximo == D("18000")

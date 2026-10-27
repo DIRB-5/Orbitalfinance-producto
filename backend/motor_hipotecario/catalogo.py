@@ -1903,6 +1903,53 @@ CATALOGO[:] = [
 
 
 # ---------------------------------------------------------------------------
+# Supervisión de uso de recursos en Pasivo + Remodelación (julio 2026)
+# ---------------------------------------------------------------------------
+# El "dictamen técnico" del cotizador es la comisión "Contratación -
+# supervisión de uso de recursos": estudio previo y visitas que definen los
+# avances de obra (folleto 'Renovación', p. 16). El documento de comisiones
+# de julio 2026 (p. 4) la cobra en toda la columna de Renovación, incluida
+# Renovación + Pago de Pasivos: 1 %, máximo $18,000 (el máximo de $6,600 es
+# solo de Adquisición + Renovación, folleto p. 18). La tarifa del cotizador
+# (Simulador Valora!AC92:AD96) dice lo mismo: "Renovación todas sus
+# modalidades", 1 % del presupuesto de obra, mínimo 1,500 y máximo 18,000;
+# solo su fórmula E72 la pone en 0 para el modo 3. El contrato RECA de
+# Renovación y Pago de Pasivos la pacta (Décima Tercera b). Las -2026-07-v2
+# de Pasivo + Remodelación se cierran el 2026-10-26 y las sustituyen las -v3.
+_PASIVO_RENOVACION_SIN_SUPERVISION = [
+    p for p in CATALOGO
+    if p.id.startswith("scotiabank-credirenovacion-pasivo-") and p.id.endswith("-2026-07-v2")
+]
+CATALOGO[:] = [
+    replace(p, vigente_hasta=date(2026, 10, 26),
+            notas=p.notas + " VERSIÓN CERRADA el 2026-10-26: no cobraba la supervisión de uso "
+            "de recursos; la sustituye la -v3.")
+    if p in _PASIVO_RENOVACION_SIN_SUPERVISION else p
+    for p in CATALOGO
+] + [
+    replace(
+        p,
+        id=p.id.replace("-2026-07-v2", "-2026-07-v3"),
+        dictamen_tecnico_pct=Decimal("0.01"),
+        dictamen_tecnico_minimo=Decimal("1500"),
+        dictamen_tecnico_maximo=Decimal("18000"),
+        dictamen_sobre_obra=True,
+        vigente_desde=date(2026, 10, 27),
+        vigente_hasta=None,
+        fuente=p.fuente + " Supervisión de uso de recursos de "
+        + _COMISIONES_HIPOTECARIO + " y de la tarifa del cotizador (Simulador Valora!AC92:AD96).",
+        notas=p.notas.replace("Sin apertura, avalúo ni dictamen.", "Sin apertura.")
+        + " Supervisión de uso de recursos (dictamen técnico): 1 % de la obra, mínimo "
+        "$1,500 y máximo $18,000, de contado a la firma y dentro del CAT como en los otros "
+        "modos; la fórmula del cotizador no la cobraba en este modo, aunque su tarifa y el "
+        "documento de comisiones sí. SUPUESTO: se cobra una vez sobre toda la obra; el "
+        "documento dice que va «en función de la ministración que corresponda».",
+    )
+    for p in _PASIVO_RENOVACION_SIN_SUPERVISION
+]
+
+
+# ---------------------------------------------------------------------------
 # Contratos de adhesión vigentes en el RECA (CONDUSEF), consultados 2026-10-26
 # ---------------------------------------------------------------------------
 # Los cotizadores citan los registros de enero 2024; todos los contratos

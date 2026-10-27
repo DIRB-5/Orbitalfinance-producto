@@ -275,6 +275,7 @@ function adaptarProducto(p) {
     requisitosCliente: p.requisitosCliente || [],
     dictamenTecnico: num(p.dictamenTecnicoPct) ? {
       pct: num(p.dictamenTecnicoPct), minimo: num(p.dictamenTecnicoMinimo), maximo: num(p.dictamenTecnicoMaximo),
+      sobreObra: !!p.dictamenSobreObra,
     } : null,
     montoMinimo: num(p.montoMinimo),
     montoMaximo: num(p.montoMaximo),

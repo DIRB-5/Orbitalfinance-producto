@@ -309,3 +309,22 @@ def test_entregas_por_avance_de_obra_por_api():
     assert [r["disposicion"] for r in valora["tabla"][:5]] == ["0.00", "0.00", "0.00", "750000.00", "0.00"]
     assert valora["pagoRegularInicial"] == valora["tabla"][3]["pagoTotal"]
 
+
+
+def test_catalogo_expone_la_base_de_la_supervision_de_obra():
+    productos = {p["id"]: p for p in cliente.get("/api/catalogo").json()["productos"]}
+    pasivo = productos["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v3"]
+    assert (pasivo["dictamenTecnicoPct"], pasivo["dictamenTecnicoMaximo"]) == ("0.01", "18000.00")
+    assert pasivo["dictamenSobreObra"] is True
+    assert productos["scotiabank-credirenovacion-valora-ninguna-2026-07"]["dictamenSobreObra"] is False
+
+
+def test_pasivo_con_remodelacion_cobra_la_supervision_por_api():
+    cuerpo = {**TODAS_LAS_CONDICIONES, "valorVivienda": "3000000", "enganche": "1500000", "plazoMeses": 240,
+              "destino": "sustitucion", "montoRemodelacion": "500000",
+              "creditoActual": {"saldoInsoluto": "1500000", "pagoMensual": "18000",
+                                "plazoRemanenteMeses": 240, "institucion": "Banorte"}}
+    opciones = {o["productoId"]: o for o in cliente.post("/api/comparar", json=cuerpo).json()["opciones"]}
+    pasivo = opciones["scotiabank-credirenovacion-pasivo-valora-ninguna-2026-07-v3"]
+    assert pasivo["elegible"], pasivo["motivosRechazo"]
+    assert pasivo["dictamenTecnico"] == "5000.00"

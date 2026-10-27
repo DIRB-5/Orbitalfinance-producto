@@ -23,7 +23,7 @@ suscripción es la brokerage, y el asesor rota.
                      liquidez, remodelación) de 8 instituciones.
     referencias.py   Escenarios de TIIE (conservador/base/estrés) con su fuente.
   app/               FastAPI: /api/catalogo, /api/comparar. Capa delgada.
-  tests/             418 pruebas. No deben bajar de ahí.
+  tests/             424 pruebas. No deben bajar de ahí.
     fixtures/catalogo_prueba.py   Catálogo ficticio, solo para pruebas.
 /api/index.py        Entrada de Vercel. ÚNICO .py en /api: Vercel convierte
                      cada .py de esa carpeta en una función.
@@ -209,8 +209,12 @@ igual en ambos lados.
 **Remodelación** (Scotiabank Credirenovación, modo 1): obra en la vivienda
 propia sin hipoteca; `valor_vivienda` es el valor actual y el monto es el
 presupuesto de obra. Sin enganche. El dictamen técnico de la obra
-(`dictamen_tecnico_pct` con mínimo y máximo) es un cargo único que entra
-completo al desembolso, al costo total y al CAT. El crédito puede
+(`dictamen_tecnico_pct` con mínimo y máximo) es la comisión "Contratación -
+supervisión de uso de recursos" del banco: 1 % del presupuesto de obra,
+mínimo $1,500 (cotizador) y máximo $18,000, en todas las modalidades de
+Renovación según el documento de comisiones de julio 2026. Es un cargo único
+que entra completo al desembolso, al costo total y al CAT (como el AN7 del
+cotizador; el folleto no la lista entre las comisiones del CAT). El crédito puede
 entregarse por avance de obra (`Escenario.ministraciones`, hasta
 `max_ministraciones` del producto): el saldo crece con cada entrega, el pago
 se reinicia sobre lo acumulado (factor al millar, con el crecimiento anual
@@ -227,7 +231,9 @@ obra (`dictamen_sobre_obra`), máximo $6,600, según el folleto oficial
 sobre compra + obra. Pasivo + remodelación (modo 3)
 va en sustitución con la misma mecánica, tope de obra
 (`remodelacion_max_pct_valor`, 35 % del valor actual) y aviso de que el
-ahorro contra quedarse incluye la obra. La segunda hipoteca con el mismo
+ahorro contra quedarse incluye la obra. Cobra la supervisión sobre la obra
+(versión `-2026-07-v3`); la fórmula del cotizador no la cobraba en este modo,
+aunque su propia tarifa sí. La segunda hipoteca con el mismo
 banco (modo 4) va en remodelación con `credito_actual` = la hipoteca vigente,
 que NO se refinancia (`segunda_hipoteca`): el crédito es solo la obra, el
 aforo suma el saldo vigente sobre valor + obra, sin seguro de daños, sin
@@ -531,7 +537,7 @@ compatibilidad con una institución real. El fixture no se ajusta para que pase.
 
 ## Cómo trabajar aquí
 
-- Corre `pytest` antes y después de tocar el motor. 418 pruebas, no deben bajar.
+- Corre `pytest` antes y después de tocar el motor. 424 pruebas, no deben bajar.
 - Cambios al motor requieren prueba nueva que falle antes y pase después.
 - No refactorices el motor "para limpiarlo" sin motivo funcional. Está escrito
   para leerse, no para ser corto.

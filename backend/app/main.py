@@ -134,6 +134,7 @@ def _producto(p: ProductoHipotecario) -> ProductoSalida:
         dictamen_tecnico_pct=_tasa(p.dictamen_tecnico_pct),
         dictamen_tecnico_minimo=_dinero(p.dictamen_tecnico_minimo),
         dictamen_tecnico_maximo=_dinero_opcional(p.dictamen_tecnico_maximo),
+        dictamen_sobre_obra=p.dictamen_sobre_obra,
         requiere_cofinanciamiento=p.requiere_cofinanciamiento,
         dia_de_pago=p.dia_de_pago,
         primer_periodo_dias_reales=p.primer_periodo_dias_reales,
