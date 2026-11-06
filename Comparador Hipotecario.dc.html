@@ -998,6 +998,13 @@
         </sc-for>
       </div>
 
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:16px; margin-bottom:10px; flex-wrap:wrap;">
+        <div style="font-size:13px; color:#7A756C;">{{ catalogoResumen }}</div>
+        <div style="display:flex; gap:18px; font-size:13px;">
+          <span onClick="{{ catalogoDesplegarTodas }}" style="color:#1B3A5C; cursor:pointer;" style-hover="{{ linkHover }}">Desplegar todas</span>
+          <span onClick="{{ catalogoPlegarTodas }}" style="color:#1B3A5C; cursor:pointer;" style-hover="{{ linkHover }}">Plegar todas</span>
+        </div>
+      </div>
       <div style="border:1px solid #E4E1DC; background:#FFFDFB; overflow-x:auto; -webkit-overflow-scrolling:touch;">
         <table style="width:100%; min-width:940px; border-collapse:collapse; font-variant-numeric:tabular-nums;">
           <thead>
@@ -1009,16 +1016,29 @@
             </tr>
           </thead>
           <tbody>
-            <sc-for list="{{ catalogoFilas }}" as="p" hint-placeholder-count="5">
+            <sc-for list="{{ catalogoGrupos }}" as="g" hint-placeholder-count="4">
+              <tr onClick="{{ g.toggle }}" style="{{ g.trStyle }}" style-hover="{{ rowHover }}">
+                <td style="padding:14px 0 14px 20px;"><span onClick="{{ g.togglePref }}" style="{{ g.estrellaStyle }}" title="{{ g.prefTitulo }}">★</span></td>
+                <td colspan="2" style="padding:14px 12px;">
+                  <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+                    <span style="{{ g.chevron }}">›</span>
+                    <span style="font-size:14.5px; font-weight:600; white-space:nowrap;">{{ g.institucion }}</span>
+                    <span style="font-size:12.5px; color:#7A756C;">{{ g.conteo }}</span>
+                  </div>
+                </td>
+                <td style="padding:14px 12px; font-size:13px; color:#4A463F; text-align:right; white-space:nowrap;">{{ g.rangoTasa }}</td>
+                <td colspan="4" style="padding:14px 20px 14px 12px;"></td>
+              </tr>
+              <sc-if value="{{ g.abierta }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ g.filas }}" as="p" hint-placeholder-count="3">
               <tr style="border-bottom:1px solid #EFECE6;" style-hover="{{ rowHover }}">
-                <td style="padding:14px 0 14px 20px;"><span onClick="{{ p.togglePref }}" style="{{ p.estrellaStyle }}" title="{{ p.prefTitulo }}">★</span></td>
-                <td onClick="{{ p.abrir }}" style="padding:14px 12px; font-size:14px; font-weight:500; cursor:pointer; white-space:nowrap;">{{ p.institucion }}</td>
-                <td onClick="{{ p.abrir }}" style="padding:14px 12px; font-size:13.5px; color:#4A463F; cursor:pointer;">
+                <td style="padding:14px 0 14px 20px;"></td>
+                <td colspan="2" onClick="{{ p.abrir }}" style="padding:14px 12px 14px 34px; font-size:13.5px; color:#4A463F; cursor:pointer;">
                   <div style="display:flex; align-items:baseline; gap:8px;">
                     <span style="{{ p.chevron }}">›</span>
                     <span>{{ p.nombre }}</span>
                   </div>
-                  <div style="font-size:12px; color:#7A756C; margin-top:3px;">{{ p.categoria }}</div>
+                  <div style="font-size:12px; color:#7A756C; margin-top:3px;">{{ p.categoria }}{{ p.negociado }}</div>
                   <div style="font-size:12px; color:#7A756C;">{{ p.fuente }}</div>
                   <div style="font-size:12px; color:#7A756C;">Última actualización: {{ p.actualizado }}</div>
                 </td>
@@ -1059,6 +1079,8 @@
                     </div>
                   </td>
                 </tr>
+              </sc-if>
+            </sc-for>
               </sc-if>
             </sc-for>
           </tbody>
@@ -1937,6 +1959,8 @@ class Component extends DCLogic {
     marca: "corporativa_asesor",
     modal: null,
     catalogoTab: "productos",
+    // Instituciones desplegadas en el catálogo (todas plegadas al entrar)
+    catalogoAbiertas: {},
     catCol: "institucion",
     catDir: "asc",
     productoAbierto: null,
@@ -2170,6 +2194,66 @@ class Component extends DCLogic {
     clearTimeout(this._tCerrar);
     this.setState({ productoAbierto: null, productoCerrando: id });
     this._tCerrar = setTimeout(() => this.setState({ productoCerrando: null }), 220);
+  }
+
+  // Catálogo agrupado por institución: un encabezado desplegable por banco
+  // con sus productos debajo, ya ordenados por la columna elegida. Los grupos
+  // van en orden alfabético (inverso si se ordena por institución
+  // descendente). Un grupo con el producto abierto se mantiene desplegado.
+  catalogoAgrupado(filas) {
+    const s = this.state;
+    const grupos = [];
+    const porNombre = {};
+    filas.forEach((f) => {
+      if (!porNombre[f._institucion]) {
+        porNombre[f._institucion] = { nombre: f._institucion, filas: [] };
+        grupos.push(porNombre[f._institucion]);
+      }
+      porNombre[f._institucion].filas.push(f);
+    });
+    const dir = s.catCol === "institucion" && s.catDir === "desc" ? -1 : 1;
+    grupos.sort((a, b) => a.nombre.localeCompare(b.nombre, "es") * dir);
+    const fijarTodas = (valor) => () => this.setState({
+      catalogoAbiertas: Object.fromEntries(grupos.map((g) => [g.nombre, valor])),
+      productoAbierto: valor ? s.productoAbierto : null, productoCerrando: null,
+    });
+    const total = filas.length;
+    return {
+      catalogoResumen: total === 0 ? "Sin productos en esta sección"
+        : grupos.length + (grupos.length === 1 ? " institución · " : " instituciones · ")
+          + total + (total === 1 ? " producto" : " productos"),
+      catalogoDesplegarTodas: fijarTodas(true),
+      catalogoPlegarTodas: fijarTodas(false),
+      catalogoGrupos: grupos.map((g) => {
+        const conProducto = g.filas.some((f) => f.expandido);
+        const abierta = !!s.catalogoAbiertas[g.nombre] || conProducto;
+        const vigentes = g.filas.filter((f) => !f._vencido);
+        const tasas = vigentes.map((f) => f._tasa).filter((t) => t != null);
+        const min = tasas.length ? Math.min(...tasas) : null;
+        const max = tasas.length ? Math.max(...tasas) : null;
+        return Object.assign(this.prefInfo(g.nombre), {
+          institucion: g.nombre,
+          conteo: g.filas.length + (g.filas.length === 1 ? " producto" : " productos")
+            + (vigentes.length < g.filas.length
+              ? " · " + vigentes.length + (vigentes.length === 1 ? " vigente" : " vigentes") : ""),
+          rangoTasa: min == null ? "" : (min === max ? this.pct(min) : this.pct(min) + " – " + this.pct(max)),
+          abierta,
+          filas: g.filas,
+          trStyle: { borderBottom: "1px solid #EFECE6", cursor: "pointer", background: abierta ? "#F8F5F1" : "transparent" },
+          chevron: {
+            display: "inline-block", fontSize: "13px", color: "#A8A29A", lineHeight: 1,
+            transform: abierta ? "rotate(90deg)" : "none",
+            transition: "transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1)",
+          },
+          toggle: () => this.setState((st) => ({
+            catalogoAbiertas: Object.assign({}, st.catalogoAbiertas, { [g.nombre]: !abierta }),
+            // Al plegar se cierra el producto abierto de ese banco
+            productoAbierto: abierta && conProducto ? null : st.productoAbierto,
+            productoCerrando: null,
+          })),
+        });
+      }),
+    };
   }
 
   prefInfo(nombre) {
@@ -4173,7 +4257,7 @@ class Component extends DCLogic {
         },
         ordenar: () => this.setState({ catCol: k, catDir: s.catCol === k && s.catDir === "asc" ? "desc" : "asc" }),
       })),
-      catalogoFilas: m.productos.filter((p) => s.catalogoTab === "negociadas" ? p.negociadoPor : !p.negociadoPor)
+      ...this.catalogoAgrupado(m.productos.filter((p) => s.catalogoTab === "negociadas" ? p.negociadoPor : !p.negociadoPor)
       .map((p) => {
         const familia = p.familia === "pyme" ? "PyME" : "Hipotecario";
         const eti = (s.mx && s.mx.ETIQUETA_SUBTIPO) || {};
@@ -4209,16 +4293,21 @@ class Component extends DCLogic {
           institucion: p.institucion, categoria: p._categoria, vigencia: p.vigenteHasta || "",
         })[s.catCol];
         const c = String(val(a)).localeCompare(String(val(b)), "es") * dir;
-        // Desempate estable por institución, para que ordenar por categoría
-        // siga agrupando legiblemente.
-        return c !== 0 ? c : a.institucion.localeCompare(b.institucion, "es");
+        // Desempate estable por institución y nombre: dentro de cada grupo
+        // la lista se lee en orden aunque se ordene por institución.
+        return c !== 0 ? c : (a.institucion.localeCompare(b.institucion, "es")
+          || a.nombre.localeCompare(b.nombre, "es"));
       })
       .map((p) => {
         const vencido = !!p.vigenteHasta && new Date(p.vigenteHasta) < new Date(m.HOY);
         const cerrando = s.productoCerrando === p.id;
         const expandido = s.productoAbierto === p.id || cerrando;
-        return Object.assign(this.prefInfo(p.institucion), {
+        return {
+          _institucion: p.institucion,
+          _tasa: p._tasa,
+          _vencido: vencido,
           categoria: p._categoria,
+          negociado: p.negociadoPor ? " · negociado por " + p.negociadoPor : "",
           expandido,
           chevron: {
             display: "inline-block", fontSize: "13px", color: "#A8A29A", lineHeight: 1,
@@ -4243,8 +4332,8 @@ class Component extends DCLogic {
             border: "1px solid " + (vencido ? "#DFDBD4" : ACENTO), color: vencido ? "#7A756C" : ACENTO,
           },
           abrir: () => expandido ? this.cerrarFila(p.id) : this.setState({ productoAbierto: p.id, productoCerrando: null }),
-        });
-      }),
+        };
+      })),
       hayAvisoDivergencia: s.avisoDiv != null,
       avisoDivergencia: "La opción recomendada no es la de menor costo total. Diferencia: "
         + mxn(s.avisoDiv || 0) + ". Queda registrado internamente.",
